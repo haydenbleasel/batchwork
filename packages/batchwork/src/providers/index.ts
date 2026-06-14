@@ -4,12 +4,11 @@ import { anthropicAdapter } from "./anthropic";
 import { openaiAdapter } from "./openai";
 
 const adapters: Record<BatchProvider, BatchAdapter> = {
-  openai: openaiAdapter,
   anthropic: anthropicAdapter,
+  openai: openaiAdapter,
 };
 
-export function getAdapter(provider: BatchProvider): BatchAdapter {
-  return adapters[provider];
-}
+export const getAdapter = (provider: BatchProvider): BatchAdapter =>
+  adapters[provider];
 
 export type { BatchAdapter, SubmitInput } from "./adapter";

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "types": ["node"]
+    "types": ["node"],
+    "strictNullChecks": true
   },
   "include": ["src", "test", "examples", "tsdown.config.ts", "vitest.config.ts"]
 }

@@ -7,6 +7,7 @@
  */
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
+
 import { batch } from "../src/index";
 
 const hasOpenAI = Boolean(process.env.OPENAI_API_KEY);
@@ -24,8 +25,8 @@ const model = hasOpenAI
 console.log(`Submitting a batch to ${hasOpenAI ? "OpenAI" : "Anthropic"}…`);
 
 const job = await batch({
-  model,
   defaults: { maxOutputTokens: 64 },
+  model,
   requests: [
     {
       customId: "capital-fr",
@@ -41,11 +42,11 @@ const job = await batch({
 console.log(`Submitted ${job.id} (${job.provider}). Waiting for completion…`);
 
 await job.wait({
-  pollIntervalMs: 10_000,
   onPoll: (snapshot) =>
     console.log(
       `  status: ${snapshot.status} ${JSON.stringify(snapshot.requestCounts)}`
     ),
+  pollIntervalMs: 10_000,
 });
 
 for await (const result of job.results()) {

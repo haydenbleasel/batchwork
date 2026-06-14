@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { anthropicAdapter } from "../src/providers/anthropic";
 import { openaiAdapter } from "../src/providers/openai";
 import type { BatchResult } from "../src/types";
@@ -10,78 +11,76 @@ interface Route {
   match: (url: string, method: string) => boolean;
 }
 
-function install(routes: Route[]) {
-  const fetchMock = vi.fn(
-    (input: string | URL | Request, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
+const install = (routes: Route[]) => {
+  const fetchMock = vi.fn<
+    (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+  >((input, init) => {
+    const url = typeof input === "string" ? input : String(input);
+    const method = init?.method ?? "GET";
+    const route = routes.find((candidate) => candidate.match(url, method));
+    if (!route) {
+      return Promise.reject(new Error(`unexpected ${method} ${url}`));
     }
-  );
+    const payload =
+      typeof route.body === "string" ? route.body : JSON.stringify(route.body);
+    return Promise.resolve(new Response(payload, { status: 200 }));
+  });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
-}
+};
 
-async function collect(
+const collect = async (
   source: AsyncIterable<BatchResult>
-): Promise<BatchResult[]> {
+): Promise<BatchResult[]> => {
   const out: BatchResult[] = [];
   for await (const item of source) {
     out.push(item);
   }
   return out;
-}
+};
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+describe("anthropic adapter", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
-describe("anthropicAdapter", () => {
   it("submits an inline request array and normalizes the snapshot", async () => {
     const mock = install([
       {
-        match: (url, method) =>
-          url.endsWith("/v1/messages/batches") && method === "POST",
         body: {
+          created_at: "2026-01-01T00:00:00Z",
+          expires_at: "2026-01-02T00:00:00Z",
           id: "msgbatch_1",
           processing_status: "in_progress",
           request_counts: {
+            canceled: 0,
+            errored: 0,
+            expired: 0,
             processing: 2,
             succeeded: 0,
-            errored: 0,
-            canceled: 0,
-            expired: 0,
           },
-          created_at: "2026-01-01T00:00:00Z",
-          expires_at: "2026-01-02T00:00:00Z",
           results_url: null,
         },
+        match: (url, method) =>
+          url.endsWith("/v1/messages/batches") && method === "POST",
       },
     ]);
 
     const snapshot = await anthropicAdapter.submit({
       built: [
         {
-          customId: "a",
-          endpoint: "/v1/messages",
           body: {
-            model: "claude",
             max_tokens: 10,
             messages: [],
+            model: "claude",
             stream: false,
           },
+          customId: "a",
+          endpoint: "/v1/messages",
         },
       ],
-      endpoint: "/v1/messages",
       credentials,
+      endpoint: "/v1/messages",
     });
 
     expect(snapshot.id).toBe("msgbatch_1");
@@ -104,34 +103,34 @@ describe("anthropicAdapter", () => {
 
     install([
       {
-        match: (url, method) =>
-          url.endsWith("/v1/messages/batches/b1") && method === "GET",
         body: {
           id: "b1",
           processing_status: "ended",
           request_counts: {
+            canceled: 1,
+            errored: 1,
+            expired: 1,
             processing: 0,
             succeeded: 1,
-            errored: 1,
-            canceled: 1,
-            expired: 1,
           },
           results_url:
             "https://api.anthropic.com/v1/messages/batches/b1/results",
         },
+        match: (url, method) =>
+          url.endsWith("/v1/messages/batches/b1") && method === "GET",
       },
-      { match: (url) => url.endsWith("/results"), body: jsonl },
+      { body: jsonl, match: (url) => url.endsWith("/results") },
     ]);
 
     const out = await collect(anthropicAdapter.results("b1", credentials));
-    expect(out.map((item) => item.status)).toEqual([
+    expect(out.map((item) => item.status)).toStrictEqual([
       "succeeded",
       "errored",
       "expired",
       "canceled",
     ]);
     expect(out[0]?.text).toBe("Hello");
-    expect(out[0]?.usage).toEqual({
+    expect(out[0]?.usage).toStrictEqual({
       inputTokens: 5,
       outputTokens: 2,
       totalTokens: 7,
@@ -141,35 +140,39 @@ describe("anthropicAdapter", () => {
   });
 });
 
-describe("openaiAdapter", () => {
+describe("openai adapter", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("uploads a JSONL file then creates the batch", async () => {
     const mock = install([
       {
-        match: (url, method) => url.endsWith("/files") && method === "POST",
         body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
       },
       {
-        match: (url, method) => url.endsWith("/batches") && method === "POST",
         body: {
-          id: "batch_1",
-          status: "validating",
-          request_counts: { total: 1, completed: 0, failed: 0 },
           created_at: 1_719_168_000,
           expires_at: 1_719_254_400,
+          id: "batch_1",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
         },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
       },
     ]);
 
     const snapshot = await openaiAdapter.submit({
       built: [
         {
+          body: { messages: [], model: "gpt-4o-mini" },
           customId: "a",
           endpoint: "/v1/chat/completions",
-          body: { model: "gpt-4o-mini", messages: [] },
         },
       ],
-      endpoint: "/v1/chat/completions",
       credentials,
+      endpoint: "/v1/chat/completions",
     });
 
     expect(snapshot.id).toBe("batch_1");
@@ -189,18 +192,18 @@ describe("openaiAdapter", () => {
 
     install([
       {
+        body: {
+          error_file_id: "file-err",
+          id: "batch_1",
+          output_file_id: "file-out",
+          request_counts: { completed: 1, failed: 1, total: 2 },
+          status: "completed",
+        },
         match: (url, method) =>
           url.includes("/batches/batch_1") && method === "GET",
-        body: {
-          id: "batch_1",
-          status: "completed",
-          output_file_id: "file-out",
-          error_file_id: "file-err",
-          request_counts: { total: 2, completed: 1, failed: 1 },
-        },
       },
-      { match: (url) => url.includes("/files/file-out/content"), body: output },
-      { match: (url) => url.includes("/files/file-err/content"), body: errors },
+      { body: output, match: (url) => url.includes("/files/file-out/content") },
+      { body: errors, match: (url) => url.includes("/files/file-err/content") },
     ]);
 
     const out = await collect(openaiAdapter.results("batch_1", credentials));
@@ -210,7 +213,7 @@ describe("openaiAdapter", () => {
       status: "succeeded",
       text: "Hi",
     });
-    expect(out[0]?.usage).toEqual({
+    expect(out[0]?.usage).toStrictEqual({
       inputTokens: 5,
       outputTokens: 2,
       totalTokens: 7,

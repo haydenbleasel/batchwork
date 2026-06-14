@@ -1,4 +1,7 @@
+import type * as AnthropicModule from "@ai-sdk/anthropic";
+import type * as OpenAIModule from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
+
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials } from "./types";
 
@@ -22,15 +25,15 @@ export interface ResolvedModel {
  */
 const CAPTURE_API_KEY = "batchwork-capture";
 
-function splitOnce(value: string, separator: string): [string, string] {
+const splitOnce = (value: string, separator: string): [string, string] => {
   const index = value.indexOf(separator);
   if (index === -1) {
     return [value, ""];
   }
   return [value.slice(0, index), value.slice(index + separator.length)];
-}
+};
 
-function openaiKind(suffix: string): OpenAIModelKind {
+const openaiKind = (suffix: string): OpenAIModelKind => {
   if (suffix === "responses") {
     return "responses";
   }
@@ -39,22 +42,22 @@ function openaiKind(suffix: string): OpenAIModelKind {
   }
   // Default to chat completions: the most widely supported batch endpoint.
   return "chat";
-}
+};
 
 /** Resolve a `"provider/model"` string into a provider + model id. */
-function resolveModelString(value: string): ResolvedModel {
+const resolveModelString = (value: string): ResolvedModel => {
   const [providerId, modelId] = splitOnce(value, "/");
   if (modelId === "") {
     throw new UnsupportedProviderError(value);
   }
   if (providerId === "openai") {
-    return { provider: "openai", modelId, kind: "chat" };
+    return { kind: "chat", modelId, provider: "openai" };
   }
   if (providerId === "anthropic") {
-    return { provider: "anthropic", modelId, kind: "chat" };
+    return { kind: "chat", modelId, provider: "anthropic" };
   }
   throw new UnsupportedProviderError(providerId);
-}
+};
 
 /**
  * Resolve any AI SDK `model` (a `"provider/model"` string or a provider model
@@ -62,7 +65,7 @@ function resolveModelString(value: string): ResolvedModel {
  * shape. Gateway/registry model objects whose `modelId` is itself
  * `"provider/model"` are also handled.
  */
-export function resolveModel(model: LanguageModel): ResolvedModel {
+export const resolveModel = (model: LanguageModel): ResolvedModel => {
   if (typeof model === "string") {
     return resolveModelString(model);
   }
@@ -70,51 +73,51 @@ export function resolveModel(model: LanguageModel): ResolvedModel {
   const [family, suffix] = splitOnce(model.provider, ".");
   if (family === "openai") {
     return {
-      provider: "openai",
-      modelId: model.modelId,
       kind: openaiKind(suffix),
+      modelId: model.modelId,
+      provider: "openai",
     };
   }
   if (family === "anthropic") {
-    return { provider: "anthropic", modelId: model.modelId, kind: "chat" };
+    return { kind: "chat", modelId: model.modelId, provider: "anthropic" };
   }
   // Gateway/registry providers carry the real target in the model id.
   if (model.modelId.includes("/")) {
     return resolveModelString(model.modelId);
   }
   throw new UnsupportedProviderError(model.provider);
-}
+};
 
-async function loadOpenAI(): Promise<typeof import("@ai-sdk/openai")> {
+const loadOpenAI = async (): Promise<typeof OpenAIModule> => {
   try {
     return await import("@ai-sdk/openai");
   } catch {
     throw new MissingDependencyError("@ai-sdk/openai", "OpenAI");
   }
-}
+};
 
-async function loadAnthropic(): Promise<typeof import("@ai-sdk/anthropic")> {
+const loadAnthropic = async (): Promise<typeof AnthropicModule> => {
   try {
     return await import("@ai-sdk/anthropic");
   } catch {
     throw new MissingDependencyError("@ai-sdk/anthropic", "Anthropic");
   }
-}
+};
 
 /**
  * Construct an AI SDK model wired to a capturing `fetch`, used to derive the
  * provider request body for each batch item without making a network call.
  */
-export async function createCaptureModel(
+export const createCaptureModel = async (
   resolved: ResolvedModel,
   credentials: ProviderCredentials,
   fetchImpl: CapturingFetch
-): Promise<LanguageModel> {
+): Promise<LanguageModel> => {
   const settings = {
     apiKey: credentials.apiKey ?? CAPTURE_API_KEY,
     baseURL: credentials.baseURL,
-    headers: credentials.headers,
     fetch: fetchImpl,
+    headers: credentials.headers,
   };
 
   if (resolved.provider === "openai") {
@@ -132,4 +135,4 @@ export async function createCaptureModel(
   const { createAnthropic } = await loadAnthropic();
   const provider = createAnthropic(settings);
   return provider.messages(resolved.modelId);
-}
+};

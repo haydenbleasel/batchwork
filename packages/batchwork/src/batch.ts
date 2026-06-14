@@ -10,13 +10,11 @@ import type {
   ProviderCredentials,
 } from "./types";
 
-function pickCredentials(source: ProviderCredentials): ProviderCredentials {
-  return {
-    apiKey: source.apiKey,
-    baseURL: source.baseURL,
-    headers: source.headers,
-  };
-}
+const pickCredentials = (source: ProviderCredentials): ProviderCredentials => ({
+  apiKey: source.apiKey,
+  baseURL: source.baseURL,
+  headers: source.headers,
+});
 
 /**
  * Submit a batch of requests to the model's provider and return a handle.
@@ -32,7 +30,7 @@ function pickCredentials(source: ProviderCredentials): ProviderCredentials {
  * });
  * const results = await job.wait().then(() => job.collect());
  */
-export async function batch(options: BatchOptions): Promise<BatchJob> {
+export const batch = async (options: BatchOptions): Promise<BatchJob> => {
   if (options.requests.length === 0) {
     throw new BatchworkError("batchwork: `requests` must not be empty.");
   }
@@ -49,36 +47,36 @@ export async function batch(options: BatchOptions): Promise<BatchJob> {
   );
   const snapshot = await adapter.submit({
     built,
-    endpoint: built[0]?.endpoint ?? "",
     credentials,
+    endpoint: built[0]?.endpoint ?? "",
     metadata: options.metadata,
   });
 
   return new BatchJob(adapter, credentials, snapshot);
-}
+};
 
 /**
  * Rehydrate a {@link BatchJob} for an existing batch id (e.g. one persisted
  * after submission). The `model` only needs to identify the provider.
  */
-export async function getBatch(ref: BatchRef): Promise<BatchJob> {
+export const getBatch = async (ref: BatchRef): Promise<BatchJob> => {
   const resolved = resolveModel(ref.model);
   const adapter = getAdapter(resolved.provider);
   const credentials = pickCredentials(ref);
   const snapshot = await adapter.retrieve(ref.id, credentials);
   return new BatchJob(adapter, credentials, snapshot);
-}
+};
 
 /** Stream the results of an existing batch by id, without a handle. */
-export function getBatchResults(ref: BatchRef): AsyncGenerator<BatchResult> {
+export const getBatchResults = (ref: BatchRef): AsyncGenerator<BatchResult> => {
   const resolved = resolveModel(ref.model);
   const adapter = getAdapter(resolved.provider);
   return adapter.results(ref.id, pickCredentials(ref));
-}
+};
 
 /** Request cancellation of an existing batch by id. */
-export async function cancelBatch(ref: BatchRef): Promise<void> {
+export const cancelBatch = async (ref: BatchRef): Promise<void> => {
   const resolved = resolveModel(ref.model);
   const adapter = getAdapter(resolved.provider);
   await adapter.cancel(ref.id, pickCredentials(ref));
-}
+};

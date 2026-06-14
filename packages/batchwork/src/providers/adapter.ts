@@ -16,15 +16,15 @@ export interface SubmitInput {
 
 /** A provider's batch lifecycle: submit, poll, stream results, cancel. */
 export interface BatchAdapter {
-  cancel(id: string, credentials: ProviderCredentials): Promise<void>;
+  cancel: (id: string, credentials: ProviderCredentials) => Promise<void>;
   readonly id: BatchProvider;
-  results(
+  results: (
     id: string,
     credentials: ProviderCredentials
-  ): AsyncGenerator<BatchResult>;
-  retrieve(
+  ) => AsyncGenerator<BatchResult>;
+  retrieve: (
     id: string,
     credentials: ProviderCredentials
-  ): Promise<BatchSnapshot>;
-  submit(input: SubmitInput): Promise<BatchSnapshot>;
+  ) => Promise<BatchSnapshot>;
+  submit: (input: SubmitInput) => Promise<BatchSnapshot>;
 }

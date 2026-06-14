@@ -7,16 +7,16 @@
 const NEWLINE = "\n";
 
 /** Serialize an array of values to a JSONL string (trailing newline included). */
-export function encodeJsonl(items: readonly unknown[]): string {
+export const encodeJsonl = (items: readonly unknown[]): string => {
   if (items.length === 0) {
     return "";
   }
   const body = items.map((item) => JSON.stringify(item)).join(NEWLINE);
   return `${body}${NEWLINE}`;
-}
+};
 
 /** Parse a complete JSONL string into an array, skipping blank lines. */
-export function parseJsonl<T = unknown>(text: string): T[] {
+export const parseJsonl = <T = unknown>(text: string): T[] => {
   const results: T[] = [];
   for (const line of text.split(NEWLINE)) {
     const trimmed = line.trim();
@@ -25,17 +25,15 @@ export function parseJsonl<T = unknown>(text: string): T[] {
     }
   }
   return results;
-}
+};
 
-function isReadableStream(
+const isReadableStream = (
   source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
-): source is ReadableStream<Uint8Array> {
-  return (
-    "getReader" in source &&
-    typeof (source as ReadableStream<Uint8Array>).getReader === "function"
-  );
-}
+): source is ReadableStream<Uint8Array> =>
+  "getReader" in source &&
+  typeof (source as ReadableStream<Uint8Array>).getReader === "function";
 
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 async function* toByteIterable(
   source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
 ): AsyncGenerator<Uint8Array> {
@@ -49,6 +47,7 @@ async function* toByteIterable(
         if (chunk.value) {
           yield chunk.value;
         }
+        // oxlint-disable-next-line no-await-in-loop -- a stream is read sequentially.
         chunk = await reader.read();
       }
     } finally {
@@ -63,7 +62,10 @@ async function* toByteIterable(
 /**
  * Stream-parse JSONL from a byte stream, yielding one parsed value per line as
  * it arrives. Memory-efficient for large result files.
+ *
+ * @yields {T} the parsed value for each non-empty line.
  */
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 export async function* streamJsonl<T = unknown>(
   source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
 ): AsyncGenerator<T> {

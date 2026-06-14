@@ -1,3 +1,5 @@
+// oxlint-disable max-classes-per-file -- the error hierarchy is co-located by design.
+
 /** Base error for all batchwork failures. */
 export class BatchworkError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {

@@ -20,12 +20,12 @@ const TERMINAL_STATUSES: ReadonlySet<BatchStatus> = new Set<BatchStatus>([
 ]);
 
 /** Whether a status means the batch has finished processing. */
-export function isTerminalStatus(status: BatchStatus): boolean {
-  return TERMINAL_STATUSES.has(status);
-}
+export const isTerminalStatus = (status: BatchStatus): boolean =>
+  TERMINAL_STATUSES.has(status);
 
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
+const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
+  // oxlint-disable-next-line promise/avoid-new -- wrapping the callback-based setTimeout.
+  new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(new BatchworkError("batchwork: wait aborted."));
       return;
@@ -40,7 +40,6 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
       { once: true }
     );
   });
-}
 
 /**
  * A handle to a submitted batch. Returned by `batch()` and `getBatch()`. Use it
@@ -106,7 +105,9 @@ export class BatchJob {
           `batchwork: timed out waiting for batch "${this.id}".`
         );
       }
+      // oxlint-disable-next-line no-await-in-loop -- polling is inherently sequential.
       await delay(interval, options.signal);
+      // oxlint-disable-next-line no-await-in-loop -- polling is inherently sequential.
       snapshot = await this.poll();
       options.onPoll?.(snapshot);
     }

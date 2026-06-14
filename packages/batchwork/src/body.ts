@@ -1,14 +1,12 @@
-import { generateText, type LanguageModel } from "ai";
-
-type GenerateTextInput = Parameters<typeof generateText>[0];
+import { generateText } from "ai";
+import type { LanguageModel } from "ai";
 
 import { BatchworkError } from "./errors";
-import {
-  type CapturingFetch,
-  createCaptureModel,
-  type ResolvedModel,
-} from "./model";
+import { createCaptureModel } from "./model";
+import type { CapturingFetch, ResolvedModel } from "./model";
 import type { BatchDefaults, BatchRequest, ProviderCredentials } from "./types";
+
+type GenerateTextInput = Parameters<typeof generateText>[0];
 
 /** A provider request body derived from a single batch item. */
 export interface BuiltRequest {
@@ -26,19 +24,19 @@ const MAX_CAUSE_DEPTH = 10;
  * serialized. The body travels inside the error (not shared state), so capture
  * is correct even under concurrency.
  */
-class CaptureSignal extends Error {
+class CaptureSignalError extends Error {
   readonly url: string;
   readonly rawBody: string;
 
   constructor(url: string, rawBody: string) {
     super("batchwork:capture");
-    this.name = "CaptureSignal";
+    this.name = "CaptureSignalError";
     this.url = url;
     this.rawBody = rawBody;
   }
 }
 
-function resolveUrl(input: string | URL | Request): string {
+const resolveUrl = (input: string | URL | Request): string => {
   if (typeof input === "string") {
     return input;
   }
@@ -46,9 +44,9 @@ function resolveUrl(input: string | URL | Request): string {
     return input.toString();
   }
   return input.url;
-}
+};
 
-function extractBody(init?: RequestInit): string {
+const extractBody = (init?: RequestInit): string => {
   const body = init?.body;
   if (typeof body === "string") {
     return body;
@@ -59,77 +57,75 @@ function extractBody(init?: RequestInit): string {
   throw new BatchworkError(
     "batchwork: unable to read the provider request body during capture."
   );
-}
+};
 
 const captureFetch: CapturingFetch = (input, init) =>
-  Promise.reject(new CaptureSignal(resolveUrl(input), extractBody(init)));
+  Promise.reject(new CaptureSignalError(resolveUrl(input), extractBody(init)));
 
-function findCapture(error: unknown): CaptureSignal | undefined {
+const findCapture = (error: unknown): CaptureSignalError | undefined => {
   let current: unknown = error;
   let depth = 0;
   while (current && depth < MAX_CAUSE_DEPTH) {
-    if (current instanceof CaptureSignal) {
+    if (current instanceof CaptureSignalError) {
       return current;
     }
     current = (current as { cause?: unknown }).cause;
     depth += 1;
   }
-  return;
-}
+};
 
-function endpointFromUrl(url: string): string {
+const endpointFromUrl = (url: string): string => {
   try {
     return new URL(url).pathname;
   } catch {
     return url;
   }
-}
+};
 
-function mergeDefaults(
+const mergeDefaults = (
   request: BatchRequest,
   defaults: BatchDefaults | undefined
-): BatchRequest {
+): BatchRequest => {
   if (!defaults) {
     return request;
   }
   return { ...defaults, ...request };
-}
+};
 
 /**
  * Map a batch request to AI SDK `generateText` input. Fields are listed
  * explicitly so `customId` never leaks into the provider request.
  */
-function toGenerateInput(
+const toGenerateInput = (
   model: LanguageModel,
   request: BatchRequest
-): GenerateTextInput {
+): GenerateTextInput =>
   // `prompt`/`messages` form a discriminated union in the AI SDK types; we
   // pass both keys and let `generateText` validate the XOR at runtime.
-  return {
-    model,
-    maxRetries: 0,
-    system: request.system,
-    prompt: request.prompt,
-    messages: request.messages,
-    tools: request.tools,
-    toolChoice: request.toolChoice,
-    maxOutputTokens: request.maxOutputTokens,
-    temperature: request.temperature,
-    topP: request.topP,
-    topK: request.topK,
-    presencePenalty: request.presencePenalty,
+  ({
     frequencyPenalty: request.frequencyPenalty,
-    stopSequences: request.stopSequences,
+    maxOutputTokens: request.maxOutputTokens,
+    maxRetries: 0,
+    messages: request.messages,
+    model,
+    presencePenalty: request.presencePenalty,
+    prompt: request.prompt,
     providerOptions: request.providerOptions,
     seed: request.seed,
-  } as GenerateTextInput;
-}
+    stopSequences: request.stopSequences,
+    system: request.system,
+    temperature: request.temperature,
+    toolChoice: request.toolChoice,
+    tools: request.tools,
+    topK: request.topK,
+    topP: request.topP,
+  }) as GenerateTextInput;
 
-async function captureOne(
+const captureOne = async (
   model: LanguageModel,
   request: BatchRequest,
   customId: string
-): Promise<BuiltRequest> {
+): Promise<BuiltRequest> => {
   try {
     await generateText(toGenerateInput(model, request));
   } catch (error) {
@@ -147,7 +143,7 @@ async function captureOne(
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the batch body."
   );
-}
+};
 
 /**
  * Derive provider request bodies for every batch item by running each through
@@ -155,17 +151,18 @@ async function captureOne(
  * tool, and multimodal conversion, so the body matches what `generateText`
  * would send — minus the network call.
  */
-export async function buildRequestBodies(
+export const buildRequestBodies = async (
   resolved: ResolvedModel,
   requests: readonly BatchRequest[],
   defaults: BatchDefaults | undefined,
   credentials: ProviderCredentials
-): Promise<BuiltRequest[]> {
+): Promise<BuiltRequest[]> => {
   const model = await createCaptureModel(resolved, credentials, captureFetch);
-  const built: BuiltRequest[] = [];
   const seen = new Set<string>();
 
-  for (const [index, request] of requests.entries()) {
+  // Assign and validate customIds up front (sequentially, so duplicates are
+  // reported deterministically) before capturing bodies in parallel.
+  const items = requests.map((request, index) => {
     const customId = request.customId ?? `request-${index}`;
     if (seen.has(customId)) {
       throw new BatchworkError(
@@ -173,10 +170,12 @@ export async function buildRequestBodies(
       );
     }
     seen.add(customId);
-    built.push(
-      await captureOne(model, mergeDefaults(request, defaults), customId)
-    );
-  }
+    return { customId, request };
+  });
 
-  return built;
-}
+  return await Promise.all(
+    items.map((item) =>
+      captureOne(model, mergeDefaults(item.request, defaults), item.customId)
+    )
+  );
+};

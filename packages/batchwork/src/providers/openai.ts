@@ -17,7 +17,7 @@ const COMPLETION_WINDOW = "24h";
 const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 300;
 
-function apiKey(credentials: ProviderCredentials): string {
+const apiKey = (credentials: ProviderCredentials): string => {
   const key = credentials.apiKey ?? process.env.OPENAI_API_KEY;
   if (!key) {
     throw new BatchworkError(
@@ -25,24 +25,26 @@ function apiKey(credentials: ProviderCredentials): string {
     );
   }
   return key;
-}
+};
 
-function baseUrl(credentials: ProviderCredentials): string {
-  return credentials.baseURL ?? OPENAI_BASE;
-}
+const baseUrl = (credentials: ProviderCredentials): string =>
+  credentials.baseURL ?? OPENAI_BASE;
 
-function authHeaders(credentials: ProviderCredentials): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiKey(credentials)}`,
-    ...credentials.headers,
-  };
-}
+const authHeaders = (
+  credentials: ProviderCredentials
+): Record<string, string> => ({
+  Authorization: `Bearer ${apiKey(credentials)}`,
+  ...credentials.headers,
+});
 
-function jsonHeaders(credentials: ProviderCredentials): Record<string, string> {
-  return { ...authHeaders(credentials), "content-type": "application/json" };
-}
+const jsonHeaders = (
+  credentials: ProviderCredentials
+): Record<string, string> => ({
+  ...authHeaders(credentials),
+  "content-type": "application/json",
+});
 
-function mapStatus(status: string | undefined): BatchStatus {
+const mapStatus = (status: string | undefined): BatchStatus => {
   switch (status) {
     case "validating":
     case "in_progress":
@@ -51,33 +53,35 @@ function mapStatus(status: string | undefined): BatchStatus {
     case "failed":
     case "expired":
     case "cancelling":
-    case "cancelled":
+    case "cancelled": {
       return status;
-    default:
+    }
+    default: {
       return "in_progress";
+    }
   }
-}
+};
 
-function normalizeSnapshot(raw: unknown): BatchSnapshot {
+const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
   const counts = asRecord(obj.request_counts);
   return {
+    completedAt: toDate(obj.completed_at),
+    createdAt: toDate(obj.created_at),
+    expiresAt: toDate(obj.expires_at),
     id: asString(obj.id) ?? "",
     provider: "openai",
-    status: mapStatus(asString(obj.status)),
+    raw,
     requestCounts: {
-      total: asNumber(counts.total) ?? 0,
       completed: asNumber(counts.completed) ?? 0,
       failed: asNumber(counts.failed) ?? 0,
+      total: asNumber(counts.total) ?? 0,
     },
-    createdAt: toDate(obj.created_at),
-    completedAt: toDate(obj.completed_at),
-    expiresAt: toDate(obj.expires_at),
-    raw,
+    status: mapStatus(asString(obj.status)),
   };
-}
+};
 
-function textFromBody(body: unknown): string | undefined {
+const textFromBody = (body: unknown): string | undefined => {
   const obj = asRecord(body);
   const choices = asArray(obj.choices);
   if (choices.length > 0) {
@@ -87,9 +91,9 @@ function textFromBody(body: unknown): string | undefined {
     }
   }
   return asString(obj.output_text);
-}
+};
 
-function usageFromBody(body: unknown): BatchUsage | undefined {
+const usageFromBody = (body: unknown): BatchUsage | undefined => {
   const usage = asRecord(asRecord(body).usage);
   const inputTokens =
     asNumber(usage.prompt_tokens) ?? asNumber(usage.input_tokens);
@@ -108,29 +112,29 @@ function usageFromBody(body: unknown): BatchUsage | undefined {
     outputTokens,
     totalTokens: totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0),
   };
-}
+};
 
-function errorFromValue(value: unknown, fallback: string): BatchResultError {
+const errorFromValue = (value: unknown, fallback: string): BatchResultError => {
   const obj = asRecord(value);
   const nested = asRecord(obj.error);
   const source = nested.message ? nested : obj;
   return {
+    code: asNumber(source.code) ?? asString(source.code),
     message: asString(source.message) ?? fallback,
     type: asString(source.type),
-    code: asNumber(source.code) ?? asString(source.code),
   };
-}
+};
 
-function normalizeResult(line: unknown): BatchResult {
+const normalizeResult = (line: unknown): BatchResult => {
   const obj = asRecord(line);
   const customId = asString(obj.custom_id) ?? "";
 
   if (obj.error) {
     return {
       customId,
-      status: "errored",
-      response: obj.error,
       error: errorFromValue(obj.error, "Request errored."),
+      response: obj.error,
+      status: "errored",
     };
   }
 
@@ -139,8 +143,8 @@ function normalizeResult(line: unknown): BatchResult {
   if (statusCode >= HTTP_OK_MIN && statusCode < HTTP_OK_MAX) {
     return {
       customId,
-      status: "succeeded",
       response: response.body,
+      status: "succeeded",
       text: textFromBody(response.body),
       usage: usageFromBody(response.body),
     };
@@ -148,19 +152,19 @@ function normalizeResult(line: unknown): BatchResult {
 
   return {
     customId,
-    status: "errored",
-    response: response.body,
     error: errorFromValue(
       response.body,
       `Request failed with status ${statusCode}.`
     ),
+    response: response.body,
+    status: "errored",
   };
-}
+};
 
-async function uploadInputFile(
+const uploadInputFile = async (
   jsonl: string,
   credentials: ProviderCredentials
-): Promise<string> {
+): Promise<string> => {
   const form = new FormData();
   form.append("purpose", "batch");
   form.append(
@@ -171,47 +175,48 @@ async function uploadInputFile(
   const raw = await requestJson<{ id: string }>(
     `${baseUrl(credentials)}/files`,
     {
-      method: "POST",
-      headers: authHeaders(credentials),
       body: form,
+      headers: authHeaders(credentials),
+      method: "POST",
     }
   );
   return raw.id;
-}
+};
 
-async function submit(input: SubmitInput): Promise<BatchSnapshot> {
+const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
   const jsonl = encodeJsonl(
     input.built.map((item) => ({
+      body: omit(item.body, "stream"),
       custom_id: item.customId,
       method: "POST",
       url: input.endpoint,
-      body: omit(item.body, "stream"),
     }))
   );
   const inputFileId = await uploadInputFile(jsonl, input.credentials);
   const raw = await requestJson(`${baseUrl(input.credentials)}/batches`, {
-    method: "POST",
-    headers: jsonHeaders(input.credentials),
     body: JSON.stringify({
-      input_file_id: inputFileId,
-      endpoint: input.endpoint,
       completion_window: COMPLETION_WINDOW,
+      endpoint: input.endpoint,
+      input_file_id: inputFileId,
       metadata: input.metadata,
     }),
+    headers: jsonHeaders(input.credentials),
+    method: "POST",
   });
   return normalizeSnapshot(raw);
-}
+};
 
-async function retrieve(
+const retrieve = async (
   id: string,
   credentials: ProviderCredentials
-): Promise<BatchSnapshot> {
+): Promise<BatchSnapshot> => {
   const raw = await requestJson(`${baseUrl(credentials)}/batches/${id}`, {
     headers: authHeaders(credentials),
   });
   return normalizeSnapshot(raw);
-}
+};
 
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 async function* streamFile(
   fileId: string,
   credentials: ProviderCredentials
@@ -225,6 +230,7 @@ async function* streamFile(
   }
 }
 
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 async function* results(
   id: string,
   credentials: ProviderCredentials
@@ -247,20 +253,20 @@ async function* results(
   }
 }
 
-async function cancel(
+const cancel = async (
   id: string,
   credentials: ProviderCredentials
-): Promise<void> {
+): Promise<void> => {
   await requestJson(`${baseUrl(credentials)}/batches/${id}/cancel`, {
-    method: "POST",
     headers: authHeaders(credentials),
+    method: "POST",
   });
-}
+};
 
 export const openaiAdapter: BatchAdapter = {
-  id: "openai",
-  submit,
-  retrieve,
-  results,
   cancel,
+  id: "openai",
+  results,
+  retrieve,
+  submit,
 };

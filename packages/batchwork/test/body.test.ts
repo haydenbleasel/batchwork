@@ -1,36 +1,37 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 import { describe, expect, it } from "vitest";
+
 import { buildRequestBodies } from "../src/body";
 import { resolveModel } from "../src/model";
 
 const NO_CREDENTIALS = {};
 
-describe("resolveModel", () => {
+describe(resolveModel, () => {
   it("parses a provider/model string", () => {
-    expect(resolveModel("openai/gpt-4o-mini")).toEqual({
-      provider: "openai",
+    expect(resolveModel("openai/gpt-4o-mini")).toStrictEqual({
+      kind: "chat",
       modelId: "gpt-4o-mini",
-      kind: "chat",
+      provider: "openai",
     });
-    expect(resolveModel("anthropic/claude-haiku-4-5")).toEqual({
-      provider: "anthropic",
-      modelId: "claude-haiku-4-5",
+    expect(resolveModel("anthropic/claude-haiku-4-5")).toStrictEqual({
       kind: "chat",
+      modelId: "claude-haiku-4-5",
+      provider: "anthropic",
     });
   });
 
   it("reads provider + kind from a model object", () => {
     expect(resolveModel(openai.chat("gpt-4o-mini"))).toMatchObject({
-      provider: "openai",
-      modelId: "gpt-4o-mini",
       kind: "chat",
+      modelId: "gpt-4o-mini",
+      provider: "openai",
     });
     // The default `openai()` model targets the Responses API.
     expect(resolveModel(openai("gpt-4o-mini")).kind).toBe("responses");
     expect(resolveModel(anthropic("claude-haiku-4-5"))).toMatchObject({
-      provider: "anthropic",
       modelId: "claude-haiku-4-5",
+      provider: "anthropic",
     });
   });
 
@@ -39,7 +40,7 @@ describe("resolveModel", () => {
   });
 });
 
-describe("buildRequestBodies", () => {
+describe(buildRequestBodies, () => {
   it("derives an OpenAI chat-completions body and endpoint", async () => {
     const resolved = resolveModel("openai/gpt-4o-mini");
     const built = await buildRequestBodies(
@@ -53,14 +54,14 @@ describe("buildRequestBodies", () => {
     expect(built[0]?.customId).toBe("a");
     expect(built[0]?.endpoint).toBe("/v1/chat/completions");
     expect(built[0]?.body.model).toBe("gpt-4o-mini");
-    expect(Array.isArray(built[0]?.body.messages)).toBe(true);
+    expect(Array.isArray(built[0]?.body.messages)).toBeTruthy();
   });
 
   it("derives an Anthropic Messages body and merges defaults", async () => {
     const resolved = resolveModel("anthropic/claude-haiku-4-5");
     const built = await buildRequestBodies(
       resolved,
-      [{ customId: "x", messages: [{ role: "user", content: "Hi" }] }],
+      [{ customId: "x", messages: [{ content: "Hi", role: "user" }] }],
       { maxOutputTokens: 64, system: "Be terse." },
       NO_CREDENTIALS
     );
@@ -79,7 +80,7 @@ describe("buildRequestBodies", () => {
       undefined,
       NO_CREDENTIALS
     );
-    expect(built.map((item) => item.customId)).toEqual([
+    expect(built.map((item) => item.customId)).toStrictEqual([
       "request-0",
       "request-1",
     ]);
