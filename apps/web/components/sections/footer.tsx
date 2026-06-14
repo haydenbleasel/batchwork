@@ -52,7 +52,7 @@ const FooterLink = ({ href, external, children }: FooterLinkProps) =>
 
 export const Footer = () => (
   <footer className="border-t border-dotted">
-    <div className="mx-auto max-w-6xl px-6 py-14 sm:py-16">
+    <div className="mx-auto max-w-(--fd-layout-width) px-4 py-14 sm:py-16">
       <div className="flex flex-col gap-10 sm:flex-row sm:justify-between sm:gap-16">
         <div className="flex max-w-[40ch] flex-col gap-2">
           <p className="font-semibold text-base text-foreground">batchwork</p>
