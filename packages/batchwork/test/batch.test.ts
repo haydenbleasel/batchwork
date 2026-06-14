@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { batch } from "../src/batch";
 
@@ -7,27 +7,31 @@ interface Route {
   match: (url: string, method: string) => boolean;
 }
 
+const originalFetch = globalThis.fetch;
+
 const install = (routes: Route[]) => {
-  const fetchMock = vi.fn<
-    (input: string | URL | Request, init?: RequestInit) => Promise<Response>
-  >((input, init) => {
-    const url = typeof input === "string" ? input : String(input);
-    const method = init?.method ?? "GET";
-    const route = routes.find((candidate) => candidate.match(url, method));
-    if (!route) {
-      return Promise.reject(new Error(`unexpected ${method} ${url}`));
+  const fetchMock = mock(
+    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : String(input);
+      const method = init?.method ?? "GET";
+      const route = routes.find((candidate) => candidate.match(url, method));
+      if (!route) {
+        return Promise.reject(new Error(`unexpected ${method} ${url}`));
+      }
+      const payload =
+        typeof route.body === "string"
+          ? route.body
+          : JSON.stringify(route.body);
+      return Promise.resolve(new Response(payload, { status: 200 }));
     }
-    const payload =
-      typeof route.body === "string" ? route.body : JSON.stringify(route.body);
-    return Promise.resolve(new Response(payload, { status: 200 }));
-  });
-  vi.stubGlobal("fetch", fetchMock);
+  );
+  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   return fetchMock;
 };
 
 describe("batch (end-to-end, mocked transport)", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("submits, waits, and collects an OpenAI batch", async () => {

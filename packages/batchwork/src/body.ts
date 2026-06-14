@@ -59,8 +59,13 @@ const extractBody = (init?: RequestInit): string => {
   );
 };
 
-const captureFetch: CapturingFetch = (input, init) =>
-  Promise.reject(new CaptureSignalError(resolveUrl(input), extractBody(init)));
+// `CapturingFetch` is `typeof fetch`, whose shape varies by runtime types (e.g.
+// Bun adds a required `preconnect` method). We only ever call it as a plain
+// fetch, so cast the bare implementation rather than stub the extra members.
+const captureFetch = ((input: string | URL | Request, init?: RequestInit) =>
+  Promise.reject(
+    new CaptureSignalError(resolveUrl(input), extractBody(init))
+  )) as unknown as CapturingFetch;
 
 const findCapture = (error: unknown): CaptureSignalError | undefined => {
   let current: unknown = error;

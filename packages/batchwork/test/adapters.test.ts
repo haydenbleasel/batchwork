@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { anthropicAdapter } from "../src/providers/anthropic";
 import { openaiAdapter } from "../src/providers/openai";
@@ -11,21 +11,25 @@ interface Route {
   match: (url: string, method: string) => boolean;
 }
 
+const originalFetch = globalThis.fetch;
+
 const install = (routes: Route[]) => {
-  const fetchMock = vi.fn<
-    (input: string | URL | Request, init?: RequestInit) => Promise<Response>
-  >((input, init) => {
-    const url = typeof input === "string" ? input : String(input);
-    const method = init?.method ?? "GET";
-    const route = routes.find((candidate) => candidate.match(url, method));
-    if (!route) {
-      return Promise.reject(new Error(`unexpected ${method} ${url}`));
+  const fetchMock = mock(
+    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : String(input);
+      const method = init?.method ?? "GET";
+      const route = routes.find((candidate) => candidate.match(url, method));
+      if (!route) {
+        return Promise.reject(new Error(`unexpected ${method} ${url}`));
+      }
+      const payload =
+        typeof route.body === "string"
+          ? route.body
+          : JSON.stringify(route.body);
+      return Promise.resolve(new Response(payload, { status: 200 }));
     }
-    const payload =
-      typeof route.body === "string" ? route.body : JSON.stringify(route.body);
-    return Promise.resolve(new Response(payload, { status: 200 }));
-  });
-  vi.stubGlobal("fetch", fetchMock);
+  );
+  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
   return fetchMock;
 };
 
@@ -41,11 +45,11 @@ const collect = async (
 
 describe("anthropic adapter", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("submits an inline request array and normalizes the snapshot", async () => {
-    const mock = install([
+    const fetchMock = install([
       {
         body: {
           created_at: "2026-01-01T00:00:00Z",
@@ -88,7 +92,7 @@ describe("anthropic adapter", () => {
     expect(snapshot.requestCounts.total).toBe(2);
 
     // `stream` is stripped and the request is sent inline (no file upload).
-    const sentBody = JSON.parse(String(mock.mock.calls[0]?.[1]?.body));
+    const sentBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(sentBody.requests[0].params.stream).toBeUndefined();
     expect(sentBody.requests[0].custom_id).toBe("a");
   });
@@ -142,11 +146,11 @@ describe("anthropic adapter", () => {
 
 describe("openai adapter", () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.fetch = originalFetch;
   });
 
   it("uploads a JSONL file then creates the batch", async () => {
-    const mock = install([
+    const fetchMock = install([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -178,7 +182,7 @@ describe("openai adapter", () => {
     expect(snapshot.id).toBe("batch_1");
     expect(snapshot.status).toBe("validating");
     // The create call references the uploaded file id.
-    const createBody = JSON.parse(String(mock.mock.calls[1]?.[1]?.body));
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(createBody.input_file_id).toBe("file-in");
     expect(createBody.endpoint).toBe("/v1/chat/completions");
     expect(createBody.completion_window).toBe("24h");

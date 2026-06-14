@@ -1,9 +1,10 @@
 {
   // Library typecheck config (`tsgo --noEmit`). Kept on standard/Node types so
   // the published surface reflects the standard runtime (e.g. a plain `fetch`),
-  // not Bun's. The published build is produced by scripts/build.ts (Bun for .js
-  // + tsgo for .d.ts, via tsconfig.build.json); the Bun-typed build tooling is
-  // typechecked separately via scripts/tsconfig.json.
+  // not Bun's — this also guards against Bun-only APIs slipping into src/. The
+  // published build is produced by scripts/build.ts (Bun for .js + tsgo for
+  // .d.ts, via tsconfig.build.json). The Bun-runtime tooling and tests (which
+  // use bun:test) are typechecked separately via tsconfig.bun.json.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
@@ -11,5 +12,5 @@
     "types": ["node"],
     "strictNullChecks": true
   },
-  "include": ["src", "test", "examples", "vitest.config.ts"]
+  "include": ["src", "examples"]
 }
