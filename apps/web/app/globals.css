@@ -11,6 +11,19 @@ figure.shiki {
   box-shadow: none;
 }
 
+/* The fumadocs code viewport is a focusable scroll region whose default focus
+   ring is inset with square corners — inside CodeWindow's rounded-2xl frame
+   those corners get clipped and read as broken. Drop the inner ring and lift a
+   rounded focus outline onto the window itself so it hugs the visible border. */
+.code-window:has([role="region"]:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.code-window [role="region"]:focus-visible {
+  box-shadow: none;
+}
+
 /* The Catppuccin themes italicize function names, params, and some keywords.
    Shiki sets that per token via --shiki-{light,dark}-font-style inline on each
    span, so override the vars (with !important to beat the inline value). */

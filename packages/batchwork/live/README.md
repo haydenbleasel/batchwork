@@ -32,12 +32,17 @@ git-ignored):
 | Together  | `TOGETHER_API_KEY`                                   | `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo` |
 | xAI       | `XAI_API_KEY`                                        | `grok-3-mini`                                 |
 
-Bun reads `.env` automatically, so a file like this is enough:
+A `.env.local` like this is enough (copy `.env.example`):
 
 ```sh
 OPENAI_API_KEY=sk-...
 XAI_API_KEY=xai-...
 ```
+
+> **Why `--env-file`?** `bun test` runs with `NODE_ENV=test`, and Bun (following
+> the Next.js convention) does **not** auto-load `.env.local` in the test
+> environment. The `test:live` script therefore passes `--env-file=.env.local`
+> explicitly. Exported shell variables work too and take precedence.
 
 ## Tuning
 

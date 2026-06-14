@@ -47,7 +47,7 @@
     "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.bun.json",
     "test": "bun test ./test",
     "test:coverage": "bun test ./test --coverage",
-    "test:live": "bun test ./live"
+    "test:live": "bun test --env-file=.env.local ./live"
   },
   "dependencies": {
     "ai": "^6.0.204"

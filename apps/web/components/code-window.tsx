@@ -28,7 +28,7 @@ export const CodeWindow = ({
       aria-hidden
       className="code-glow -inset-6 -z-10 absolute rounded-[2.5rem] opacity-90 blur-2xl sm:-inset-10 dark:opacity-40"
     />
-    <div className="overflow-hidden rounded-2xl border border-border bg-card text-left">
+    <div className="code-window overflow-hidden rounded-2xl border border-border bg-card text-left">
       {!bare && (
         <div className="flex items-center gap-1.5 border-b border-dotted px-4 py-3">
           <span className="size-2.5 rounded-full bg-muted-foreground/25" />
