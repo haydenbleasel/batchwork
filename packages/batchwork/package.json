@@ -11,8 +11,17 @@
     "openai",
     "vercel"
   ],
+  "homepage": "https://github.com/haydenbleasel/batchwork#readme",
+  "bugs": {
+    "url": "https://github.com/haydenbleasel/batchwork/issues"
+  },
   "license": "MIT",
   "author": "Hayden Bleasel",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/haydenbleasel/batchwork.git",
+    "directory": "packages/batchwork"
+  },
   "files": [
     "dist"
   ],

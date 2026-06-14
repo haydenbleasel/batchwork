@@ -74,10 +74,10 @@ const routes = createBatchRoutes({
   },
 });
 
-// A Vercel Cron hits GET; finished batches stream into onComplete.
+// Next.js Route Handler hits GET; finished batches stream into onComplete.
 export const { GET, POST } = routes;`,
     description:
-      "Drop two route handlers into your app and point a Vercel Cron at them. Each tick, Batchwork checks your in-flight batches and saves the results straight to your database when they finish.",
+      "Drop two route handlers into your app and point a Cron job at them. Each tick, Batchwork checks your in-flight batches and saves the results straight to your database when they finish.",
     eyebrow: "Next.js",
     fileName: "app/api/batches/route.ts",
     href: "/next",

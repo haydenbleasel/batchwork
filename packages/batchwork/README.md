@@ -1,4 +1,4 @@
-# batchwork
+# Batchwork
 
 The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev). Submit thousands of LLM requests at roughly half the cost with one unified call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
 
@@ -373,7 +373,7 @@ Pooled submission is therefore **at-least-once**: a flush submits the batch befo
 
 ## Roadmap
 
-- **Amazon Bedrock** and **Vertex AI** — their batch APIs need object-storage staging (S3/GCS) and cloud IAM auth, which don't fit batchwork's `apiKey` + `fetch` model yet.
+- **Amazon Bedrock** and **Vertex AI** — their batch APIs need object-storage staging (S3/GCS) and cloud IAM auth, which don't fit Batchwork's `apiKey` + `fetch` model yet.
 - Embeddings batches.
 
 ## Development

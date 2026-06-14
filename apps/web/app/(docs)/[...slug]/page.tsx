@@ -66,6 +66,13 @@ export const generateMetadata = async ({
     notFound();
   }
 
+  const ogImage = {
+    alt: page.data.title,
+    height: 630,
+    url: `/og/${slug.join("/")}`,
+    width: 1200,
+  };
+
   return {
     alternates: {
       canonical: page.url,
@@ -73,6 +80,7 @@ export const generateMetadata = async ({
     description: page.data.description,
     openGraph: {
       description: page.data.description,
+      images: [ogImage],
       siteName: "Batchwork",
       title: page.data.title,
       type: "article",
@@ -82,6 +90,7 @@ export const generateMetadata = async ({
     twitter: {
       card: "summary_large_image",
       description: page.data.description,
+      images: [ogImage],
       title: page.data.title,
     },
   };
