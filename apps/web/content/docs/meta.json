@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "---Getting Started---",
+    "overview",
+    "installation",
+    "usage",
+    "---Guide---",
+    "models",
+    "requests",
+    "job",
+    "results",
+    "server",
+    "providers",
+    "---Help---",
+    "faq"
+  ]
+}

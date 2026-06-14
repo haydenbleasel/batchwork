@@ -1,0 +1,69 @@
+---
+title: The job handle
+description: batch() returns a BatchJob — poll status, wait for completion, stream results, or cancel.
+---
+
+## BatchJob
+
+`batch()` resolves with a `BatchJob` as soon as the batch is accepted. It does **not** wait for processing.
+
+```ts
+const job = await batch({ model, requests });
+
+job.id; // provider batch id
+job.provider; // "openai" | "anthropic"
+job.status; // normalized status
+job.requestCounts; // { total, completed, failed, processing?, … }
+job.snapshot; // the full latest snapshot
+```
+
+## Methods
+
+### `poll()`
+
+Refresh status from the provider once and return the new snapshot.
+
+```ts
+const snapshot = await job.poll();
+```
+
+### `wait(options?)`
+
+Poll until the batch reaches a terminal status, then return the final snapshot.
+
+```ts
+await job.wait({
+  pollIntervalMs: 15_000, // default
+  timeoutMs: 60 * 60_000, // optional
+  signal: controller.signal, // optional AbortSignal
+  onPoll: (snapshot) => console.log(snapshot.status),
+});
+```
+
+### `results()` / `collect()`
+
+`results()` streams normalized results as they're read (order is not guaranteed). `collect()` gathers them into an array.
+
+```ts
+for await (const r of job.results()) {
+  /* … */
+}
+
+const all = await job.collect();
+```
+
+### `cancel()`
+
+Request cancellation, then refresh status.
+
+```ts
+const snapshot = await job.cancel();
+```
+
+## Status values
+
+Statuses are normalized across providers:
+
+`validating` · `in_progress` · `finalizing` · `completed` · `failed` · `expired` · `cancelling` · `cancelled`
+
+The terminal statuses are `completed`, `failed`, `expired`, and `cancelled`. `isTerminalStatus(status)` is exported if you need to check one yourself.

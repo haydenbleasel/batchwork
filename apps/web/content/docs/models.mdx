@@ -1,0 +1,48 @@
+---
+title: Models
+description: batchwork accepts any AI SDK model — a provider model object or a provider/model string.
+---
+
+## Model forms
+
+`model` accepts anything the AI SDK does:
+
+```ts
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+
+batch({ model: openai.chat("gpt-4o-mini"), requests }); // OpenAI Chat Completions
+batch({ model: openai("gpt-4o-mini"), requests }); // OpenAI Responses API
+batch({ model: anthropic("claude-haiku-4-5"), requests }); // Anthropic Messages
+batch({ model: "openai/gpt-4o-mini", requests }); // provider/model string
+```
+
+batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint. All requests in a single batch use one model.
+
+## OpenAI request shapes
+
+OpenAI exposes several request shapes, and batchwork mirrors whichever the model implies:
+
+| Model                                   | Batch endpoint         |
+| --------------------------------------- | ---------------------- |
+| `openai.chat("…")`                      | `/v1/chat/completions` |
+| `openai("…")` / `openai.responses("…")` | `/v1/responses`        |
+| `openai.completion("…")`                | `/v1/completions`      |
+
+A `"openai/…"` string defaults to **chat completions** — the most widely supported batch endpoint.
+
+## Gateway string caveat
+
+A `"provider/model"` string is supported for ergonomics and resolves to the provider's **native** batch API using your provider credentials.
+
+<Callout type="warn">
+  Batch traffic does **not** route through the Vercel AI Gateway (which has no
+  batch endpoint). You need the provider key (e.g. `OPENAI_API_KEY`), not just a
+  gateway key.
+</Callout>
+
+## How the body is built
+
+To produce each provider's exact request body — with full AI SDK fidelity for messages, tools, multimodal content, and `providerOptions` — batchwork runs each request through the AI SDK with a **capturing `fetch`** that records the serialized body and aborts before any network call. That body is exactly what `generateText` would have sent; it becomes the OpenAI JSONL line `body` or the Anthropic `params`.
+
+The upshot: anything `generateText` supports for a given model, a batch request supports too.

@@ -1,0 +1,69 @@
+---
+title: Requests
+description: Each batch request mirrors the AI SDK generateText input, plus a customId to correlate its result.
+---
+
+## Request shape
+
+Each request mirrors `generateText` (minus `model`), plus a `customId` used to correlate its result. Provide `prompt` **or** `messages`.
+
+```ts
+await batch({
+  model: anthropic("claude-haiku-4-5"),
+  requests: [
+    { customId: "doc-1", prompt: "Summarize…", temperature: 0 },
+    {
+      customId: "doc-2",
+      system: "You are terse.",
+      messages: [{ role: "user", content: "Translate…" }],
+      maxOutputTokens: 256,
+    },
+  ],
+});
+```
+
+## Supported fields
+
+| Field                                 | Notes                                                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `customId`                            | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `prompt` / `messages`                 | Provide one. `messages` is the AI SDK `ModelMessage[]`.                                               |
+| `system`                              | System prompt.                                                                                        |
+| `tools` / `toolChoice`                | Tool definitions, exactly as in `generateText`.                                                       |
+| `maxOutputTokens`                     | Maximum tokens to generate. Required by Anthropic.                                                    |
+| `temperature`, `topP`, `topK`         | Sampling controls.                                                                                    |
+| `presencePenalty`, `frequencyPenalty` | Penalties.                                                                                            |
+| `stopSequences`, `seed`               | Stop sequences and seed.                                                                              |
+| `providerOptions`                     | Provider-specific options (e.g. reasoning / thinking config).                                         |
+
+## Batch-wide defaults
+
+`defaults` are merged into every request; request-level values win:
+
+```ts
+await batch({
+  model: anthropic("claude-haiku-4-5"),
+  defaults: { system: "You are terse.", maxOutputTokens: 256 },
+  requests: [
+    { customId: "a", prompt: "…" }, // inherits system + maxOutputTokens
+    { customId: "b", prompt: "…", maxOutputTokens: 1024 }, // overrides maxOutputTokens
+  ],
+});
+```
+
+## Metadata
+
+`metadata` (OpenAI only) attaches free-form key/value pairs to the batch:
+
+```ts
+await batch({ model, requests, metadata: { description: "nightly eval" } });
+```
+
+## Limits
+
+|              | OpenAI | Anthropic |
+| ------------ | ------ | --------- |
+| Max requests | 50,000 | 100,000   |
+| Max size     | 200 MB | 256 MB    |
+
+For very large workloads, split into multiple batches.

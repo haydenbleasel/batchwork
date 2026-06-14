@@ -1,0 +1,53 @@
+---
+title: Results
+description: One normalized result type across providers, correlated by customId.
+---
+
+## BatchResult
+
+Results are normalized and correlated by `customId`. Order is **not** guaranteed — always match on `customId`.
+
+```ts
+interface BatchResult {
+  customId: string;
+  status: "succeeded" | "errored" | "expired" | "canceled";
+  text?: string; // normalized text output
+  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  response?: unknown; // raw provider message / body
+  error?: { message: string; type?: string; code?: string | number };
+}
+```
+
+## Handling outcomes
+
+```ts
+for await (const result of job.results()) {
+  switch (result.status) {
+    case "succeeded":
+      save(result.customId, result.text, result.usage);
+      break;
+    case "errored":
+      console.error(result.customId, result.error?.message);
+      break;
+    case "expired":
+    case "canceled":
+      requeue(result.customId);
+      break;
+    default:
+      break;
+  }
+}
+```
+
+## Raw responses
+
+`text` is the normalized text output, convenient for the common case. When you need the full provider payload — tool calls, structured output, finish reasons — read `response`, which holds the raw OpenAI `response.body` or Anthropic `message`.
+
+```ts
+const result = (await job.collect()).find((r) => r.customId === "a");
+const toolCalls = (result?.response as { choices?: unknown[] })?.choices;
+```
+
+## Usage and cost
+
+`usage` is normalized to `{ inputTokens, outputTokens, totalTokens }`. Batch pricing is roughly **50% off** synchronous rates on both providers — the discount is applied by the provider, so the tokens you see here are billed at the batch rate.

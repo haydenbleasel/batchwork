@@ -1,0 +1,36 @@
+---
+title: FAQ
+description: Common questions about batchwork.
+---
+
+## How long does a batch take?
+
+Up to 24 hours, per the providers' SLAs — but small batches typically finish in seconds to minutes. Results are retained for ~30 days (OpenAI) / ~29 days (Anthropic), so you can fetch them well after completion.
+
+## Does `batch()` block until the batch is done?
+
+No. `batch()` submits and returns a `BatchJob` handle immediately. Use `job.wait()` for scripts, or the [server layer](/server) for production so you never hold a process open.
+
+## Do I need the official OpenAI / Anthropic SDKs?
+
+No. batchwork talks to the batch endpoints with plain `fetch`. You only need `ai` plus the `@ai-sdk/*` provider package(s) for the providers you use — and those are optional peer dependencies.
+
+## Can I use a Vercel AI Gateway model string?
+
+You can pass a `"provider/model"` string for ergonomics, but batch traffic resolves to the provider's **native** batch API and needs the provider key. The Gateway has no batch endpoint, so batchwork does not route through it.
+
+## Are tools, vision, and structured output supported?
+
+Yes — whatever `generateText` supports for a given model, a batch request supports. batchwork derives each request body through the AI SDK itself (see [Models](/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. Read the raw payload from `result.response`.
+
+## What happens to failed requests?
+
+Each request succeeds or fails independently. Failed requests come back with `status: "errored"` and a normalized `error`; expired or cancelled ones use `"expired"` / `"canceled"`. One bad request never fails the whole batch.
+
+## How is the cost discount applied?
+
+The providers bill batch requests at roughly half their synchronous rate. batchwork doesn't change pricing — it just makes the batch APIs usable. The `usage` on each result reflects tokens billed at the batch rate.
+
+## Which providers are supported?
+
+OpenAI and Anthropic today. Gemini, Mistral, Groq, and Bedrock are on the roadmap via the same adapter interface. Embeddings batches are planned too.

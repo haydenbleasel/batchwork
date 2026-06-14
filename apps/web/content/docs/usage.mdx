@@ -1,0 +1,77 @@
+---
+title: Usage
+description: Submit a batch, wait for it to finish, and read normalized results — end to end.
+---
+
+## Submit a batch
+
+`batch()` submits your requests to the model's provider and returns a `BatchJob` handle **immediately**. It does not wait for processing (which can take up to 24 hours).
+
+```ts
+import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch({
+  model: openai.chat("gpt-4o-mini"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+
+console.log(job.id, job.provider, job.status);
+```
+
+## Wait for completion
+
+For scripts and small batches, `wait()` polls until the batch reaches a terminal status:
+
+```ts
+await job.wait({
+  pollIntervalMs: 15_000, // default
+  onPoll: (snapshot) => console.log(snapshot.status, snapshot.requestCounts),
+});
+```
+
+`wait()` also accepts a `timeoutMs` and an `AbortSignal` via `signal`. For production, prefer the [server layer](/server) over long-lived `wait()` loops.
+
+## Read results
+
+Results are **unordered** and correlated by `customId`. Stream them as they're read, or collect them into an array:
+
+```ts
+// Streaming
+for await (const result of job.results()) {
+  console.log(result.customId, result.status, result.text);
+}
+
+// Or collect
+const all = await job.collect();
+```
+
+Each [`BatchResult`](/results) carries a normalized `status`, `text`, `usage`, the raw provider `response`, and an `error` when the request failed.
+
+## Cancel
+
+```ts
+await job.cancel();
+```
+
+## Rehydrate later
+
+Persist `job.id` and reconnect from anywhere — no original requests needed. Identify the provider with `provider` (or a `model`):
+
+```ts
+import { getBatch, getBatchResults, cancelBatch } from "batchwork";
+
+const job = await getBatch({ provider: "openai", id: "batch_abc" });
+
+for await (const r of getBatchResults({
+  provider: "openai",
+  id: "batch_abc",
+})) {
+  // …
+}
+
+await cancelBatch({ provider: "openai", id: "batch_abc" });
+```

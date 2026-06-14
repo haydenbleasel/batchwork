@@ -1,0 +1,83 @@
+import {
+  DocsBody,
+  DocsDescription,
+  DocsPage,
+  DocsTitle,
+} from "fumadocs-ui/page";
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { PageActions } from "@/components/page-actions";
+import { getLLMText } from "@/lib/get-llm-text";
+import { source } from "@/lib/source";
+import { getMDXComponents } from "@/mdx-components";
+
+const githubContentBase =
+  "https://github.com/haydenbleasel/batchwork/blob/main/apps/web/content/docs";
+
+interface PageProps {
+  params: Promise<{ slug: string[] }>;
+}
+
+const Page = async ({ params }: PageProps) => {
+  const { slug } = await params;
+  const page = source.getPage(slug);
+  if (!page) {
+    notFound();
+  }
+
+  const MDX = page.data.body;
+  const markdown = await getLLMText(page);
+  const markdownUrl = `${page.url}.md`;
+
+  return (
+    <DocsPage full={page.data.full} toc={page.data.toc}>
+      <DocsTitle className="font-semibold tracking-tight">
+        {page.data.title}
+      </DocsTitle>
+      <DocsDescription>{page.data.description}</DocsDescription>
+      <PageActions
+        githubUrl={`${githubContentBase}/${page.path}`}
+        markdown={markdown}
+        markdownUrl={markdownUrl}
+      />
+      <DocsBody className="[&_h2]:tracking-tight [&_h3]:tracking-tight [&_h4]:tracking-tight">
+        <MDX components={getMDXComponents()} />
+      </DocsBody>
+    </DocsPage>
+  );
+};
+
+export default Page;
+
+export const generateStaticParams = () => source.generateParams();
+
+export const generateMetadata = async ({
+  params,
+}: PageProps): Promise<Metadata> => {
+  const { slug } = await params;
+  const page = source.getPage(slug);
+  if (!page) {
+    notFound();
+  }
+
+  return {
+    alternates: {
+      canonical: page.url,
+    },
+    description: page.data.description,
+    openGraph: {
+      description: page.data.description,
+      siteName: "batchwork",
+      title: page.data.title,
+      type: "article",
+      url: page.url,
+    },
+    title: page.data.title,
+    twitter: {
+      card: "summary_large_image",
+      description: page.data.description,
+      title: page.data.title,
+    },
+  };
+};

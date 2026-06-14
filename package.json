@@ -10,10 +10,9 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
+    "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "lint": "biome check .",
-    "format": "biome check --write .",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "turbo run build && changeset publish",

@@ -1,0 +1,39 @@
+---
+title: Providers
+description: How batchwork maps the unified API onto each provider's native Batch API.
+---
+
+## Supported providers
+
+batchwork v1 ships **OpenAI** and **Anthropic** — the two canonical batch shapes. The adapter interface generalizes to Gemini, Mistral, Groq, and Bedrock, which are on the roadmap.
+
+|                  | OpenAI                           | Anthropic                    |
+| ---------------- | -------------------------------- | ---------------------------- |
+| Submit           | JSONL file upload → create batch | Inline `requests[]` array    |
+| Status           | Poll (native webhooks exist)     | Poll only                    |
+| Results          | Output + error files (JSONL)     | `results_url` (JSONL stream) |
+| Max requests     | 50,000                           | 100,000                      |
+| Max size         | 200 MB                           | 256 MB                       |
+| Result retention | 30 days                          | 29 days                      |
+| Discount         | ~50%                             | ~50%                         |
+
+## What batchwork does for you
+
+**OpenAI** — batchwork builds the JSONL, uploads it via the Files API (`purpose=batch`), creates the batch, polls for status, then downloads and parses the output and error files.
+
+**Anthropic** — batchwork sends the inline `requests` array, polls `processing_status`, then streams and parses the JSONL from `results_url`.
+
+In both cases results come back **unordered**, keyed by `customId`, and batchwork normalizes them into one [`BatchResult`](/results) type. The provider lifecycle calls use plain `fetch` against each provider's batch endpoints — no official provider SDK required.
+
+## Credentials
+
+| Provider  | Env var             |
+| --------- | ------------------- |
+| OpenAI    | `OPENAI_API_KEY`    |
+| Anthropic | `ANTHROPIC_API_KEY` |
+
+Pass `apiKey`, `baseURL`, or `headers` to `batch()` to override per call.
+
+## Webhooks
+
+OpenAI emits native batch webhooks (`batch.completed`, `batch.failed`, `batch.expired`, `batch.cancelled`); Anthropic does not. The [server layer](/server) papers over this: it uses OpenAI's native webhooks where available and managed polling everywhere else, then delivers **one** unified, signed event regardless of provider.
