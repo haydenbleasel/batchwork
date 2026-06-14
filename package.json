@@ -2,7 +2,7 @@
   "name": "batchwork-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "The missing batch API for the Vercel AI SDK.",
+  "description": "Unified batch API for AI providers.",
   "workspaces": [
     "packages/*",
     "apps/*"

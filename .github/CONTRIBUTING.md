@@ -1,6 +1,6 @@
 # Contributing to Batchwork
 
-Thanks for your interest in contributing! `batchwork` is the missing batch API for the [Vercel AI SDK](https://ai-sdk.dev) — unified, low-cost LLM batch processing across providers. Bug reports, new providers, docs improvements, and discussion are all welcome.
+Thanks for your interest in contributing! `batchwork` is a unified batch API for AI providers — low-cost LLM batch processing across providers. Bug reports, new providers, docs improvements, and discussion are all welcome.
 
 ## Source Code
 

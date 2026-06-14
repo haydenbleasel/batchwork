@@ -81,9 +81,9 @@ export const Hero = ({ latestVersion, children }: HeroProps) => (
         initial={{ opacity: 0, y: 12 }}
         transition={{ delay: 0.22, duration: 0.6, ease: EASE }}
       >
-        The missing batch API for the Vercel AI SDK. Process LLM requests in
-        bulk with one unified call. Processing, uploading, polling, and result
-        parsing handled for you.
+        Unified batch API for AI providers. Process LLM requests in bulk with a
+        single call. Processing, uploading, polling, and result parsing handled
+        for you.
       </motion.p>
 
       <motion.div

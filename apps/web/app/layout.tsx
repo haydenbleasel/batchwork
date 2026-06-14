@@ -24,7 +24,7 @@ const baseUrl = `${protocol}://${origin}`;
 
 const title = "Save up to 50% on LLM costs | Batchwork";
 const description =
-  "The missing batch API for the Vercel AI SDK. Process LLM requests in bulk with one unified call. Processing, uploading, polling, and result parsing handled for you.";
+  "Unified batch API for AI providers. Process LLM requests in bulk with a single call. Processing, uploading, polling, and result parsing handled for you.";
 
 export const metadata: Metadata = {
   alternates: {

@@ -1,7 +1,7 @@
 {
   "name": "batchwork",
   "version": "0.0.0",
-  "description": "The missing batch API for the Vercel AI SDK — unified, low-cost LLM batch processing across providers.",
+  "description": "Unified batch API for AI providers — low-cost LLM batch processing at scale.",
   "keywords": [
     "ai",
     "ai-sdk",

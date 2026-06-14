@@ -57,8 +57,7 @@ export const Footer = () => (
         <div className="flex max-w-[40ch] flex-col gap-2">
           <p className="font-semibold text-base text-foreground">Batchwork</p>
           <p className="text-pretty text-base text-muted-foreground leading-relaxed sm:text-sm">
-            The missing batch API for the Vercel AI SDK. Open source, MIT
-            licensed.
+            Unified batch API for AI providers. Open source, MIT licensed.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-x-12 gap-y-8 sm:gap-x-16">

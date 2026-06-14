@@ -1,6 +1,6 @@
 # Batchwork
 
-The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev). Submit thousands of LLM requests at roughly half the cost with one unified call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
+A unified **batch API** for AI providers. Submit thousands of LLM requests at roughly half the cost with a single call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
 
 [![npm version](https://img.shields.io/npm/v/batchwork.svg)](https://www.npmjs.com/package/batchwork)
 [![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork)
