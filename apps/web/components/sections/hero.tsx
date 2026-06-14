@@ -47,8 +47,8 @@ export const Hero = ({ latestVersion, children }: HeroProps) => (
         target="_blank"
         transition={{ duration: 0.4, ease: EASE }}
       >
-        <span className="inline-block size-1.5 rounded-full bg-emerald-500" />v
-        {latestVersion} · 7 providers
+        <span className="inline-block size-1.5 rounded-full bg-emerald-500" />
+        Latest update — v{latestVersion} released
         <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
       </motion.a>
 
