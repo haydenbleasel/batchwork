@@ -4,30 +4,41 @@ const FILES = [
   {
     code: `import { batch } from "batchwork";
 import { track } from "./api/batches/route";
+import type { LanguageModel } from "ai";
+import type { BatchRequest } from "batchwork";
 
-const job = await batch({
-  model: "openai/gpt-5.5",
-  requests: [
-    { customId: "a", prompt: "Summarize this…" },
-    { customId: "b", prompt: "Translate this…" },
-  ],
-});
+// Can be a string (AI Gateway) or an object (AI SDK model)
+const model: LanguageModel = "openai/gpt-5.5";
 
-await track(job); // hand off — no waiting`,
+// Author requests in the same shape you already use with the Vercel AI SDK
+const requests: BatchRequest[] = [
+  { customId: "a", prompt: "Summarize this…" },
+  { customId: "b", prompt: "Translate this…" },
+];
+
+// Submit the batch and get a job handle
+const job = await batch({ model, requests });
+
+// Register the batch so the cron polls it
+await track(job);`,
     name: "app/actions.ts",
   },
   {
     code: `import { createBatchRoutes, createMemoryStore } from "batchwork/next";
+import type { OnBatchComplete } from "batchwork/next";
+
+// Or use a Vercel KV / Upstash / Postgres adapter
+const store = createMemoryStore();
+
+// Persist results to your database here.
+const onComplete: OnBatchComplete = async (event, results) => {
+  for await (const r of results) {
+    await db.insert({ batchId: event.id, id: r.customId, text: r.text });
+  }
+};
 
 // A cron hits GET; each finished batch streams into your DB.
-export const { GET, track } = createBatchRoutes({
-  store: createMemoryStore(),
-  onComplete: async (event, results) => {
-    for await (const r of results) {
-      await db.insert({ batchId: event.id, id: r.customId, text: r.text });
-    }
-  },
-});`,
+export const { GET, track } = createBatchRoutes({ store, onComplete });`,
     name: "app/api/batches/route.ts",
   },
 ];
