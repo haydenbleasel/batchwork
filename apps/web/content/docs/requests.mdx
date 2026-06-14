@@ -11,7 +11,11 @@ Each request mirrors `generateText` (minus `model`), plus a `customId` used to c
 await batch({
   model: anthropic("claude-haiku-4-5"),
   requests: [
-    { customId: "doc-1", prompt: "Summarize…", temperature: 0 },
+    {
+      customId: "doc-1",
+      prompt: "Summarize…",
+      temperature: 0,
+    },
     {
       customId: "doc-2",
       system: "You are terse.",
@@ -43,7 +47,10 @@ await batch({
 ```ts
 await batch({
   model: anthropic("claude-haiku-4-5"),
-  defaults: { system: "You are terse.", maxOutputTokens: 256 },
+  defaults: {
+    system: "You are terse.",
+    maxOutputTokens: 256,
+  },
   requests: [
     { customId: "a", prompt: "…" }, // inherits system + maxOutputTokens
     { customId: "b", prompt: "…", maxOutputTokens: 1024 }, // overrides maxOutputTokens
@@ -61,9 +68,22 @@ await batch({ model, requests, metadata: { description: "nightly eval" } });
 
 ## Limits
 
-|              | OpenAI | Anthropic |
-| ------------ | ------ | --------- |
-| Max requests | 50,000 | 100,000   |
-| Max size     | 200 MB | 256 MB    |
+Per-batch limits vary by provider:
+
+| Provider      | Max requests per batch | Max input size           |
+| ------------- | ---------------------- | ------------------------ |
+| OpenAI        | 50,000                 | 200 MB                   |
+| Anthropic     | 100,000                | 256 MB                   |
+| Google Gemini | No fixed count         | 2 GB file · 20 MB inline |
+| Groq          | 50,000                 | 200 MB                   |
+| Mistral       | 100,000                | 512 MB                   |
+| Together AI   | 50,000                 | 100 MB                   |
+| xAI           | 50,000                 | 200 MB                   |
+
+Notes:
+
+- **Google Gemini** doesn't cap request count directly — batches are bounded by the 2 GB input-file size and a per-model enqueued-token quota. Inline requests must stay under 20 MB total.
+- **Together AI** also limits enqueued tokens to 30B per model at any time.
+- **xAI**'s 50,000 cap applies to file-based batches; inline batches are theoretically unbounded but throttled above ~1,000,000 requests.
 
 For very large workloads, split into multiple batches.
