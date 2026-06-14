@@ -1,0 +1,116 @@
+---
+title: Pooling
+description: Buffer individual requests on demand and submit them as one batch when a size or age threshold is hit — so a frontend can push items in one at a time.
+---
+
+`batch()` needs every request up front. When requests instead trickle in one at a time — say a frontend posting a single prompt per user action — `batchwork/pool` accumulates them for you and submits a batch when a **size** or **age** threshold is hit, whichever comes first.
+
+## Pool requests
+
+```ts
+import { createBatchPool } from "batchwork/pool";
+import { openai } from "@ai-sdk/openai";
+
+const pool = createBatchPool({
+  model: openai.chat("gpt-4o-mini"),
+  maxSize: 50, // flush at 50 buffered requests…
+  maxDuration: 3600, // …or 3600 seconds after the first one, whichever is first
+  onFlush: async (job) => {
+    await job.wait();
+    for (const r of await job.collect()) {
+      // …handle each result
+    }
+  },
+});
+
+// Push items in as they arrive; add() returns the resolved customId.
+const id = await pool.add({ prompt: "Summarize this…" });
+```
+
+`add()` returns **immediately** with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so there is no per-item result to await. Results come back through the `onFlush(job, requests)` callback or, in production, the server layer shown below.
+
+A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms` like the other options).
+
+## Serverless: durable pooling + cron
+
+In a long-running process the example above just works — the pool buffers in memory and a timer fires the age flush. But when items arrive **across serverless invocations** (the frontend case), an in-memory buffer and a `setTimeout` don't survive between requests. Pass a durable `store` and drive the age flush from your cron instead.
+
+The pool sits **in front of** `batch()`. Hand each flushed job to your existing [Next.js routes](/next) (or [poller](/server)) via `track`, and results flow back through the **same** `onComplete`/webhook path as direct `batch()` users — the pool adds no new delivery code.
+
+```ts
+// app/api/batches/route.ts
+import { createBatchRoutes, createMemoryStore } from "batchwork/next";
+import { createBatchPool, createMemoryPendingStore } from "batchwork/pool";
+import { openai } from "@ai-sdk/openai";
+
+const routes = createBatchRoutes({
+  store: createMemoryStore(), // → KV/Postgres in production
+  onComplete: async (event, results) => {
+    for await (const r of results) {
+      await db.results.upsert({ id: r.customId, text: r.text });
+    }
+  },
+});
+
+const pool = createBatchPool({
+  model: openai.chat("gpt-4o-mini"),
+  maxSize: 50,
+  maxDuration: 3600,
+  store: createMemoryPendingStore(), // → KV/Postgres in production
+  track: (job) => routes.track(job), // results flow through onComplete
+});
+
+// The frontend enqueues a single item.
+export const POST = async (request: Request) => {
+  const { prompt, customId } = await request.json();
+  return Response.json({ id: await pool.add({ customId, prompt }) });
+};
+
+// Vercel Cron: flush aged pools, then poll tracked batches.
+export const GET = async (request: Request) => {
+  await pool.flushDue();
+  return routes.GET(request);
+};
+```
+
+`createBatchRoutes` already uses `POST` for OpenAI's native webhook. If you enable both, mount the enqueue endpoint on a distinct route (e.g. `/api/batches/enqueue`) rather than merging them.
+
+## Triggers and handles
+
+The pool exposes everything you need to drive both triggers and drain on demand:
+
+- **`add(request)`** — buffers a request and flushes synchronously the moment the buffer reaches `maxSize`. Returns the resolved `customId`.
+- **`flushDue()`** — flushes once the oldest pending request has aged past `maxDuration` (or the buffer is already full). Call it on each cron tick.
+- **`flush()`** — submit one batch of up to `maxSize` now.
+- **`flushAll()`** — drain everything now, as one batch per `maxSize` chunk.
+- **`size()`** — number of pending requests.
+- **`close()`** — stop the timer and drain remaining items. Call it on graceful shutdown; afterwards `add()` throws.
+
+If a flush fails it routes to `onError(error, requests)` and the claimed items return to pending for the next attempt — the same at-least-once behavior as the server poller.
+
+<Callout type="info">
+  In a single process, an armed age timer keeps the event loop alive until it
+  flushes. Call `close()` on shutdown (it stops the timer and drains) so
+  buffered items aren't lost.
+</Callout>
+
+## Bring your own pending store
+
+`createMemoryPendingStore()` is for development and single-process use. For serverless, implement `PendingRequestStore` over any KV/DB. The one method that matters is `claim(poolKey, limit)`: it must **atomically** hand out a disjoint set of pending rows so two concurrent invocations never submit the same request twice.
+
+```ts
+import type { PendingRequestStore } from "batchwork/pool";
+
+const store: PendingRequestStore = {
+  append: (record) => db.pending.insert(record),
+  count: (poolKey) => db.pending.count({ poolKey, claimedAt: null }),
+  oldestEnqueuedAt: (poolKey) => db.pending.minEnqueuedAt({ poolKey }),
+  claim: (poolKey, limit) => db.pending.claimOldest({ poolKey, limit }),
+  resolve: (claim) => db.pending.deleteByIds(claim.requests),
+  release: (claim) => db.pending.unclaim(claim),
+};
+```
+
+Back `claim` with a native primitive — Postgres `SELECT … FOR UPDATE SKIP LOCKED` (then `UPDATE … RETURNING`), or a Redis Lua `ZPOPMIN` script. Durable stores should also reclaim rows whose `claimedAt` is older than a TTL (≈ `2 × maxDuration`) so a crash between claim and submit can't strand them.
+
+See [Next.js](/next) and [Server](/server) for the delivery layer the pooled batches flow into once submitted.

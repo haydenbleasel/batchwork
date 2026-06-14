@@ -4,11 +4,11 @@ const FILES = [
   {
     code: `import { batch } from "batchwork";
 import { track } from "./api/batches/route";
-import type { LanguageModel } from "ai";
+import { openai } from "@ai-sdk/openai";
 import type { BatchRequest } from "batchwork";
 
 // Can be a string (AI Gateway) or an object (AI SDK model)
-const model: LanguageModel = "openai/gpt-5.5";
+const model = openai.chat("gpt-5.5");
 
 // Author requests in the same shape you already use with the Vercel AI SDK
 const requests: BatchRequest[] = [
