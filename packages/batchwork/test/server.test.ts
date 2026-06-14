@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { createBatchPoller } from "../src/server/poller";
-import { signWebhook, verifyBatchWebhook } from "../src/server/signing";
+import {
+  signWebhook,
+  verifyBatchWebhook,
+  verifyWebhook,
+} from "../src/server/signing";
 import { createMemoryStore } from "../src/server/store";
 import type { BatchWebhookEvent } from "../src/server/types";
 
@@ -71,6 +75,20 @@ describe("createMemoryStore", () => {
     expect(undelivered.map((r) => r.id)).toEqual(["a"]);
     expect(delivered.map((r) => r.id)).toEqual(["b"]);
     expect(all).toHaveLength(2);
+  });
+
+  it("deletes records", async () => {
+    const store = createMemoryStore();
+    await store.set({
+      createdAt: "now",
+      id: "a",
+      provider: "openai",
+      status: "in_progress",
+      webhookUrl: WEBHOOK_URL,
+    });
+    expect(await store.get("a")).not.toBeNull();
+    await store.delete("a");
+    expect(await store.get("a")).toBeNull();
   });
 });
 
@@ -238,5 +256,210 @@ describe("createBatchPoller", () => {
     );
     const stored = await store.get("batch_3");
     expect(stored?.deliveredAt).toBeDefined();
+  });
+
+  it("resolves credentials from a per-provider function", async () => {
+    const store = createMemoryStore();
+    const seen: string[] = [];
+    const poller = createBatchPoller({
+      credentials: (provider) => {
+        seen.push(provider);
+        return { apiKey: `k-${provider}` };
+      },
+      store,
+    });
+    await poller.track(
+      { id: "batch_fn", provider: "openai" },
+      { webhookUrl: WEBHOOK_URL }
+    );
+    install([
+      {
+        body: completedBatch("batch_fn"),
+        match: (url, method) =>
+          url.includes("/batches/batch_fn") && method === "GET",
+      },
+      { body: "ok", match: (url) => url === WEBHOOK_URL },
+    ]);
+
+    await poller.tick();
+    expect(seen).toContain("openai");
+  });
+
+  it("persists a non-terminal status change without delivering", async () => {
+    const store = createMemoryStore();
+    const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+    await poller.track(
+      { id: "batch_change", provider: "openai" },
+      { webhookUrl: WEBHOOK_URL }
+    );
+    install([
+      {
+        body: {
+          id: "batch_change",
+          request_counts: { completed: 0, failed: 0, total: 2 },
+          status: "finalizing",
+        },
+        match: (url) => url.includes("/batches/batch_change"),
+      },
+    ]);
+
+    const result = await poller.tick();
+    expect(result.delivered).toEqual([]);
+    const stored = await store.get("batch_change");
+    expect(stored?.status).toBe("finalizing");
+    expect(stored?.deliveredAt).toBeUndefined();
+  });
+
+  it("throws when webhook delivery fails", async () => {
+    const store = createMemoryStore();
+    const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+    await poller.track(
+      { id: "batch_fail", provider: "openai" },
+      { webhookUrl: WEBHOOK_URL }
+    );
+    const fetchMock = mock(
+      (input: string | URL | Request): Promise<Response> => {
+        const url = String(input);
+        if (url.includes("/batches/batch_fail")) {
+          return Promise.resolve(
+            Response.json(completedBatch("batch_fail"), {
+              status: 200,
+            })
+          );
+        }
+        if (url === WEBHOOK_URL) {
+          return Promise.resolve(new Response("nope", { status: 500 }));
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(poller.tick()).rejects.toThrow("webhook delivery");
+  });
+
+  describe("openaiWebhookHandler edge cases", () => {
+    const signingSecret = "whsec_dGVzdHNlY3JldA==";
+
+    const signed = async (body: string) => {
+      const headers = await signWebhook(
+        signingSecret,
+        "evt_1",
+        body,
+        Date.now() / 1000
+      );
+      return new Request("https://app.test/webhooks/openai", {
+        body,
+        headers,
+        method: "POST",
+      });
+    };
+
+    it("rejects an invalid signature with 400", async () => {
+      const poller = createBatchPoller({ store: createMemoryStore() });
+      const handler = poller.openaiWebhookHandler({ signingSecret });
+      const response = await handler(
+        new Request("https://app.test/webhooks/openai", {
+          body: "{}",
+          method: "POST",
+        })
+      );
+      expect(response.status).toBe(400);
+    });
+
+    it("ignores non-batch events with 202", async () => {
+      const poller = createBatchPoller({ store: createMemoryStore() });
+      const handler = poller.openaiWebhookHandler({ signingSecret });
+      const response = await handler(
+        await signed(JSON.stringify({ data: { id: "x" }, type: "thread.run" }))
+      );
+      expect(response.status).toBe(202);
+    });
+
+    it("rejects a batch event with no id with 400", async () => {
+      const poller = createBatchPoller({ store: createMemoryStore() });
+      const handler = poller.openaiWebhookHandler({ signingSecret });
+      const response = await handler(
+        await signed(JSON.stringify({ data: {}, type: "batch.completed" }))
+      );
+      expect(response.status).toBe(400);
+    });
+
+    it("acks an unknown batch id with 200", async () => {
+      const poller = createBatchPoller({ store: createMemoryStore() });
+      const handler = poller.openaiWebhookHandler({ signingSecret });
+      const response = await handler(
+        await signed(
+          JSON.stringify({ data: { id: "unknown" }, type: "batch.completed" })
+        )
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("does not deliver when the batch is still in progress", async () => {
+      const store = createMemoryStore();
+      const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+      await poller.track(
+        { id: "batch_wip", provider: "openai" },
+        { webhookUrl: WEBHOOK_URL }
+      );
+      install([
+        {
+          body: {
+            id: "batch_wip",
+            request_counts: { completed: 0, failed: 0, total: 1 },
+            status: "in_progress",
+          },
+          match: (url) => url.includes("/batches/batch_wip"),
+        },
+      ]);
+      const handler = poller.openaiWebhookHandler({ signingSecret });
+      const response = await handler(
+        await signed(
+          JSON.stringify({ data: { id: "batch_wip" }, type: "batch.completed" })
+        )
+      );
+      expect(response.status).toBe(200);
+      const stored = await store.get("batch_wip");
+      expect(stored?.deliveredAt).toBeUndefined();
+    });
+  });
+});
+
+describe("verifyWebhook edge cases", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("throws when signature headers are missing", async () => {
+    const request = new Request(WEBHOOK_URL, { body: "{}", method: "POST" });
+    await expect(verifyWebhook(request, SECRET)).rejects.toThrow(
+      "missing webhook signature headers"
+    );
+  });
+
+  it("rejects a timestamp outside tolerance", async () => {
+    const body = "{}";
+    const stale = Date.now() / 1000 - 10_000;
+    const headers = await signWebhook(SECRET, "batch_1", body, stale);
+    const request = new Request(WEBHOOK_URL, { body, headers, method: "POST" });
+    await expect(verifyWebhook(request, SECRET)).rejects.toThrow(
+      "timestamp outside tolerance"
+    );
+  });
+
+  it("rejects a non-numeric timestamp", async () => {
+    const request = new Request(WEBHOOK_URL, {
+      body: "{}",
+      headers: {
+        "webhook-id": "batch_1",
+        "webhook-signature": "v1,abc",
+        "webhook-timestamp": "not-a-number",
+      },
+      method: "POST",
+    });
+    await expect(verifyWebhook(request, SECRET)).rejects.toThrow(
+      "timestamp outside tolerance"
+    );
   });
 });

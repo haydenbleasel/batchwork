@@ -3,12 +3,18 @@ import { describe, expect, it } from "bun:test";
 import type { LanguageModel } from "ai";
 
 import { UnsupportedProviderError } from "../src/errors";
-import { resolveModel } from "../src/model";
+import { createCaptureModel, resolveModel } from "../src/model";
+import type { CapturingFetch, ResolvedModel } from "../src/model";
 import type { BatchProvider } from "../src/types";
 
 /** A minimal stand-in for an AI SDK model object. */
 const model = (provider: string, modelId: string): LanguageModel =>
   ({ modelId, provider }) as unknown as LanguageModel;
+
+const resolved = (
+  provider: BatchProvider,
+  kind: ResolvedModel["kind"] = "chat"
+): ResolvedModel => ({ kind, modelId: "test-model", provider });
 
 describe("resolveModel", () => {
   it("resolves provider/model strings", () => {
@@ -66,5 +72,56 @@ describe("resolveModel", () => {
       UnsupportedProviderError
     );
     expect(() => resolveModel("openai")).toThrow(UnsupportedProviderError);
+  });
+
+  it("throws for an unrecognized model object with no provider/model id", () => {
+    expect(() => resolveModel(model("cohere", "command-r"))).toThrow(
+      UnsupportedProviderError
+    );
+  });
+});
+
+describe("createCaptureModel", () => {
+  // The capture fetch is never invoked here — we only construct the model.
+  const fetchImpl = (() =>
+    Promise.reject(new Error("unused"))) as unknown as CapturingFetch;
+
+  it("constructs a model for every supported provider", async () => {
+    const providers: BatchProvider[] = [
+      "anthropic",
+      "google",
+      "groq",
+      "mistral",
+      "openai",
+      "together",
+      "xai",
+    ];
+    for (const provider of providers) {
+      // oxlint-disable-next-line no-await-in-loop -- exercising each provider.
+      const built = await createCaptureModel(
+        resolved(provider),
+        { apiKey: "k" },
+        fetchImpl
+      );
+      expect(built).toBeDefined();
+    }
+  });
+
+  it("constructs each OpenAI request shape", async () => {
+    for (const kind of ["chat", "responses", "completion"] as const) {
+      // oxlint-disable-next-line no-await-in-loop -- exercising each kind.
+      const built = await createCaptureModel(
+        resolved("openai", kind),
+        {},
+        fetchImpl
+      );
+      expect(built).toBeDefined();
+    }
+  });
+
+  it("throws for an unsupported provider", async () => {
+    await expect(
+      createCaptureModel(resolved("cohere" as BatchProvider), {}, fetchImpl)
+    ).rejects.toThrow(UnsupportedProviderError);
   });
 });
