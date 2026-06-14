@@ -73,7 +73,7 @@ await batch({
       },
     },
   ],
-  metadata: { description: "nightly eval" }, // OpenAI only
+  metadata: { description: "nightly eval" }, // OpenAI, Groq, Together AI, Mistral
 });
 ```
 

@@ -60,7 +60,9 @@ await batch({
 
 ## Metadata
 
-`metadata` (OpenAI only) attaches free-form key/value pairs to the batch:
+`metadata` attaches free-form key/value pairs to the batch. It's forwarded on the
+file-upload providers (OpenAI, Groq, Together AI, and Mistral) and ignored by the
+inline ones (Anthropic, Google Gemini, xAI):
 
 ```ts
 await batch({ model, requests, metadata: { description: "nightly eval" } });
