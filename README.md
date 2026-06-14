@@ -1,6 +1,6 @@
 # batchwork
 
-The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev) — submit thousands of LLM requests at ~50% cost with one unified call, across OpenAI and Anthropic.
+The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev) — submit thousands of LLM requests at ~50% cost with one unified call, across OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 
 ```ts
 import { batch } from "batchwork";

@@ -1,0 +1,156 @@
+/**
+ * Helpers shared across the OpenAI-shaped adapters (OpenAI, Groq, Together,
+ * Mistral). These providers all upload JSONL via a Files API, return results as
+ * JSONL keyed by `custom_id`, and shape each result line like OpenAI's
+ * (`{ custom_id, response: { status_code, body }, error }`).
+ */
+
+import { BatchworkError } from "../errors";
+import { requestJson, requestStream } from "../http";
+import { streamJsonl } from "../jsonl";
+import type {
+  BatchResult,
+  BatchResultError,
+  BatchUsage,
+  ProviderCredentials,
+} from "../types";
+import { asArray, asNumber, asRecord, asString } from "../util";
+
+const HTTP_OK_MIN = 200;
+const HTTP_OK_MAX = 300;
+
+/** Resolve an API key from credentials or the provider's env var, or throw. */
+export const resolveApiKey = (
+  credentials: ProviderCredentials,
+  envVar: string,
+  label: string
+): string => {
+  const key = credentials.apiKey ?? process.env[envVar];
+  if (!key) {
+    throw new BatchworkError(
+      `batchwork: missing ${label} API key. Set ${envVar} or pass \`apiKey\`.`
+    );
+  }
+  return key;
+};
+
+export const textFromBody = (body: unknown): string | undefined => {
+  const obj = asRecord(body);
+  const choices = asArray(obj.choices);
+  if (choices.length > 0) {
+    const content = asString(asRecord(asRecord(choices[0]).message).content);
+    if (content) {
+      return content;
+    }
+  }
+  return asString(obj.output_text);
+};
+
+export const usageFromBody = (body: unknown): BatchUsage | undefined => {
+  const usage = asRecord(asRecord(body).usage);
+  const inputTokens =
+    asNumber(usage.prompt_tokens) ?? asNumber(usage.input_tokens);
+  const outputTokens =
+    asNumber(usage.completion_tokens) ?? asNumber(usage.output_tokens);
+  const totalTokens = asNumber(usage.total_tokens);
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    totalTokens === undefined
+  ) {
+    return;
+  }
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: totalTokens ?? (inputTokens ?? 0) + (outputTokens ?? 0),
+  };
+};
+
+const errorFromValue = (value: unknown, fallback: string): BatchResultError => {
+  const obj = asRecord(value);
+  const nested = asRecord(obj.error);
+  const source = nested.message ? nested : obj;
+  return {
+    code: asNumber(source.code) ?? asString(source.code),
+    message: asString(source.message) ?? fallback,
+    type: asString(source.type),
+  };
+};
+
+/** Normalize an OpenAI-shaped result line into a {@link BatchResult}. */
+export const normalizeOpenAIResult = (line: unknown): BatchResult => {
+  const obj = asRecord(line);
+  const customId = asString(obj.custom_id) ?? "";
+
+  if (obj.error) {
+    return {
+      customId,
+      error: errorFromValue(obj.error, "Request errored."),
+      response: obj.error,
+      status: "errored",
+    };
+  }
+
+  const response = asRecord(obj.response);
+  const statusCode = asNumber(response.status_code) ?? 0;
+  if (statusCode >= HTTP_OK_MIN && statusCode < HTTP_OK_MAX) {
+    return {
+      customId,
+      response: response.body,
+      status: "succeeded",
+      text: textFromBody(response.body),
+      usage: usageFromBody(response.body),
+    };
+  }
+
+  return {
+    customId,
+    error: errorFromValue(
+      response.body,
+      `Request failed with status ${statusCode}.`
+    ),
+    response: response.body,
+    status: "errored",
+  };
+};
+
+/** Upload a JSONL batch input file (`purpose=batch`) and return its id. */
+export const uploadInputFile = async (
+  jsonl: string,
+  baseUrl: string,
+  headers: Record<string, string>
+): Promise<string> => {
+  const form = new FormData();
+  form.append("purpose", "batch");
+  form.append(
+    "file",
+    new Blob([jsonl], { type: "application/jsonl" }),
+    "batchwork.jsonl"
+  );
+  const raw = await requestJson<{ id: string }>(`${baseUrl}/files`, {
+    body: form,
+    headers,
+    method: "POST",
+  });
+  return raw.id;
+};
+
+/**
+ * Stream a JSONL result file's content as normalized OpenAI-shaped results.
+ *
+ * @yields {BatchResult} the normalized result for each line.
+ */
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
+export async function* streamResultFile(
+  fileId: string,
+  baseUrl: string,
+  headers: Record<string, string>
+): AsyncGenerator<BatchResult> {
+  const stream = await requestStream(`${baseUrl}/files/${fileId}/content`, {
+    headers,
+  });
+  for await (const line of streamJsonl(stream)) {
+    yield normalizeOpenAIResult(line);
+  }
+}

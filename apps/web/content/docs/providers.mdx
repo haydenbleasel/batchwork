@@ -5,35 +5,47 @@ description: How batchwork maps the unified API onto each provider's native Batc
 
 ## Supported providers
 
-batchwork v1 ships **OpenAI** and **Anthropic** — the two canonical batch shapes. The adapter interface generalizes to Gemini, Mistral, Groq, and Bedrock, which are on the roadmap.
+batchwork supports **seven** providers, built on three batch "shapes":
 
-|                  | OpenAI                           | Anthropic                    |
-| ---------------- | -------------------------------- | ---------------------------- |
-| Submit           | JSONL file upload → create batch | Inline `requests[]` array    |
-| Status           | Poll (native webhooks exist)     | Poll only                    |
-| Results          | Output + error files (JSONL)     | `results_url` (JSONL stream) |
-| Max requests     | 50,000                           | 100,000                      |
-| Max size         | 200 MB                           | 256 MB                       |
-| Result retention | 30 days                          | 29 days                      |
-| Discount         | ~50%                             | ~50%                         |
+| Provider      | Shape                             | Results                      |
+| ------------- | --------------------------------- | ---------------------------- |
+| OpenAI        | JSONL file upload → create batch  | Output + error files (JSONL) |
+| Groq          | JSONL file upload (OpenAI-compat) | Output + error files (JSONL) |
+| Together AI   | JSONL file upload (`body`-only)   | Output + error files (JSONL) |
+| Mistral       | JSONL file upload → create job    | Output + error files (JSONL) |
+| Anthropic     | Inline `requests[]` array         | `results_url` (JSONL stream) |
+| Google Gemini | Inline `:batchGenerateContent`    | Inline operation responses   |
+| xAI           | JSONL file upload (OpenAI-compat) | Paginated `/results` JSON    |
+
+All providers offer roughly a **50% discount** versus synchronous calls and a 24h target window. Results come back **unordered**, keyed by `customId`, and batchwork normalizes them into one [`BatchResult`](/results) type. Provider lifecycle calls use plain `fetch` — no official provider SDK required (the matching `@ai-sdk/*` package is only needed to _build_ the request bodies).
 
 ## What batchwork does for you
 
-**OpenAI** — batchwork builds the JSONL, uploads it via the Files API (`purpose=batch`), creates the batch, polls for status, then downloads and parses the output and error files.
-
-**Anthropic** — batchwork sends the inline `requests` array, polls `processing_status`, then streams and parses the JSONL from `results_url`.
-
-In both cases results come back **unordered**, keyed by `customId`, and batchwork normalizes them into one [`BatchResult`](/results) type. The provider lifecycle calls use plain `fetch` against each provider's batch endpoints — no official provider SDK required.
+- **OpenAI / Groq / Together AI** — builds the JSONL, uploads it via the Files API (`purpose=batch`), creates the batch, polls `status`, then downloads and parses the output and error files. (Groq is served under `/openai/v1`, so its batch `url` is normalized to `/v1/chat/completions`; Together uses the leaner `{ custom_id, body }` line shape with the endpoint set on the batch.)
+- **Mistral** — uploads the JSONL, creates a job with the **model and endpoint set on the job**, polls `status`, then downloads the OpenAI-shaped output/error files.
+- **Anthropic** — sends the inline `requests` array, polls `processing_status`, then streams and parses the JSONL from `results_url`.
+- **Google Gemini** — submits inline requests via `:batchGenerateContent` (each keyed by `metadata.key`), polls the returned long-running operation, then reads the inline responses.
+- **xAI** — uploads the JSONL via xAI's OpenAI-compatible Files API and creates a batch by `input_file_id`, then reads the proprietary paginated `/results`.
 
 ## Credentials
 
-| Provider  | Env var             |
-| --------- | ------------------- |
-| OpenAI    | `OPENAI_API_KEY`    |
-| Anthropic | `ANTHROPIC_API_KEY` |
+| Provider      | Env var                                              |
+| ------------- | ---------------------------------------------------- |
+| OpenAI        | `OPENAI_API_KEY`                                     |
+| Anthropic     | `ANTHROPIC_API_KEY`                                  |
+| Groq          | `GROQ_API_KEY`                                       |
+| Together AI   | `TOGETHER_API_KEY`                                   |
+| Mistral       | `MISTRAL_API_KEY`                                    |
+| Google Gemini | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) |
+| xAI           | `XAI_API_KEY`                                        |
 
-Pass `apiKey`, `baseURL`, or `headers` to `batch()` to override per call.
+Pass `apiKey`, `baseURL`, or `headers` to `batch()` to override per call. Each provider's `@ai-sdk/*` package is an optional peer dependency — install the one(s) you use (e.g. `@ai-sdk/groq`).
 
 ## Webhooks
 
-OpenAI emits native batch webhooks (`batch.completed`, `batch.failed`, `batch.expired`, `batch.cancelled`); Anthropic does not. The [server layer](/server) papers over this: it uses OpenAI's native webhooks where available and managed polling everywhere else, then delivers **one** unified, signed event regardless of provider.
+OpenAI emits native batch webhooks (`batch.completed`, `batch.failed`, `batch.expired`, `batch.cancelled`); the other providers are poll-only. The [server layer](/server) papers over this: it uses OpenAI's native webhooks where available and managed polling everywhere else, then delivers **one** unified, signed event regardless of provider. New providers are picked up by the poller automatically.
+
+## Not supported yet
+
+- **Amazon Bedrock** and **Vertex AI** — their batch APIs require object-storage staging (S3/GCS), cloud IAM auth (SigV4/OAuth), and region config, which don't fit batchwork's `apiKey` + `fetch` model. On the roadmap.
+- **Cohere** batches embeddings only (no chat), and **DeepSeek** has no batch API.

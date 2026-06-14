@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { anthropicAdapter } from "../src/providers/anthropic";
+import { googleAdapter } from "../src/providers/google";
+import { groqAdapter } from "../src/providers/groq";
+import { mistralAdapter } from "../src/providers/mistral";
 import { openaiAdapter } from "../src/providers/openai";
+import { togetherAdapter } from "../src/providers/together";
+import { xaiAdapter } from "../src/providers/xai";
 import type { BatchResult } from "../src/types";
 
 const credentials = { apiKey: "test-key" };
@@ -41,6 +46,20 @@ const collect = async (
     out.push(item);
   }
   return out;
+};
+
+/** Read back the JSONL lines from a multipart file-upload call. */
+const uploadedJsonl = async (
+  call: readonly unknown[] | undefined
+): Promise<Record<string, unknown>[]> => {
+  const init = call?.[1] as RequestInit | undefined;
+  const form = init?.body as FormData;
+  const file = form.get("file") as Blob;
+  const text = await file.text();
+  return text
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
 };
 
 describe("anthropic adapter", () => {
@@ -85,6 +104,7 @@ describe("anthropic adapter", () => {
       ],
       credentials,
       endpoint: "/v1/messages",
+      modelId: "claude",
     });
 
     expect(snapshot.id).toBe("msgbatch_1");
@@ -177,6 +197,7 @@ describe("openai adapter", () => {
       ],
       credentials,
       endpoint: "/v1/chat/completions",
+      modelId: "gpt-4o-mini",
     });
 
     expect(snapshot.id).toBe("batch_1");
@@ -224,5 +245,359 @@ describe("openai adapter", () => {
     });
     expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
     expect(out[1]?.error?.message).toBe("bad model");
+  });
+});
+
+describe("groq adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("normalizes the captured endpoint for the line url and batch", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_g",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await groqAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "llama" },
+          customId: "a",
+          // Groq is served under /openai/v1; this must be normalized.
+          endpoint: "/openai/v1/chat/completions",
+        },
+      ],
+      credentials,
+      endpoint: "/openai/v1/chat/completions",
+      modelId: "llama",
+    });
+
+    expect(snapshot.id).toBe("batch_g");
+    expect(snapshot.provider).toBe("groq");
+
+    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    expect(lines[0]?.url).toBe("/v1/chat/completions");
+    expect(lines[0]?.method).toBe("POST");
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(createBody.endpoint).toBe("/v1/chat/completions");
+  });
+});
+
+describe("together adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("uploads body-only lines and sets the endpoint on the batch", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_t",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await togetherAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "meta-llama" },
+          customId: "a",
+          endpoint: "/v1/chat/completions",
+        },
+      ],
+      credentials,
+      endpoint: "/v1/chat/completions",
+      modelId: "meta-llama",
+    });
+
+    expect(snapshot.provider).toBe("together");
+    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    // body-only: no method/url, just custom_id + body.
+    expect(lines[0]?.method).toBeUndefined();
+    expect(lines[0]?.url).toBeUndefined();
+    expect(lines[0]?.custom_id).toBe("a");
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(createBody.endpoint).toBe("/v1/chat/completions");
+  });
+});
+
+describe("mistral adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("sets the model on the job and strips it from each line", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+      },
+      {
+        body: {
+          id: "job_1",
+          status: "QUEUED",
+          total_requests: 1,
+        },
+        match: (url, method) =>
+          url.endsWith("/batch/jobs") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await mistralAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "mistral-small" },
+          customId: "a",
+          endpoint: "/v1/chat/completions",
+        },
+      ],
+      credentials,
+      endpoint: "/v1/chat/completions",
+      modelId: "mistral-small-latest",
+    });
+
+    expect(snapshot.provider).toBe("mistral");
+    expect(snapshot.status).toBe("validating");
+
+    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    const lineBody = lines[0]?.body as Record<string, unknown>;
+    expect(lines[0]?.custom_id).toBe("a");
+    expect(lineBody.model).toBeUndefined();
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(createBody.model).toBe("mistral-small-latest");
+    expect(createBody.endpoint).toBe("/v1/chat/completions");
+    expect(createBody.input_files).toStrictEqual(["file-in"]);
+  });
+
+  it("downloads the OpenAI-shaped output and error files", async () => {
+    const output =
+      '{"custom_id":"a","response":{"status_code":200,"body":{"choices":[{"message":{"content":"Bonjour"}}],"usage":{"prompt_tokens":3,"completion_tokens":1,"total_tokens":4}}},"error":null}';
+    const errors =
+      '{"custom_id":"b","response":null,"error":{"message":"bad request","type":"invalid_request"}}';
+
+    install([
+      {
+        body: {
+          error_file: "file-err",
+          failed_requests: 1,
+          id: "job_1",
+          output_file: "file-out",
+          status: "SUCCESS",
+          succeeded_requests: 1,
+          total_requests: 2,
+        },
+        match: (url, method) =>
+          url.endsWith("/batch/jobs/job_1") && method === "GET",
+      },
+      { body: output, match: (url) => url.includes("/files/file-out/content") },
+      { body: errors, match: (url) => url.includes("/files/file-err/content") },
+    ]);
+
+    const out = await collect(mistralAdapter.results("job_1", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      status: "succeeded",
+      text: "Bonjour",
+    });
+    expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
+    expect(out[1]?.error?.message).toBe("bad request");
+  });
+});
+
+describe("google adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("submits inline requests keyed by metadata.key", async () => {
+    const fetchMock = install([
+      {
+        body: { metadata: { state: "JOB_STATE_PENDING" }, name: "batches/1" },
+        match: (url, method) =>
+          url.endsWith(":batchGenerateContent") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await googleAdapter.submit({
+      built: [
+        {
+          body: { contents: [{ parts: [{ text: "Hi" }] }] },
+          customId: "a",
+          endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+        },
+      ],
+      credentials,
+      endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+      modelId: "gemini-2.5-flash",
+    });
+
+    expect(snapshot.id).toBe("batches/1");
+    expect(snapshot.provider).toBe("google");
+    expect(snapshot.status).toBe("validating");
+
+    const sentBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const { requests } = sentBody.batch.input_config.requests;
+    expect(requests[0].metadata.key).toBe("a");
+    expect(requests[0].request.contents[0].parts[0].text).toBe("Hi");
+  });
+
+  it("parses inline responses keyed back by metadata.key", async () => {
+    install([
+      {
+        body: {
+          done: true,
+          metadata: { state: "JOB_STATE_SUCCEEDED" },
+          name: "batches/1",
+          response: {
+            inlinedResponses: {
+              inlinedResponses: [
+                {
+                  metadata: { key: "a" },
+                  response: {
+                    candidates: [{ content: { parts: [{ text: "Hello" }] } }],
+                    usageMetadata: {
+                      candidatesTokenCount: 2,
+                      promptTokenCount: 5,
+                      totalTokenCount: 7,
+                    },
+                  },
+                },
+                {
+                  error: {
+                    code: 3,
+                    message: "bad",
+                    status: "INVALID_ARGUMENT",
+                  },
+                  metadata: { key: "b" },
+                },
+              ],
+            },
+          },
+        },
+        match: (url, method) => url.endsWith("/batches/1") && method === "GET",
+      },
+    ]);
+
+    const out = await collect(googleAdapter.results("batches/1", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      status: "succeeded",
+      text: "Hello",
+    });
+    expect(out[0]?.usage).toStrictEqual({
+      inputTokens: 5,
+      outputTokens: 2,
+      totalTokens: 7,
+    });
+    expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
+    expect(out[1]?.error?.message).toBe("bad");
+  });
+});
+
+describe("xai adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("uploads a file and creates a batch by input_file_id", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+      },
+      {
+        body: {
+          batch_id: "b_x",
+          state: {
+            num_cancelled: 0,
+            num_error: 0,
+            num_pending: 1,
+            num_requests: 1,
+            num_success: 0,
+          },
+        },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await xaiAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "grok-4" },
+          customId: "a",
+          endpoint: "/v1/chat/completions",
+        },
+      ],
+      credentials,
+      endpoint: "/v1/chat/completions",
+      modelId: "grok-4",
+    });
+
+    expect(snapshot.id).toBe("b_x");
+    expect(snapshot.provider).toBe("xai");
+    expect(snapshot.status).toBe("in_progress");
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(createBody.input_file_id).toBe("file-in");
+  });
+
+  it("paginates results and parses chat_get_completion", async () => {
+    install([
+      {
+        body: {
+          pagination_token: null,
+          results: [
+            {
+              batch_request_id: "a",
+              batch_result: {
+                response: {
+                  chat_get_completion: {
+                    choices: [{ message: { content: "Hi" } }],
+                    usage: {
+                      completion_tokens: 2,
+                      prompt_tokens: 5,
+                      total_tokens: 7,
+                    },
+                  },
+                },
+              },
+            },
+            { batch_request_id: "b", error_message: "rate limited" },
+          ],
+        },
+        match: (url) => url.includes("/batches/b_x/results"),
+      },
+    ]);
+
+    const out = await collect(xaiAdapter.results("b_x", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      status: "succeeded",
+      text: "Hi",
+    });
+    expect(out[0]?.usage).toStrictEqual({
+      inputTokens: 5,
+      outputTokens: 2,
+      totalTokens: 7,
+    });
+    expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
+    expect(out[1]?.error?.message).toBe("rate limited");
   });
 });

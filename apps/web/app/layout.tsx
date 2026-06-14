@@ -24,7 +24,7 @@ const baseUrl = `${protocol}://${origin}`;
 
 const title = "batchwork — the missing batch API for the Vercel AI SDK";
 const description =
-  "Submit thousands of LLM requests at ~50% cost with one unified call across OpenAI and Anthropic. batchwork handles JSONL, uploads, polling, and result parsing for you.";
+  "Submit thousands of LLM requests at ~50% cost with one unified call across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI. batchwork handles JSONL, uploads, polling, and result parsing for you.";
 
 export const metadata: Metadata = {
   alternates: {

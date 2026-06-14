@@ -63,6 +63,7 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
     credentials,
     endpoint: built[0]?.endpoint ?? "",
     metadata: options.metadata,
+    modelId: resolved.modelId,
   });
 
   return new BatchJob(adapter, credentials, snapshot);

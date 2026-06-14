@@ -1,5 +1,10 @@
 import type * as AnthropicModule from "@ai-sdk/anthropic";
+import type * as GoogleModule from "@ai-sdk/google";
+import type * as GroqModule from "@ai-sdk/groq";
+import type * as MistralModule from "@ai-sdk/mistral";
 import type * as OpenAIModule from "@ai-sdk/openai";
+import type * as TogetherModule from "@ai-sdk/togetherai";
+import type * as XaiModule from "@ai-sdk/xai";
 import type { LanguageModel } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
@@ -12,7 +17,7 @@ export type CapturingFetch = typeof globalThis.fetch;
 export type OpenAIModelKind = "chat" | "responses" | "completion";
 
 export interface ResolvedModel {
-  /** Relevant for OpenAI; Anthropic always uses the Messages endpoint. */
+  /** Relevant for OpenAI; other providers always use a single chat endpoint. */
   kind: OpenAIModelKind;
   modelId: string;
   provider: BatchProvider;
@@ -24,6 +29,41 @@ export interface ResolvedModel {
  * but the provider refuses to construct a model without one.
  */
 const CAPTURE_API_KEY = "batchwork-capture";
+
+/** The optional `@ai-sdk/*` package backing each provider. */
+const PACKAGE_BY_PROVIDER: Record<
+  BatchProvider,
+  { label: string; specifier: string }
+> = {
+  anthropic: { label: "Anthropic", specifier: "@ai-sdk/anthropic" },
+  google: { label: "Google Gemini", specifier: "@ai-sdk/google" },
+  groq: { label: "Groq", specifier: "@ai-sdk/groq" },
+  mistral: { label: "Mistral", specifier: "@ai-sdk/mistral" },
+  openai: { label: "OpenAI", specifier: "@ai-sdk/openai" },
+  together: { label: "Together AI", specifier: "@ai-sdk/togetherai" },
+  xai: { label: "xAI", specifier: "@ai-sdk/xai" },
+};
+
+/**
+ * AI SDK provider id prefixes (the part before the first `.` in `model.provider`)
+ * mapped to batch providers.
+ */
+const PROVIDER_BY_FAMILY: Record<string, BatchProvider> = {
+  anthropic: "anthropic",
+  google: "google",
+  groq: "groq",
+  mistral: "mistral",
+  openai: "openai",
+  together: "together",
+  togetherai: "together",
+  xai: "xai",
+};
+
+/** Aliases accepted in the `"provider/model"` string form. */
+const PROVIDER_BY_ALIAS: Record<string, BatchProvider> = {
+  ...PROVIDER_BY_FAMILY,
+  gemini: "google",
+};
 
 const splitOnce = (value: string, separator: string): [string, string] => {
   const index = value.indexOf(separator);
@@ -50,13 +90,11 @@ const resolveModelString = (value: string): ResolvedModel => {
   if (modelId === "") {
     throw new UnsupportedProviderError(value);
   }
-  if (providerId === "openai") {
-    return { kind: "chat", modelId, provider: "openai" };
+  const provider = PROVIDER_BY_ALIAS[providerId];
+  if (!provider) {
+    throw new UnsupportedProviderError(providerId);
   }
-  if (providerId === "anthropic") {
-    return { kind: "chat", modelId, provider: "anthropic" };
-  }
-  throw new UnsupportedProviderError(providerId);
+  return { kind: "chat", modelId, provider };
 };
 
 /**
@@ -71,15 +109,12 @@ export const resolveModel = (model: LanguageModel): ResolvedModel => {
   }
 
   const [family, suffix] = splitOnce(model.provider, ".");
-  if (family === "openai") {
-    return {
-      kind: openaiKind(suffix),
-      modelId: model.modelId,
-      provider: "openai",
-    };
+  const provider = PROVIDER_BY_FAMILY[family];
+  if (provider === "openai") {
+    return { kind: openaiKind(suffix), modelId: model.modelId, provider };
   }
-  if (family === "anthropic") {
-    return { kind: "chat", modelId: model.modelId, provider: "anthropic" };
+  if (provider) {
+    return { kind: "chat", modelId: model.modelId, provider };
   }
   // Gateway/registry providers carry the real target in the model id.
   if (model.modelId.includes("/")) {
@@ -88,19 +123,44 @@ export const resolveModel = (model: LanguageModel): ResolvedModel => {
   throw new UnsupportedProviderError(model.provider);
 };
 
-const loadOpenAI = async (): Promise<typeof OpenAIModule> => {
-  try {
-    return await import("@ai-sdk/openai");
-  } catch {
-    throw new MissingDependencyError("@ai-sdk/openai", "OpenAI");
+const importProvider = (provider: BatchProvider): Promise<unknown> => {
+  switch (provider) {
+    case "anthropic": {
+      return import("@ai-sdk/anthropic");
+    }
+    case "google": {
+      return import("@ai-sdk/google");
+    }
+    case "groq": {
+      return import("@ai-sdk/groq");
+    }
+    case "mistral": {
+      return import("@ai-sdk/mistral");
+    }
+    case "openai": {
+      return import("@ai-sdk/openai");
+    }
+    case "together": {
+      return import("@ai-sdk/togetherai");
+    }
+    case "xai": {
+      return import("@ai-sdk/xai");
+    }
+    default: {
+      return Promise.reject(new UnsupportedProviderError(provider));
+    }
   }
 };
 
-const loadAnthropic = async (): Promise<typeof AnthropicModule> => {
+const loadProvider = async <T>(provider: BatchProvider): Promise<T> => {
   try {
-    return await import("@ai-sdk/anthropic");
-  } catch {
-    throw new MissingDependencyError("@ai-sdk/anthropic", "Anthropic");
+    return (await importProvider(provider)) as T;
+  } catch (error) {
+    if (error instanceof UnsupportedProviderError) {
+      throw error;
+    }
+    const { specifier, label } = PACKAGE_BY_PROVIDER[provider];
+    throw new MissingDependencyError(specifier, label);
   }
 };
 
@@ -120,19 +180,49 @@ export const createCaptureModel = async (
     headers: credentials.headers,
   };
 
-  if (resolved.provider === "openai") {
-    const { createOpenAI } = await loadOpenAI();
-    const provider = createOpenAI(settings);
-    if (resolved.kind === "responses") {
-      return provider.responses(resolved.modelId);
+  switch (resolved.provider) {
+    case "openai": {
+      const { createOpenAI } =
+        await loadProvider<typeof OpenAIModule>("openai");
+      const provider = createOpenAI(settings);
+      if (resolved.kind === "responses") {
+        return provider.responses(resolved.modelId);
+      }
+      if (resolved.kind === "completion") {
+        return provider.completion(resolved.modelId);
+      }
+      return provider.chat(resolved.modelId);
     }
-    if (resolved.kind === "completion") {
-      return provider.completion(resolved.modelId);
+    case "anthropic": {
+      const { createAnthropic } =
+        await loadProvider<typeof AnthropicModule>("anthropic");
+      return createAnthropic(settings).messages(resolved.modelId);
     }
-    return provider.chat(resolved.modelId);
+    case "groq": {
+      const { createGroq } = await loadProvider<typeof GroqModule>("groq");
+      return createGroq(settings).languageModel(resolved.modelId);
+    }
+    case "mistral": {
+      const { createMistral } =
+        await loadProvider<typeof MistralModule>("mistral");
+      return createMistral(settings).languageModel(resolved.modelId);
+    }
+    case "google": {
+      const { createGoogleGenerativeAI } =
+        await loadProvider<typeof GoogleModule>("google");
+      return createGoogleGenerativeAI(settings).languageModel(resolved.modelId);
+    }
+    case "xai": {
+      const { createXai } = await loadProvider<typeof XaiModule>("xai");
+      return createXai(settings).languageModel(resolved.modelId);
+    }
+    case "together": {
+      const { createTogetherAI } =
+        await loadProvider<typeof TogetherModule>("together");
+      return createTogetherAI(settings).languageModel(resolved.modelId);
+    }
+    default: {
+      throw new UnsupportedProviderError(resolved.provider);
+    }
   }
-
-  const { createAnthropic } = await loadAnthropic();
-  const provider = createAnthropic(settings);
-  return provider.messages(resolved.modelId);
 };

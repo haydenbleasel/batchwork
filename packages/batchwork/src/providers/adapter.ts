@@ -9,9 +9,15 @@ import type {
 export interface SubmitInput {
   built: BuiltRequest[];
   credentials: ProviderCredentials;
-  /** OpenAI endpoint path (e.g. `/v1/chat/completions`); ignored by Anthropic. */
+  /** Endpoint path the captured requests target (e.g. `/v1/chat/completions`). */
   endpoint: string;
   metadata?: Record<string, string>;
+  /**
+   * Resolved model id. Needed by providers that set the model on the batch/job
+   * (Gemini puts it in the create URL, Mistral on the job); ignored by providers
+   * that carry the model in each request line (OpenAI, Anthropic).
+   */
+  modelId: string;
 }
 
 /** A provider's batch lifecycle: submit, poll, stream results, cancel. */

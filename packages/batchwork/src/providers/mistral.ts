@@ -1,0 +1,153 @@
+import { requestJson } from "../http";
+import { encodeJsonl } from "../jsonl";
+import type {
+  BatchResult,
+  BatchSnapshot,
+  BatchStatus,
+  ProviderCredentials,
+} from "../types";
+import { asNumber, asRecord, asString, omit, toDate } from "../util";
+import type { BatchAdapter, SubmitInput } from "./adapter";
+import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
+
+const MISTRAL_BASE = "https://api.mistral.ai/v1";
+const TIMEOUT_HOURS = 24;
+
+const apiKey = (credentials: ProviderCredentials): string =>
+  resolveApiKey(credentials, "MISTRAL_API_KEY", "Mistral");
+
+const baseUrl = (credentials: ProviderCredentials): string =>
+  credentials.baseURL ?? MISTRAL_BASE;
+
+const authHeaders = (
+  credentials: ProviderCredentials
+): Record<string, string> => ({
+  Authorization: `Bearer ${apiKey(credentials)}`,
+  ...credentials.headers,
+});
+
+const mapStatus = (status: string | undefined): BatchStatus => {
+  switch (status) {
+    case "QUEUED": {
+      return "validating";
+    }
+    case "SUCCESS": {
+      return "completed";
+    }
+    case "FAILED": {
+      return "failed";
+    }
+    case "TIMEOUT_EXCEEDED": {
+      return "expired";
+    }
+    case "CANCELLATION_REQUESTED": {
+      return "cancelling";
+    }
+    case "CANCELLED": {
+      return "cancelled";
+    }
+    default: {
+      return "in_progress";
+    }
+  }
+};
+
+const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
+  const obj = asRecord(raw);
+  const succeeded = asNumber(obj.succeeded_requests) ?? 0;
+  const failed = asNumber(obj.failed_requests) ?? 0;
+  return {
+    completedAt: toDate(obj.completed_at),
+    createdAt: toDate(obj.created_at),
+    id: asString(obj.id) ?? "",
+    provider: "mistral",
+    raw,
+    requestCounts: {
+      completed: succeeded,
+      failed,
+      total: asNumber(obj.total_requests) ?? succeeded + failed,
+    },
+    status: mapStatus(asString(obj.status)),
+  };
+};
+
+const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
+  // Mistral sets the model on the job, so strip it (and `stream`) from each line.
+  const jsonl = encodeJsonl(
+    input.built.map((item) => ({
+      body: omit(omit(item.body, "stream"), "model"),
+      custom_id: item.customId,
+    }))
+  );
+  const inputFileId = await uploadInputFile(
+    jsonl,
+    baseUrl(input.credentials),
+    authHeaders(input.credentials)
+  );
+  const raw = await requestJson(`${baseUrl(input.credentials)}/batch/jobs`, {
+    body: JSON.stringify({
+      endpoint: input.endpoint,
+      input_files: [inputFileId],
+      metadata: input.metadata,
+      model: input.modelId,
+      timeout_hours: TIMEOUT_HOURS,
+    }),
+    headers: {
+      ...authHeaders(input.credentials),
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+  return normalizeSnapshot(raw);
+};
+
+const retrieve = async (
+  id: string,
+  credentials: ProviderCredentials
+): Promise<BatchSnapshot> => {
+  const raw = await requestJson(`${baseUrl(credentials)}/batch/jobs/${id}`, {
+    headers: authHeaders(credentials),
+  });
+  return normalizeSnapshot(raw);
+};
+
+// oxlint-disable-next-line func-style -- generators cannot be arrow functions.
+async function* results(
+  id: string,
+  credentials: ProviderCredentials
+): AsyncGenerator<BatchResult> {
+  const snapshot = await retrieve(id, credentials);
+  const raw = asRecord(snapshot.raw);
+  const outputFileId = asString(raw.output_file);
+  const errorFileId = asString(raw.error_file);
+  const headers = authHeaders(credentials);
+  if (outputFileId) {
+    yield* streamResultFile(outputFileId, baseUrl(credentials), headers);
+  }
+  if (errorFileId) {
+    yield* streamResultFile(errorFileId, baseUrl(credentials), headers);
+  }
+}
+
+const cancel = async (
+  id: string,
+  credentials: ProviderCredentials
+): Promise<void> => {
+  await requestJson(`${baseUrl(credentials)}/batch/jobs/${id}/cancel`, {
+    headers: authHeaders(credentials),
+    method: "POST",
+  });
+};
+
+/**
+ * Mistral batch adapter: uploads JSONL (`purpose=batch`), creates a job with the
+ * model/endpoint set on the job, polls `status`, then downloads the OpenAI-shaped
+ * output/error files.
+ */
+export const mistralAdapter: BatchAdapter = {
+  cancel,
+  id: "mistral",
+  results,
+  retrieve,
+  submit,
+};

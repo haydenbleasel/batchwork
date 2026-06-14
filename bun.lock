@@ -54,7 +54,12 @@
       },
       "devDependencies": {
         "@ai-sdk/anthropic": "^3.0.84",
+        "@ai-sdk/google": "^3.0.82",
+        "@ai-sdk/groq": "^3.0.41",
+        "@ai-sdk/mistral": "^3.0.39",
         "@ai-sdk/openai": "^3.0.71",
+        "@ai-sdk/togetherai": "^2.0.55",
+        "@ai-sdk/xai": "^3.0.95",
         "@types/bun": "^1.3.14",
         "@types/node": "^25.9.3",
         "@typescript/native-preview": "^7.0.0-dev.20260613.1",
@@ -62,11 +67,21 @@
       },
       "peerDependencies": {
         "@ai-sdk/anthropic": ">=3",
+        "@ai-sdk/google": ">=3",
+        "@ai-sdk/groq": ">=3",
+        "@ai-sdk/mistral": ">=3",
         "@ai-sdk/openai": ">=3",
+        "@ai-sdk/togetherai": ">=2",
+        "@ai-sdk/xai": ">=3",
       },
       "optionalPeers": [
         "@ai-sdk/anthropic",
+        "@ai-sdk/google",
+        "@ai-sdk/groq",
+        "@ai-sdk/mistral",
         "@ai-sdk/openai",
+        "@ai-sdk/togetherai",
+        "@ai-sdk/xai",
       ],
     },
   },
@@ -78,11 +93,23 @@
 
     "@ai-sdk/gateway": ["@ai-sdk/gateway@3.0.130", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-qenRdpoYM+2y8Ibj3Y7XngvfcG4NIpejaM+YqAKWXi3/N1qZYeIelrm19jxhIwQW0W/g7WUz0L2Agl7+FnwrQA=="],
 
+    "@ai-sdk/google": ["@ai-sdk/google@3.0.82", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-md+M92ZJuPIMU2p4v1rGLpJJWTmTh/vpJPkMnQbEdcLaPTZxRaroIKSnmL/9UGJV0BORJlHNDJegkcnhVpTmDA=="],
+
+    "@ai-sdk/groq": ["@ai-sdk/groq@3.0.41", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-J3zWdzUdSgE2B8e70i/4b5TGEzDc2Z2xN18AKUs9XCzPF7k6WHyaCCahDUB7JIhRN8Q2nWJ+LQQthl144vq9fg=="],
+
+    "@ai-sdk/mistral": ["@ai-sdk/mistral@3.0.39", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-drPs9K3a7A8LKvISzbXDoKlRD00CqeacKSSrjFDswCfCr1xS/4/GYUyJDt7UKykHW//iiiElSFWoea95yRQchg=="],
+
     "@ai-sdk/openai": ["@ai-sdk/openai@3.0.71", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-j6eBAa5oHFZ4U5CxpIV3T4zXNM/BviodNCZCL1qHkA4aqkwK9iQ18TWYz2DZcXpw4BO5pikKzqpXORxb1EnZGA=="],
+
+    "@ai-sdk/openai-compatible": ["@ai-sdk/openai-compatible@2.0.50", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-HyuxddF2Yv5G8qxK/0uksAINjQ4h6TpwOqHuqzsCM0u78/JWAW2OXcIplQeB44PIAORgPjbMzrw9DhnPYHMskA=="],
 
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.10", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw=="],
 
     "@ai-sdk/provider-utils": ["@ai-sdk/provider-utils@4.0.29", "", { "dependencies": { "@ai-sdk/provider": "3.0.10", "@standard-schema/spec": "^1.1.0", "eventsource-parser": "^3.0.8" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-uhukHaCBvqkwBHkT8C2PrnqKTCoLn3pdHXqtcR9I8ErH+flbzgW4o7VHSNIup9LRu+WBvZIZDQLsx6rwl2tiOA=="],
+
+    "@ai-sdk/togetherai": ["@ai-sdk/togetherai@2.0.55", "", { "dependencies": { "@ai-sdk/openai-compatible": "2.0.50", "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-FgDGk+aIIxLFzd3NKuEYEsec8apML80trbp5EDF1+A7Wq5t9lWxqEpfKIogIcq/eCSy3J58t6EkIevNZDTcwtg=="],
+
+    "@ai-sdk/xai": ["@ai-sdk/xai@3.0.95", "", { "dependencies": { "@ai-sdk/openai-compatible": "2.0.50", "@ai-sdk/provider": "3.0.10", "@ai-sdk/provider-utils": "4.0.29" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-8pN/bekiBy4Nf0h9G934mpNg+izj+sAgKjqd3GcoGZKhj2I7d40khQlFxgzoA2xOQNzMfcKKNAUQb22EulB8OQ=="],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

@@ -7,7 +7,14 @@ import type {
 } from "ai";
 
 /** Providers with a batch adapter. */
-export type BatchProvider = "openai" | "anthropic";
+export type BatchProvider =
+  | "anthropic"
+  | "google"
+  | "groq"
+  | "mistral"
+  | "openai"
+  | "together"
+  | "xai";
 
 /**
  * Provider-specific options, forwarded verbatim into the underlying request
