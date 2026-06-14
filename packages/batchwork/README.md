@@ -145,9 +145,72 @@ To build each provider's request body with full AI SDK fidelity (messages, tools
 | Limits   | 50k reqs / 200 MB                | 100k reqs / 256 MB        |
 | Discount | ~50%                             | ~50%                      |
 
+## Server: managed polling & unified webhooks
+
+Instead of polling yourself, `batchwork/server` watches open batches and delivers **one signed webhook** to your endpoint when each finishes — using OpenAI's native webhooks where available and a managed poller everywhere else.
+
+```ts
+import { batch } from "batchwork";
+import { createBatchPoller, createMemoryStore } from "batchwork/server";
+
+const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapter
+const poller = createBatchPoller({ store }); // credentials default to provider env vars
+
+// 1. When you submit, register the batch and where to notify.
+const job = await batch({ model, requests });
+await poller.track(job, {
+  webhookUrl: "https://acme.com/webhooks/batch",
+  secret: process.env.BATCH_WEBHOOK_SECRET,
+});
+
+// 2. Run tick() on a schedule (Vercel Cron, a worker, setInterval). It polls
+//    open batches and POSTs a signed event for each one that just finished.
+export const GET = async () => {
+  const { delivered } = await poller.tick();
+  return Response.json({ delivered });
+};
+```
+
+Your endpoint receives a unified, signed `BatchWebhookEvent`:
+
+```ts
+import { getBatchResults } from "batchwork";
+import { verifyBatchWebhook } from "batchwork/server";
+
+export const POST = async (request: Request) => {
+  const event = await verifyBatchWebhook(
+    request,
+    process.env.BATCH_WEBHOOK_SECRET
+  );
+  // event: { type: "batch.completed" | "batch.failed" | "batch.expired"
+  //          | "batch.cancelled", id, provider, requestCounts }
+  for await (const r of getBatchResults({
+    provider: event.provider,
+    id: event.id,
+  })) {
+    // …persist each result
+  }
+  return new Response("ok");
+};
+```
+
+### Skip polling for OpenAI
+
+OpenAI emits native webhooks. Mount the handler to deliver the instant a batch completes — no `tick()` needed for OpenAI batches:
+
+```ts
+const handler = poller.openaiWebhookHandler({
+  signingSecret: process.env.OPENAI_WEBHOOK_SECRET,
+});
+export const POST = (request: Request) => handler(request); // your OpenAI webhook route
+```
+
+### Bring your own store
+
+`createMemoryStore()` is for development. In production, implement `BatchStore` (four async methods: `get`, `set`, `delete`, `list`) over any KV/DB — Vercel KV, Upstash Redis, Cloudflare KV, Postgres. Signing is Standard Webhooks-compatible (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256), so existing webhook tooling verifies it.
+
 ## Roadmap
 
-- **Server layer** (`batchwork/server`): a managed poller + one unified webhook for batch completion across providers (using native webhooks where they exist).
 - More providers (Gemini, Mistral, Groq, Bedrock) via the same adapter interface.
 - Embeddings batches.
 

@@ -5,6 +5,7 @@ import { resolveModel } from "./model";
 import { getAdapter } from "./providers";
 import type {
   BatchOptions,
+  BatchProvider,
   BatchRef,
   BatchResult,
   ProviderCredentials,
@@ -15,6 +16,18 @@ const pickCredentials = (source: ProviderCredentials): ProviderCredentials => ({
   baseURL: source.baseURL,
   headers: source.headers,
 });
+
+const providerFromRef = (ref: BatchRef): BatchProvider => {
+  if (ref.provider) {
+    return ref.provider;
+  }
+  if (ref.model !== undefined) {
+    return resolveModel(ref.model).provider;
+  }
+  throw new BatchworkError(
+    "batchwork: provide `provider` or `model` to identify the batch."
+  );
+};
 
 /**
  * Submit a batch of requests to the model's provider and return a handle.
@@ -57,11 +70,10 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
 
 /**
  * Rehydrate a {@link BatchJob} for an existing batch id (e.g. one persisted
- * after submission). The `model` only needs to identify the provider.
+ * after submission). Identify the provider with `provider` or `model`.
  */
 export const getBatch = async (ref: BatchRef): Promise<BatchJob> => {
-  const resolved = resolveModel(ref.model);
-  const adapter = getAdapter(resolved.provider);
+  const adapter = getAdapter(providerFromRef(ref));
   const credentials = pickCredentials(ref);
   const snapshot = await adapter.retrieve(ref.id, credentials);
   return new BatchJob(adapter, credentials, snapshot);
@@ -69,14 +81,12 @@ export const getBatch = async (ref: BatchRef): Promise<BatchJob> => {
 
 /** Stream the results of an existing batch by id, without a handle. */
 export const getBatchResults = (ref: BatchRef): AsyncGenerator<BatchResult> => {
-  const resolved = resolveModel(ref.model);
-  const adapter = getAdapter(resolved.provider);
+  const adapter = getAdapter(providerFromRef(ref));
   return adapter.results(ref.id, pickCredentials(ref));
 };
 
 /** Request cancellation of an existing batch by id. */
 export const cancelBatch = async (ref: BatchRef): Promise<void> => {
-  const resolved = resolveModel(ref.model);
-  const adapter = getAdapter(resolved.provider);
+  const adapter = getAdapter(providerFromRef(ref));
   await adapter.cancel(ref.id, pickCredentials(ref));
 };

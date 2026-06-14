@@ -130,10 +130,14 @@ export interface BatchOptions extends ProviderCredentials {
   requests: BatchRequest[];
 }
 
-/** Reference to an existing batch, used to rehydrate a handle. */
+/**
+ * Reference to an existing batch, used to rehydrate a handle. Identify the
+ * provider with either `model` or `provider` (e.g. from a webhook event).
+ */
 export interface BatchRef extends ProviderCredentials {
   id: string;
-  model: LanguageModel;
+  model?: LanguageModel;
+  provider?: BatchProvider;
 }
 
 export interface WaitOptions {
