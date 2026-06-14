@@ -12,7 +12,7 @@ import { createBatchPool } from "batchwork/pool";
 import { openai } from "@ai-sdk/openai";
 
 const pool = createBatchPool({
-  model: openai.chat("gpt-4o-mini"),
+  model: openai.chat("gpt-5.5"),
   maxSize: 50, // flush at 50 buffered requests…
   maxDuration: 3600, // …or 3600 seconds after the first one, whichever is first
   onFlush: async (job) => {
@@ -53,7 +53,7 @@ const routes = createBatchRoutes({
 });
 
 const pool = createBatchPool({
-  model: openai.chat("gpt-4o-mini"),
+  model: openai.chat("gpt-5.5"),
   maxSize: 50,
   maxDuration: 3600,
   store: createMemoryPendingStore(), // → KV/Postgres in production

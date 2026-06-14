@@ -55,7 +55,7 @@ export const Footer = () => (
     <div className="mx-auto max-w-(--fd-layout-width) px-4 py-14 sm:py-16">
       <div className="flex flex-col gap-10 sm:flex-row sm:justify-between sm:gap-16">
         <div className="flex max-w-[40ch] flex-col gap-2">
-          <p className="font-semibold text-base text-foreground">batchwork</p>
+          <p className="font-semibold text-base text-foreground">Batchwork</p>
           <p className="text-pretty text-base text-muted-foreground leading-relaxed sm:text-sm">
             The missing batch API for the Vercel AI SDK. Open source, MIT
             licensed.

@@ -1,6 +1,6 @@
 ---
 title: FAQ
-description: Common questions about batchwork.
+description: Common questions about Batchwork.
 ---
 
 ## How long does a batch take?
@@ -13,15 +13,15 @@ No. `batch()` submits and returns a `BatchJob` handle immediately. Use `job.wait
 
 ## Do I need the official OpenAI / Anthropic SDKs?
 
-No. batchwork talks to the batch endpoints with plain `fetch`. You only need `ai` plus the `@ai-sdk/*` provider package(s) for the providers you use — and those are optional peer dependencies.
+No. Batchwork talks to the batch endpoints with plain `fetch`. You only need `ai` plus the `@ai-sdk/*` provider package(s) for the providers you use — and those are optional peer dependencies.
 
 ## Can I use a Vercel AI Gateway model string?
 
-You can pass a `"provider/model"` string for ergonomics, but batch traffic resolves to the provider's **native** batch API and needs the provider key. The Gateway has no batch endpoint, so batchwork does not route through it.
+You can pass a `"provider/model"` string for ergonomics, but batch traffic resolves to the provider's **native** batch API and needs the provider key. The Gateway has no batch endpoint, so Batchwork does not route through it.
 
 ## Are tools, vision, and structured output supported?
 
-Yes, as **request inputs**. batchwork derives each request body through the AI SDK itself (see [Models](/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. It serializes the request only — it does not execute tool calls or parse `generateObject`-style structured output for you, so read the raw payload (tool calls, structured output, finish reasons) from `result.response` and parse it yourself.
+Yes, as **request inputs**. Batchwork derives each request body through the AI SDK itself (see [Models](/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. It serializes the request only — it does not execute tool calls or parse `generateObject`-style structured output for you, so read the raw payload (tool calls, structured output, finish reasons) from `result.response` and parse it yourself.
 
 ## What happens to failed requests?
 
@@ -29,7 +29,7 @@ Each request succeeds or fails independently. Failed requests come back with `st
 
 ## How is the cost discount applied?
 
-The providers bill batch requests at roughly half their synchronous rate. batchwork doesn't change pricing — it just makes the batch APIs usable. The `usage` on each result reflects tokens billed at the batch rate.
+The providers bill batch requests at roughly half their synchronous rate. Batchwork doesn't change pricing — it just makes the batch APIs usable. The `usage` on each result reflects tokens billed at the batch rate.
 
 ## Which providers are supported?
 

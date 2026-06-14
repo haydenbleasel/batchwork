@@ -1,11 +1,11 @@
 ---
 title: Installation
-description: Install batchwork and the AI SDK provider packages for the providers you batch with.
+description: Install Batchwork and the AI SDK provider packages for the providers you batch with.
 ---
 
 ## Install
 
-batchwork depends on `ai` (the Vercel AI SDK). The provider packages are **optional peer dependencies** — install only the ones you batch with.
+Batchwork depends on `ai` (the Vercel AI SDK). The provider packages are **optional peer dependencies** — install only the ones you batch with.
 
 <Tabs items={["npm", "pnpm", "bun", "yarn"]}>
 
@@ -47,7 +47,7 @@ If you only batch with OpenAI, you only need `@ai-sdk/openai` — and vice versa
 
 ## Credentials
 
-batchwork reads provider credentials from the standard environment variables:
+Batchwork reads provider credentials from the standard environment variables:
 
 ```bash
 OPENAI_API_KEY=sk-…
@@ -58,7 +58,7 @@ Or pass them explicitly per call:
 
 ```ts
 await batch({
-  model: "openai/gpt-4o-mini",
+  model: "openai/gpt-5.5",
   apiKey: process.env.MY_OPENAI_KEY,
   requests,
 });

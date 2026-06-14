@@ -73,7 +73,7 @@ export const generateMetadata = async ({
     description: page.data.description,
     openGraph: {
       description: page.data.description,
-      siteName: "batchwork",
+      siteName: "Batchwork",
       title: page.data.title,
       type: "article",
       url: page.url,

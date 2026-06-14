@@ -20,9 +20,9 @@ const SECTIONS: Section[] = [
 import { anthropic } from "@ai-sdk/anthropic";
 
 // Same shape as generateText — swap the model for any of
-// seven providers and batchwork handles each batch format.
+// seven providers and Batchwork handles each batch format.
 const job = await batch({
-  model: anthropic("claude-haiku-4-5"),
+  model: anthropic("claude-opus-4-8"),
   requests: docs.map((doc) => ({
     customId: doc.id,
     prompt: \`Summarize: \${doc.text}\`,
@@ -32,7 +32,7 @@ const job = await batch({
 // One normalized result type, keyed by customId.
 const summaries = await job.collect();`,
     description:
-      "You already write generateText calls — keep writing them. batchwork runs your requests in bulk across all seven providers, handling each batch format, the upload, the polling, and parsing.",
+      "You already write generateText calls — keep writing them. Batchwork runs your requests in bulk across all seven providers, handling each batch format, the upload, the polling, and parsing.",
     eyebrow: "Unified interface",
     fileName: "summarize.ts",
     href: "/usage",
@@ -40,10 +40,10 @@ const summaries = await job.collect();`,
   },
   {
     code: `import { createBatchPool } from "batchwork/pool";
-import { openai } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
 
 const pool = createBatchPool({
-  model: openai.chat("gpt-4o-mini"),
+  model: xai("grok-build-0.1"),
   maxSize: 50, // flush at 50 requests…
   maxDuration: 3600, // …or an hour after the first
   onFlush: async (job) => {
@@ -56,7 +56,7 @@ const pool = createBatchPool({
 // Push items in as they arrive.
 const id = await pool.add({ prompt: "Summarize this…" });`,
     description:
-      "Requests don't always arrive at once. When they trickle in one at a time, batchwork pools them and sends a batch automatically once it's big enough or has waited long enough.",
+      "Requests don't always arrive at once. When they trickle in one at a time, Batchwork pools them and sends a batch automatically once it's big enough or has waited long enough.",
     eyebrow: "Pooling",
     fileName: "lib/pool.ts",
     href: "/pool",
@@ -77,7 +77,7 @@ const routes = createBatchRoutes({
 // A Vercel Cron hits GET; finished batches stream into onComplete.
 export const { GET, POST } = routes;`,
     description:
-      "Drop two route handlers into your app and point a Vercel Cron at them. Each tick, batchwork checks your in-flight batches and saves the results straight to your database when they finish.",
+      "Drop two route handlers into your app and point a Vercel Cron at them. Each tick, Batchwork checks your in-flight batches and saves the results straight to your database when they finish.",
     eyebrow: "Next.js",
     fileName: "app/api/batches/route.ts",
     href: "/next",
@@ -98,7 +98,7 @@ await poller.track(job, {
 // Run on a schedule; POSTs a signed event for each finished batch.
 export const GET = async () => Response.json(await poller.tick());`,
     description:
-      "Prefer webhooks? batchwork watches your open batches and fires one signed event the moment each finishes — native provider webhooks where they exist, a managed poller everywhere else.",
+      "Prefer webhooks? Batchwork watches your open batches and fires one signed event the moment each finishes — native provider webhooks where they exist, a managed poller everywhere else.",
     eyebrow: "Server",
     fileName: "lib/poller.ts",
     href: "/server",

@@ -1,11 +1,11 @@
 ---
 title: Providers
-description: How batchwork maps the unified API onto each provider's native Batch API.
+description: How Batchwork maps the unified API onto each provider's native Batch API.
 ---
 
 ## Supported providers
 
-batchwork supports **seven** providers, built on three batch "shapes":
+Batchwork supports **seven** providers, built on three batch "shapes":
 
 | Provider      | Shape                             | Results                      |
 | ------------- | --------------------------------- | ---------------------------- |
@@ -17,9 +17,9 @@ batchwork supports **seven** providers, built on three batch "shapes":
 | Google Gemini | Inline `:batchGenerateContent`    | Inline operation responses   |
 | xAI           | JSONL file upload (OpenAI-compat) | Paginated `/results` JSON    |
 
-All providers offer roughly a **50% discount** versus synchronous calls and a 24h target window. Results come back **unordered**, keyed by `customId`, and batchwork normalizes them into one [`BatchResult`](/results) type. Provider lifecycle calls use plain `fetch` — no official provider SDK required (the matching `@ai-sdk/*` package is only needed to _build_ the request bodies).
+All providers offer roughly a **50% discount** versus synchronous calls and a 24h target window. Results come back **unordered**, keyed by `customId`, and Batchwork normalizes them into one [`BatchResult`](/results) type. Provider lifecycle calls use plain `fetch` — no official provider SDK required (the matching `@ai-sdk/*` package is only needed to _build_ the request bodies).
 
-## What batchwork does for you
+## What Batchwork does for you
 
 - **OpenAI / Groq / Together AI** — builds the JSONL, uploads it via the Files API (`purpose=batch`), creates the batch, polls `status`, then downloads and parses the output and error files. (Groq is served under `/openai/v1`, so its batch `url` is normalized to `/v1/chat/completions`; Together uses the leaner `{ custom_id, body }` line shape with the endpoint set on the batch.)
 - **Mistral** — uploads the JSONL, creates a job with the **model and endpoint set on the job**, polls `status`, then downloads the OpenAI-shaped output/error files.
@@ -47,5 +47,5 @@ OpenAI emits native batch webhooks (`batch.completed`, `batch.failed`, `batch.ex
 
 ## Not supported yet
 
-- **Amazon Bedrock** and **Vertex AI** — their batch APIs require object-storage staging (S3/GCS), cloud IAM auth (SigV4/OAuth), and region config, which don't fit batchwork's `apiKey` + `fetch` model. On the roadmap.
+- **Amazon Bedrock** and **Vertex AI** — their batch APIs require object-storage staging (S3/GCS), cloud IAM auth (SigV4/OAuth), and region config, which don't fit Batchwork's `apiKey` + `fetch` model. On the roadmap.
 - **Cohere** batches embeddings only (no chat), and **DeepSeek** has no batch API.

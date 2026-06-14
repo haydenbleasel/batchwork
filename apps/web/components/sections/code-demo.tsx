@@ -4,7 +4,7 @@ const CODE = `import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
 const job = await batch({
-  model: openai.chat("gpt-4o-mini"),
+  model: openai.chat("gpt-5.5"),
   requests: docs.map((doc) => ({
     customId: doc.id,
     prompt: \`Summarize: \${doc.text}\`,

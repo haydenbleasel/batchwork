@@ -1,9 +1,9 @@
 ---
 title: Overview
-description: batchwork is the missing batch API for the Vercel AI SDK — one unified call to run thousands of LLM requests at ~50% cost across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI.
+description: Batchwork is the missing batch API for the Vercel AI SDK — one unified call to run thousands of LLM requests at ~50% cost across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI.
 ---
 
-## What is batchwork?
+## What is Batchwork?
 
 A single TypeScript API for **batch LLM inference** that works the same way across providers. You author requests in the exact shape you already use with the Vercel AI SDK's `generateText`, pass the same models, and get back one normalized result type — correlated by `customId`.
 
@@ -12,7 +12,7 @@ import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
 const job = await batch({
-  model: openai.chat("gpt-4o-mini"),
+  model: openai.chat("gpt-5.5"),
   requests: [
     { customId: "a", prompt: "Summarize this…" },
     { customId: "b", messages: [{ role: "user", content: "Translate this…" }] },
@@ -22,11 +22,11 @@ const job = await batch({
 const results = await job.wait().then(() => job.collect());
 ```
 
-## Why batchwork?
+## Why Batchwork?
 
 Every major LLM provider offers a Batch API at roughly half the price — but each has a different, fiddly shape. OpenAI wants requests serialized to a **JSONL file** and uploaded via the Files API; Anthropic wants an **inline JSON array**; both return results out of order keyed by a `custom_id`, and you poll for completion. The AI SDK unifies _synchronous_ generation but has no batch support, so today you drop out of it and hand-write provider plumbing.
 
-batchwork closes that gap:
+Batchwork closes that gap:
 
 - **One API** — the same `batch()` call across every provider. The code that batches to OpenAI is the code that batches to Anthropic.
 - **AI SDK native** — pass `openai(...)` / `anthropic(...)` models (or a `"provider/model"` string), and author each request like `generateText`.
@@ -40,6 +40,6 @@ batchwork closes that gap:
 
 - [Installation](/installation) — install the SDK and the provider peer dependencies.
 - [Usage](/usage) — submit a batch and read results end to end.
-- [Models](/models) — the model forms batchwork accepts.
+- [Models](/models) — the model forms Batchwork accepts.
 - [Server](/server) — managed polling and unified webhooks.
 - [Pooling](/pool) — accumulate requests on demand and batch them automatically.

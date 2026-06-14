@@ -1,4 +1,4 @@
-# batchwork
+# Batchwork
 
 The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev) — submit thousands of LLM requests at ~50% cost with one unified call, across OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 
@@ -7,7 +7,7 @@ import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
 const job = await batch({
-  model: openai.chat("gpt-4o-mini"),
+  model: openai.chat("gpt-5.5"),
   requests: [
     { customId: "a", prompt: "Summarize: …" },
     { customId: "b", messages: [{ role: "user", content: "Translate: …" }] },

@@ -9,7 +9,7 @@ Each request mirrors `generateText` (minus `model`), plus a `customId` used to c
 
 ```ts
 await batch({
-  model: anthropic("claude-haiku-4-5"),
+  model: anthropic("claude-opus-4-8"),
   requests: [
     {
       customId: "doc-1",
@@ -46,7 +46,7 @@ await batch({
 
 ```ts
 await batch({
-  model: anthropic("claude-haiku-4-5"),
+  model: anthropic("claude-opus-4-8"),
   defaults: {
     system: "You are terse.",
     maxOutputTokens: 256,
