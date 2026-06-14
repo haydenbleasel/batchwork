@@ -1,3 +1,4 @@
+import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
 import type {
@@ -11,7 +12,6 @@ import type { BatchAdapter, SubmitInput } from "./adapter";
 import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 
 const MISTRAL_BASE = "https://api.mistral.ai/v1";
-const TIMEOUT_HOURS = 24;
 
 const apiKey = (credentials: ProviderCredentials): string =>
   resolveApiKey(credentials, "MISTRAL_API_KEY", "Mistral");
@@ -90,7 +90,6 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
       input_files: [inputFileId],
       metadata: input.metadata,
       model: input.modelId,
-      timeout_hours: TIMEOUT_HOURS,
     }),
     headers: {
       ...authHeaders(input.credentials),
@@ -126,6 +125,11 @@ async function* results(
   }
   if (errorFileId) {
     yield* streamResultFile(errorFileId, baseUrl(credentials), headers);
+  }
+  if (!(outputFileId || errorFileId)) {
+    throw new BatchworkError(
+      `batchwork: results are not ready for batch "${id}" (status: ${snapshot.status}).`
+    );
   }
 }
 

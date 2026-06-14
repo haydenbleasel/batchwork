@@ -48,12 +48,15 @@ const collect = async (
   return out;
 };
 
-/** Read back the JSONL lines from a multipart file-upload call. */
+const uploadedForm = (call: readonly unknown[] | undefined): FormData => {
+  const init = call?.[1] as RequestInit | undefined;
+  return init?.body as FormData;
+};
+
 const uploadedJsonl = async (
   call: readonly unknown[] | undefined
 ): Promise<Record<string, unknown>[]> => {
-  const init = call?.[1] as RequestInit | undefined;
-  const form = init?.body as FormData;
+  const form = uploadedForm(call);
   const file = form.get("file") as Blob;
   const text = await file.text();
   return text
@@ -307,9 +310,11 @@ describe("together adapter", () => {
       },
       {
         body: {
-          id: "batch_t",
-          request_counts: { completed: 0, failed: 0, total: 1 },
-          status: "validating",
+          job: {
+            id: "batch_t",
+            request_counts: { completed: 0, failed: 0, total: 1 },
+            status: "VALIDATING",
+          },
         },
         match: (url, method) => url.endsWith("/batches") && method === "POST",
       },
@@ -329,6 +334,11 @@ describe("together adapter", () => {
     });
 
     expect(snapshot.provider).toBe("together");
+    expect(snapshot.id).toBe("batch_t");
+    expect(snapshot.status).toBe("validating");
+    expect(uploadedForm(fetchMock.mock.calls[0]).get("purpose")).toBe(
+      "batch-api"
+    );
     const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
     // body-only: no method/url, just custom_id + body.
     expect(lines[0]?.method).toBeUndefined();
@@ -385,6 +395,7 @@ describe("mistral adapter", () => {
     expect(createBody.model).toBe("mistral-small-latest");
     expect(createBody.endpoint).toBe("/v1/chat/completions");
     expect(createBody.input_files).toStrictEqual(["file-in"]);
+    expect(createBody.timeout_hours).toBeUndefined();
   });
 
   it("downloads the OpenAI-shaped output and error files", async () => {
@@ -554,6 +565,10 @@ describe("xai adapter", () => {
     expect(snapshot.id).toBe("b_x");
     expect(snapshot.provider).toBe("xai");
     expect(snapshot.status).toBe("in_progress");
+    expect(uploadedForm(fetchMock.mock.calls[0]).has("purpose")).toBe(false);
+    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    expect(lines[0]?.url).toBe("/v1/chat/completions");
+    expect(lines[0]?.method).toBe("POST");
     const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(createBody.input_file_id).toBe("file-in");
   });

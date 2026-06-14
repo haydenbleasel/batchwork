@@ -111,12 +111,14 @@ const normalizeResult = (line: unknown): BatchResult => {
     };
   }
   if (type === "errored") {
-    const inner = asRecord(asRecord(result.error).error);
+    const error = asRecord(result.error);
+    const nested = asRecord(error.error);
+    const source = Object.keys(nested).length > 0 ? nested : error;
     return {
       customId,
       error: {
-        message: asString(inner.message) ?? "Request errored.",
-        type: asString(inner.type),
+        message: asString(source.message) ?? "Request errored.",
+        type: asString(source.type),
       },
       response: result.error,
       status: "errored",

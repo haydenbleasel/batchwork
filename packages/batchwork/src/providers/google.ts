@@ -59,10 +59,24 @@ const mapState = (state: string | undefined, done: boolean): BatchStatus => {
   return done ? "completed" : "in_progress";
 };
 
-const inlinedResponses = (raw: unknown): unknown[] =>
-  asArray(
-    asRecord(asRecord(asRecord(raw).response).inlinedResponses).inlinedResponses
-  );
+const inlinedResponses = (raw: unknown): unknown[] => {
+  const obj = asRecord(raw);
+  const response = asRecord(obj.response);
+  const dest = asRecord(obj.dest);
+  const responseInline =
+    response.inlinedResponses ?? response.inlined_responses;
+  const destInline = dest.inlinedResponses ?? dest.inlined_responses;
+  const nestedResponseInline = asRecord(responseInline);
+  const nestedDestInline = asRecord(destInline);
+  return [
+    ...asArray(responseInline),
+    ...asArray(nestedResponseInline.inlinedResponses),
+    ...asArray(nestedResponseInline.inlined_responses),
+    ...asArray(destInline),
+    ...asArray(nestedDestInline.inlinedResponses),
+    ...asArray(nestedDestInline.inlined_responses),
+  ];
+};
 
 const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
@@ -77,7 +91,12 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
       failed,
       total: items.length,
     },
-    status: mapState(asString(asRecord(obj.metadata).state), obj.done === true),
+    status: mapState(
+      asString(obj.state) ??
+        asString(asRecord(obj.state).name) ??
+        asString(asRecord(obj.metadata).state),
+      obj.done === true
+    ),
   };
 };
 
@@ -110,7 +129,11 @@ const usageFromResponse = (response: unknown): BatchUsage | undefined => {
 
 const normalizeResult = (item: unknown): BatchResult => {
   const obj = asRecord(item);
-  const customId = asString(asRecord(obj.metadata).key) ?? "";
+  const customId =
+    asString(asRecord(obj.metadata).key) ??
+    asString(obj.key) ??
+    asString(obj.custom_id) ??
+    "";
   if (obj.error) {
     const error = asRecord(obj.error);
     return {
@@ -171,9 +194,15 @@ async function* results(
 ): AsyncGenerator<BatchResult> {
   const snapshot = await retrieve(id, credentials);
   const raw = asRecord(snapshot.raw);
-  const responsesFile = asString(
-    asRecord(asRecord(raw.response).responsesFile).name
-  );
+  const response = asRecord(raw.response);
+  const dest = asRecord(raw.dest);
+  const responsesFile =
+    asString(asRecord(response.responsesFile).name) ??
+    asString(response.responsesFile) ??
+    asString(asRecord(response.responses_file).name) ??
+    asString(response.responses_file) ??
+    asString(dest.fileName) ??
+    asString(dest.file_name);
   if (responsesFile) {
     throw new BatchworkError(
       `batchwork: batch "${id}" returned file-mode results, which are not supported yet.`

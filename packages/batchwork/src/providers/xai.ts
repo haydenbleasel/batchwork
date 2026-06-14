@@ -6,7 +6,7 @@ import type {
   BatchStatus,
   ProviderCredentials,
 } from "../types";
-import { asNumber, asRecord, asString, omit } from "../util";
+import { asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
 import {
   resolveApiKey,
@@ -39,6 +39,9 @@ const deriveStatus = (state: Record<string, unknown>): BatchStatus => {
   }
   const total = asNumber(state.num_requests) ?? 0;
   const cancelled = asNumber(state.num_cancelled) ?? 0;
+  if (total === 0) {
+    return "in_progress";
+  }
   if (pending > 0) {
     return "in_progress";
   }
@@ -52,6 +55,9 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
   const state = asRecord(obj.state);
   return {
+    completedAt: toDate(obj.cancel_time),
+    createdAt: toDate(obj.create_time),
+    expiresAt: toDate(obj.expire_time ?? obj.expires_at),
     id: asString(obj.batch_id) ?? asString(obj.id) ?? "",
     provider: "xai",
     raw,
@@ -69,18 +75,26 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
 const normalizeResult = (item: unknown): BatchResult => {
   const obj = asRecord(item);
   const customId = asString(obj.batch_request_id) ?? "";
-  const errorMessage = asString(obj.error_message);
+  const batchResult = asRecord(obj.batch_result);
+  const resultError = batchResult.error;
+  const errorMessage =
+    asString(obj.error_message) ??
+    asString(resultError) ??
+    asString(asRecord(resultError).message);
   if (errorMessage) {
     return {
       customId,
-      error: { message: errorMessage },
+      error: {
+        message: errorMessage,
+        type: asString(asRecord(resultError).type),
+      },
       response: obj,
       status: "errored",
     };
   }
   // `batch_result.response` is keyed by operation type; chat lives under
   // `chat_get_completion`. Fall back to the first value for other op types.
-  const response = asRecord(asRecord(obj.batch_result).response);
+  const response = asRecord(batchResult.response);
   const completion = response.chat_get_completion ?? Object.values(response)[0];
   return {
     customId,
@@ -103,7 +117,8 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
   const inputFileId = await uploadInputFile(
     jsonl,
     baseUrl(input.credentials),
-    authHeaders(input.credentials)
+    authHeaders(input.credentials),
+    { purpose: null }
   );
   const raw = await requestJson(`${baseUrl(input.credentials)}/batches`, {
     body: JSON.stringify({ input_file_id: inputFileId, name: "batchwork" }),

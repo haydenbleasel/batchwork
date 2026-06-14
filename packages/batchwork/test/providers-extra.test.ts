@@ -11,6 +11,7 @@ import {
   textFromBody,
   usageFromBody,
 } from "../src/providers/shared";
+import { togetherAdapter } from "../src/providers/together";
 import { xaiAdapter } from "../src/providers/xai";
 import type { BatchResult, BatchStatus } from "../src/types";
 
@@ -136,6 +137,19 @@ describe("shared helpers", () => {
 });
 
 describe("openai-compatible branches", () => {
+  it("unwraps Together job wrappers and lowercases uppercase statuses", async () => {
+    const snapshot = await retrieveRaw(togetherAdapter, {
+      job: {
+        id: "batch_t",
+        request_counts: { completed: 1, failed: 0, total: 1 },
+        status: "COMPLETED",
+      },
+    });
+    expect(snapshot.id).toBe("batch_t");
+    expect(snapshot.status).toBe("completed");
+    expect(snapshot.raw).toMatchObject({ id: "batch_t" });
+  });
+
   it("maps an unknown status to in_progress", async () => {
     const snapshot = await retrieveRaw(openaiAdapter, {
       id: "b",
@@ -195,6 +209,14 @@ describe("xai branches", () => {
     const snapshot = await retrieveRaw(xaiAdapter, {
       batch_id: "b",
       state: {},
+    });
+    expect(snapshot.status).toBe("in_progress");
+  });
+
+  it("keeps empty xAI batches in progress", async () => {
+    const snapshot = await retrieveRaw(xaiAdapter, {
+      batch_id: "b",
+      state: { num_pending: 0, num_requests: 0 },
     });
     expect(snapshot.status).toBe("in_progress");
   });
@@ -272,6 +294,44 @@ describe("xai branches", () => {
     expect(out[0]?.text).toBe("yo");
   });
 
+  it("normalizes xAI batch_result error payloads", async () => {
+    install([
+      {
+        body: {
+          pagination_token: null,
+          results: [
+            {
+              batch_request_id: "a",
+              batch_result: {
+                error: {
+                  message: "bad request",
+                  type: "invalid_request_error",
+                },
+              },
+            },
+            {
+              batch_request_id: "b",
+              batch_result: { error: "rate limited" },
+            },
+          ],
+        },
+        match: (url) => url.includes("/results"),
+      },
+    ]);
+
+    const out = await collect(xaiAdapter.results("b_x", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      error: { message: "bad request", type: "invalid_request_error" },
+      status: "errored",
+    });
+    expect(out[1]).toMatchObject({
+      customId: "b",
+      error: { message: "rate limited" },
+      status: "errored",
+    });
+  });
+
   it("cancels a batch", async () => {
     const fetchMock = install([
       {
@@ -326,6 +386,33 @@ describe("anthropic branches", () => {
     expect(out[0]).toMatchObject({ status: "succeeded", text: "Hi" });
     expect(out[0]?.usage).toBeUndefined();
     expect(out[1]?.text).toBeUndefined();
+  });
+
+  it("normalizes direct Anthropic error payloads", async () => {
+    install([
+      {
+        body: {
+          id: "b1",
+          processing_status: "ended",
+          results_url:
+            "https://api.anthropic.com/v1/messages/batches/b1/results",
+        },
+        match: (url, method) => url.endsWith("/b1") && method === "GET",
+      },
+      {
+        body: [
+          '{"custom_id":"a","result":{"type":"errored","error":{"type":"invalid_request_error","message":"bad direct"}}}',
+        ].join("\n"),
+        match: (url) => url.endsWith("/results"),
+      },
+    ]);
+
+    const out = await collect(anthropicAdapter.results("b1", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      error: { message: "bad direct", type: "invalid_request_error" },
+      status: "errored",
+    });
   });
 
   it("throws when results are not ready", async () => {
@@ -419,6 +506,22 @@ describe("google branches", () => {
     expect(finished.status).toBe("completed");
   });
 
+  it("reads top-level Gemini state fields", async () => {
+    const direct = await retrieveRaw(
+      googleAdapter,
+      { name: "batches/1", state: "JOB_STATE_SUCCEEDED" },
+      "batches/1"
+    );
+    expect(direct.status).toBe("completed");
+
+    const named = await retrieveRaw(
+      googleAdapter,
+      { name: "batches/1", state: { name: "JOB_STATE_RUNNING" } },
+      "batches/1"
+    );
+    expect(named.status).toBe("in_progress");
+  });
+
   it("succeeds without usage metadata", async () => {
     install([
       {
@@ -447,6 +550,34 @@ describe("google branches", () => {
     expect(out[0]?.usage).toBeUndefined();
   });
 
+  it("parses Gemini dest inline responses", async () => {
+    install([
+      {
+        body: {
+          dest: {
+            inlinedResponses: [
+              {
+                key: "a",
+                response: {
+                  candidates: [{ content: { parts: [{ text: "Yo" }] } }],
+                },
+              },
+            ],
+          },
+          name: "batches/1",
+          state: "JOB_STATE_SUCCEEDED",
+        },
+        match: (_url, method) => method === "GET",
+      },
+    ]);
+    const out = await collect(googleAdapter.results("batches/1", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      status: "succeeded",
+      text: "Yo",
+    });
+  });
+
   it("throws for file-mode results", async () => {
     install([
       {
@@ -454,6 +585,22 @@ describe("google branches", () => {
           metadata: { state: "JOB_STATE_SUCCEEDED" },
           name: "batches/1",
           response: { responsesFile: { name: "files/out" } },
+        },
+        match: (_url, method) => method === "GET",
+      },
+    ]);
+    await expect(
+      collect(googleAdapter.results("batches/1", credentials))
+    ).rejects.toThrow("file-mode results");
+  });
+
+  it("throws for Gemini dest file-mode results", async () => {
+    install([
+      {
+        body: {
+          dest: { fileName: "files/out" },
+          name: "batches/1",
+          state: "JOB_STATE_SUCCEEDED",
         },
         match: (_url, method) => method === "GET",
       },
@@ -544,5 +691,21 @@ describe("mistral branches", () => {
         String(call[0]).endsWith("/batch/jobs/job_1/cancel")
       )
     ).toBe(true);
+  });
+
+  it("throws when Mistral results are not ready", async () => {
+    install([
+      {
+        body: {
+          id: "job_1",
+          status: "RUNNING",
+          total_requests: 1,
+        },
+        match: (_url, method) => method === "GET",
+      },
+    ]);
+    await expect(
+      collect(mistralAdapter.results("job_1", credentials))
+    ).rejects.toThrow("results are not ready");
   });
 });

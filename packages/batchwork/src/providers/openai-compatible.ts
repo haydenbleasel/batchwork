@@ -19,15 +19,17 @@ import { asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
 import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 
-/** How a batch input line is shaped. */
+// How a batch input line is shaped.
 export type BatchLineFormat = "body-only" | "method-url";
 
 export interface OpenAICompatibleConfig {
   apiKeyEnv: string;
   apiKeyLabel: string;
   baseUrl: string;
-  /** How long the provider may take to finish (OpenAI/Groq/Together). */
+  // How long the provider may take to finish (OpenAI/Groq/Together).
   completionWindow?: string;
+  // Files API purpose value for uploaded JSONL batch inputs.
+  filePurpose?: string;
   id: BatchProvider;
   /**
    * Input-line shape. `method-url` writes `{ custom_id, method, url, body }`
@@ -45,7 +47,8 @@ export interface OpenAICompatibleConfig {
 const DEFAULT_COMPLETION_WINDOW = "24h";
 
 const mapStatus = (status: string | undefined): BatchStatus => {
-  switch (status) {
+  const normalized = status?.toLowerCase();
+  switch (normalized) {
     case "validating":
     case "in_progress":
     case "finalizing":
@@ -54,7 +57,7 @@ const mapStatus = (status: string | undefined): BatchStatus => {
     case "expired":
     case "cancelling":
     case "cancelled": {
-      return status;
+      return normalized;
     }
     default: {
       return "in_progress";
@@ -66,25 +69,27 @@ const normalizeSnapshot = (
   raw: unknown,
   provider: BatchProvider
 ): BatchSnapshot => {
-  const obj = asRecord(raw);
-  const counts = asRecord(obj.request_counts);
+  const outer = asRecord(raw);
+  const obj = asRecord(outer.job);
+  const source = Object.keys(obj).length > 0 ? obj : outer;
+  const counts = asRecord(source.request_counts);
   return {
-    completedAt: toDate(obj.completed_at),
-    createdAt: toDate(obj.created_at),
-    expiresAt: toDate(obj.expires_at),
-    id: asString(obj.id) ?? "",
+    completedAt: toDate(source.completed_at),
+    createdAt: toDate(source.created_at),
+    expiresAt: toDate(source.expires_at),
+    id: asString(source.id) ?? "",
     provider,
-    raw,
+    raw: source,
     requestCounts: {
       completed: asNumber(counts.completed) ?? 0,
       failed: asNumber(counts.failed) ?? 0,
       total: asNumber(counts.total) ?? 0,
     },
-    status: mapStatus(asString(obj.status)),
+    status: mapStatus(asString(source.status)),
   };
 };
 
-/** Build an OpenAI-compatible {@link BatchAdapter} from a provider config. */
+// Build an OpenAI-compatible adapter from a provider config.
 export const createOpenAICompatibleAdapter = (
   config: OpenAICompatibleConfig
 ): BatchAdapter => {
@@ -123,7 +128,8 @@ export const createOpenAICompatibleAdapter = (
     const inputFileId = await uploadInputFile(
       jsonl,
       baseUrl(input.credentials),
-      headers
+      headers,
+      { purpose: config.filePurpose ?? "batch" }
     );
     const raw = await requestJson(`${baseUrl(input.credentials)}/batches`, {
       body: JSON.stringify({

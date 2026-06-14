@@ -115,14 +115,18 @@ export const normalizeOpenAIResult = (line: unknown): BatchResult => {
   };
 };
 
-/** Upload a JSONL batch input file (`purpose=batch`) and return its id. */
+// Upload a JSONL batch input file and return its id. Purpose defaults to `batch`.
 export const uploadInputFile = async (
   jsonl: string,
   baseUrl: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  options: { purpose?: string | null } = {}
 ): Promise<string> => {
   const form = new FormData();
-  form.append("purpose", "batch");
+  const purpose = options.purpose === undefined ? "batch" : options.purpose;
+  if (purpose !== null) {
+    form.append("purpose", purpose);
+  }
   form.append(
     "file",
     new Blob([jsonl], { type: "application/jsonl" }),
