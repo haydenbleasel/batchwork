@@ -38,7 +38,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsgo --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -48,6 +48,7 @@
     "@ai-sdk/anthropic": "^3.0.84",
     "@ai-sdk/openai": "^3.0.71",
     "@types/node": "^25.9.3",
+    "@typescript/native-preview": "^7.0.0-dev.20260613.1",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
