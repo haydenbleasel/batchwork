@@ -250,6 +250,80 @@ Point a [Vercel Cron](https://vercel.com/docs/cron-jobs) job at the `GET` route 
 
 `createMemoryStore()` is for development. In production, implement `BatchStore` (four async methods: `get`, `set`, `delete`, `list`) over any KV/DB — Vercel KV, Upstash Redis, Cloudflare KV, Postgres. Make sure `list({ delivered: false })` actually filters on the delivery flag — both the poller and the Next.js cron rely on it to avoid reprocessing finished batches every tick. Signing is Standard Webhooks-compatible (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256), so existing webhook tooling verifies it.
 
+## On-demand pooling
+
+`batch()` needs every request up front. When requests instead trickle in one at a time — say a frontend posting a single prompt per user action — `batchwork/pool` accumulates them for you and submits a batch when a **size** or **age** threshold is hit, whichever comes first.
+
+```ts
+import { createBatchPool } from "batchwork/pool";
+import { openai } from "@ai-sdk/openai";
+
+const pool = createBatchPool({
+  model: openai.chat("gpt-4o-mini"),
+  maxSize: 50, // flush at 50 buffered requests…
+  maxDuration: 3600, // …or 3600 seconds after the first one, whichever is first
+  onFlush: async (job) => {
+    await job.wait();
+    for (const r of await job.collect()) {
+      /* … */
+    }
+  },
+});
+
+// Push items in as they arrive; add() returns the resolved customId.
+const id = await pool.add({ prompt: "Summarize this…" });
+```
+
+`add()` returns immediately with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so results come back through `onFlush(job, requests)` or, better, the [server layer](#server-managed-polling--unified-webhooks) (see below). A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms`).
+
+### Serverless: durable pooling + cron
+
+In a long-running process the example above just works — the pool buffers in memory and a timer fires the age flush. But when items arrive **across serverless invocations** (the frontend case), an in-memory buffer and a `setTimeout` don't survive between requests. Pass a durable `store` and drive the age flush from your cron instead.
+
+The pool sits **in front of** `batch()`; hand each flushed job to your existing poller/routes via `track`, and results flow back through the **same** `onComplete`/webhook path as direct `batch()` users — the pool adds no new delivery code.
+
+```ts
+// app/api/batches/route.ts
+import { createBatchRoutes, createMemoryStore } from "batchwork/next";
+import { createBatchPool, createMemoryPendingStore } from "batchwork/pool";
+import { openai } from "@ai-sdk/openai";
+
+const routes = createBatchRoutes({
+  store: createMemoryStore(), // → KV/Postgres in production
+  onComplete: async (event, results) => {
+    for await (const r of results) {
+      await db.results.upsert({ id: r.customId, text: r.text });
+    }
+  },
+});
+
+const pool = createBatchPool({
+  model: openai.chat("gpt-4o-mini"),
+  maxSize: 50,
+  maxDuration: 3600,
+  store: createMemoryPendingStore(), // → KV/Postgres in production
+  track: (job) => routes.track(job), // results flow through onComplete
+});
+
+// The frontend enqueues a single item.
+export const POST = async (request: Request) => {
+  const { prompt, customId } = await request.json();
+  return Response.json({ id: await pool.add({ customId, prompt }) });
+};
+
+// Vercel Cron: flush aged pools, then poll tracked batches.
+export const GET = async (request: Request) => {
+  await pool.flushDue();
+  return routes.GET(request);
+};
+```
+
+`pool.add()` flushes synchronously the moment the buffer reaches `maxSize`; `pool.flushDue()` (called on each cron tick) flushes once the oldest pending request has aged past `maxDuration`. Other handles: `flush()` (one batch now), `flushAll()` (drain everything), `size()`, and `close()` (stop the timer and drain — call it on graceful shutdown). If a flush fails it routes to `onError` and the claimed items return to pending for the next attempt.
+
+### Bring your own pending store
+
+`createMemoryPendingStore()` is for development and single-process use. For serverless, implement `PendingRequestStore` over any KV/DB. The one method that matters is `claim(poolKey, limit)`: it must **atomically** hand out a disjoint set of pending rows so two concurrent invocations never submit the same request twice — back it with Postgres `SELECT … FOR UPDATE SKIP LOCKED` (then `UPDATE … RETURNING`), or a Redis Lua `ZPOPMIN` script. Durable stores should also reclaim rows whose `claimedAt` is older than a TTL (≈ `2 × maxDuration`) so a crash between claim and submit can't strand them.
+
 ## Roadmap
 
 - More providers (Gemini, Mistral, Groq, Bedrock) via the same adapter interface.
