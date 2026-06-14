@@ -311,6 +311,20 @@ describe("together adapter", () => {
     globalThis.fetch = originalFetch;
   });
 
+  const submitOneLine = () =>
+    togetherAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "meta-llama" },
+          customId: "a",
+          endpoint: "/v1/chat/completions",
+        },
+      ],
+      credentials,
+      endpoint: "/v1/chat/completions",
+      modelId: "meta-llama",
+    });
+
   it("uploads via the presigned-URL flow and sets the endpoint on the batch", async () => {
     const storageUrl = "https://storage.example/presigned-put";
     const fetchMock = install([
@@ -344,18 +358,7 @@ describe("together adapter", () => {
       },
     ]);
 
-    const snapshot = await togetherAdapter.submit({
-      built: [
-        {
-          body: { messages: [], model: "meta-llama" },
-          customId: "a",
-          endpoint: "/v1/chat/completions",
-        },
-      ],
-      credentials,
-      endpoint: "/v1/chat/completions",
-      modelId: "meta-llama",
-    });
+    const snapshot = await submitOneLine();
 
     expect(snapshot.provider).toBe("together");
     expect(snapshot.id).toBe("batch_t");
@@ -387,6 +390,70 @@ describe("together adapter", () => {
     const createBody = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body));
     expect(createBody.input_file_id).toBe("file-in");
     expect(createBody.endpoint).toBe("/v1/chat/completions");
+  });
+
+  it("throws when the presigned upload cannot be initiated", async () => {
+    // A non-302 from the init POST means no presigned URL was issued.
+    install([
+      {
+        body: "service unavailable",
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 503,
+      },
+    ]);
+
+    await expect(submitOneLine()).rejects.toThrow(
+      "Together upload could not be initiated (503): service unavailable"
+    );
+  });
+
+  it("throws when the init redirect omits the file id", async () => {
+    install([
+      {
+        body: "",
+        // A 302 with a Location but no X-Together-File-Id is unusable.
+        headers: { Location: "https://storage.example/presigned-put" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+    ]);
+
+    await expect(submitOneLine()).rejects.toThrow(
+      "Together upload could not be initiated (302)"
+    );
+  });
+
+  it("throws when the presigned PUT upload fails", async () => {
+    const storageUrl = "https://storage.example/presigned-put";
+    install([
+      {
+        body: "",
+        headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+      {
+        body: "access denied",
+        match: (url, method) => url === storageUrl && method === "PUT",
+        status: 403,
+      },
+    ]);
+
+    await expect(submitOneLine()).rejects.toThrow(
+      "Together file upload failed (403): access denied"
+    );
+  });
+
+  it("falls back to <no body> when the failed init response is unreadable", async () => {
+    // Force safeText into its catch branch: a response whose body cannot be read.
+    const unreadable = new Response("", { status: 500 });
+    unreadable.text = () => Promise.reject(new Error("stream boom"));
+    const fetchMock = mock(() => Promise.resolve(unreadable));
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(submitOneLine()).rejects.toThrow(
+      "Together upload could not be initiated (500): <no body>"
+    );
   });
 });
 
