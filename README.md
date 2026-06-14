@@ -23,17 +23,17 @@ See [`packages/batchwork`](./packages/batchwork) for full documentation.
 
 ## Monorepo
 
-This is a [Turborepo](https://turborepo.dev) + pnpm workspace.
+This is a [Turborepo](https://turborepo.dev) + [Bun](https://bun.sh) workspace.
 
 - [`packages/batchwork`](./packages/batchwork) — the library.
 - `apps/web` — documentation site (planned).
 
 ```bash
-pnpm install
-pnpm build       # turbo run build
-pnpm test        # turbo run test
-pnpm typecheck   # turbo run typecheck
-pnpm lint        # biome check
+bun install
+bun run build       # turbo run build
+bun run test        # turbo run test
+bun run typecheck   # turbo run typecheck
+bun run lint        # biome check
 ```
 
 ## License

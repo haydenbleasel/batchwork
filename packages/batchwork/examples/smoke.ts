@@ -1,7 +1,7 @@
 /**
  * Live smoke test. Requires OPENAI_API_KEY or ANTHROPIC_API_KEY.
  *
- *   OPENAI_API_KEY=sk-... pnpm --filter batchwork exec tsx examples/smoke.ts
+ *   OPENAI_API_KEY=sk-... bun packages/batchwork/examples/smoke.ts
  *
  * In your own app, import from "batchwork" instead of "../src/index".
  */
