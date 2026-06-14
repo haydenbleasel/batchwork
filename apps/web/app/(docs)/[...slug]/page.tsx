@@ -12,6 +12,10 @@ import { getLLMText } from "@/lib/get-llm-text";
 import { source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
 
+const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+const origin = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "localhost:3000";
+const baseUrl = `${protocol}://${origin}`;
+
 const githubContentBase =
   "https://github.com/haydenbleasel/batchwork/blob/main/apps/web/content/docs";
 
@@ -39,6 +43,7 @@ const Page = async ({ params }: PageProps) => {
       <PageActions
         githubUrl={`${githubContentBase}/${page.path}`}
         markdown={markdown}
+        markdownAbsoluteUrl={`${baseUrl}${markdownUrl}`}
         markdownUrl={markdownUrl}
       />
       <DocsBody className="[&_h2]:tracking-tight [&_h3]:tracking-tight [&_h4]:tracking-tight">

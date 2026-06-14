@@ -28,7 +28,7 @@ export const InstallCommand = ({ className }: InstallCommandProps) => {
     <button
       aria-label={copied ? "Copied" : "Copy install command"}
       className={cn(
-        "group inline-flex h-10 items-center gap-3 rounded-4xl border border-border bg-input/30 px-4 font-mono text-sm text-foreground transition-colors hover:bg-input/50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "group inline-flex h-10 items-center gap-3 rounded-4xl border border-border px-4 font-mono text-sm text-foreground transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
         className
       )}
       onClick={handleCopy}
@@ -40,7 +40,7 @@ export const InstallCommand = ({ className }: InstallCommandProps) => {
       <span>{COMMAND}</span>
       <span
         aria-hidden
-        className="text-muted-foreground transition-colors group-hover:text-foreground"
+        className="ml-2 text-muted-foreground transition-colors group-hover:text-foreground"
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </span>

@@ -18,8 +18,8 @@ export default defineConfig({
   mdxOptions: {
     rehypeCodeOptions: {
       themes: {
-        dark: "vitesse-dark",
-        light: "vitesse-light",
+        dark: "catppuccin-mocha",
+        light: "catppuccin-latte",
       },
     },
   },

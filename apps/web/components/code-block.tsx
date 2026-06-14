@@ -30,7 +30,7 @@ export const CodeBlock = ({ code, lang, className }: CodeBlockProps) =>
     defaultColor: false,
     lang,
     themes: {
-      dark: "vitesse-dark",
-      light: "vitesse-light",
+      dark: "catppuccin-mocha",
+      light: "catppuccin-latte",
     },
   });
