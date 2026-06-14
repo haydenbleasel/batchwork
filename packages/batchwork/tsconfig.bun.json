@@ -1,8 +1,9 @@
 {
   // Bun-typed typecheck config for code that runs under Bun: the build tooling
-  // (scripts/build.ts uses Bun.build / Bun.spawn) and the test suite (which
-  // imports from bun:test). Kept separate from the library typecheck so Bun-only
-  // globals (e.g. Bun's wider `fetch`) never define the published type surface.
+  // (scripts/build.ts uses Bun.build / Bun.spawn) and the test suites under
+  // test/ and live/ (which import from bun:test). Kept separate from the library
+  // typecheck so Bun-only globals (e.g. Bun's wider `fetch`) never define the
+  // published type surface.
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
@@ -10,5 +11,5 @@
     "types": ["bun"],
     "strictNullChecks": true
   },
-  "include": ["scripts", "test"]
+  "include": ["scripts", "test", "live"]
 }

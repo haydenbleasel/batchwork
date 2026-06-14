@@ -45,8 +45,9 @@
     "build": "bun run scripts/build.ts",
     "dev": "bun run scripts/build.ts --watch",
     "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.bun.json",
-    "test": "bun test",
-    "test:coverage": "bun test --coverage"
+    "test": "bun test ./test",
+    "test:coverage": "bun test ./test --coverage",
+    "test:live": "bun test ./live"
   },
   "dependencies": {
     "ai": "^6.0.204"
