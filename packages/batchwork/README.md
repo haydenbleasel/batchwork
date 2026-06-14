@@ -205,9 +205,50 @@ const handler = poller.openaiWebhookHandler({
 export const POST = (request: Request) => handler(request); // your OpenAI webhook route
 ```
 
+## Next.js: callback route handlers
+
+In a Next.js app you don't need to POST a webhook back to your own server — `batchwork/next` gives you App Router route handlers that poll your in-flight batches on a cron tick and call you back **in-process** when each finishes, so you persist results straight to your DB.
+
+```ts
+// app/api/batches/route.ts
+import { batch } from "batchwork";
+import { createBatchRoutes, createMemoryStore } from "batchwork/next";
+
+const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapter
+
+export const { GET, POST, track } = createBatchRoutes({
+  store,
+  // Optional: require the Vercel Cron bearer token on GET.
+  cronSecret: process.env.CRON_SECRET,
+  // Optional: mount OpenAI's native webhook on POST (skips polling for OpenAI).
+  openaiSigningSecret: process.env.OPENAI_WEBHOOK_SECRET,
+  onComplete: async (event, results) => {
+    // event.type: "batch.completed" | "batch.failed" | "batch.expired" | "batch.cancelled"
+    for await (const result of results) {
+      await db.results.upsert({
+        batchId: event.id,
+        customId: result.customId,
+        text: result.text,
+      });
+    }
+  },
+});
+```
+
+After submitting, register the batch so the cron polls it (a `BatchJob` works directly):
+
+```ts
+const job = await batch({ model, requests });
+await track(job);
+```
+
+Point a [Vercel Cron](https://vercel.com/docs/cron-jobs) job at the `GET` route (e.g. every few minutes). It polls each open batch and, when one reaches a terminal status, calls `onComplete` with the unified event and a **streamed** `results` iterable (empty for failure events — inspect `event.type`). The callback runs **before** the batch is marked delivered, so a throw leaves it pending and it retries next tick. Delivery is therefore **at-least-once**: make persistence idempotent (upsert keyed by `(provider, batchId, customId)`).
+
+`onComplete` is the only required option beyond `store`. A failing batch is isolated to its own entry and reported in the `GET` response (`{ checked, delivered, failed }`) rather than aborting the tick; pass `onError` to observe these. `POST` is present only when `openaiSigningSecret` is set.
+
 ### Bring your own store
 
-`createMemoryStore()` is for development. In production, implement `BatchStore` (four async methods: `get`, `set`, `delete`, `list`) over any KV/DB — Vercel KV, Upstash Redis, Cloudflare KV, Postgres. Signing is Standard Webhooks-compatible (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256), so existing webhook tooling verifies it.
+`createMemoryStore()` is for development. In production, implement `BatchStore` (four async methods: `get`, `set`, `delete`, `list`) over any KV/DB — Vercel KV, Upstash Redis, Cloudflare KV, Postgres. Make sure `list({ delivered: false })` actually filters on the delivery flag — both the poller and the Next.js cron rely on it to avoid reprocessing finished batches every tick. Signing is Standard Webhooks-compatible (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256), so existing webhook tooling verifies it.
 
 ## Roadmap
 

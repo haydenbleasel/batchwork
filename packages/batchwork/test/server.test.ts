@@ -188,6 +188,38 @@ describe("createBatchPoller", () => {
     expect(stored?.deliveredAt).toBeDefined();
   });
 
+  it("routes completion to a custom onComplete sink instead of a webhook", async () => {
+    const store = createMemoryStore();
+    const sinkCalls: string[] = [];
+    const poller = createBatchPoller({
+      credentials: { apiKey: "k" },
+      onComplete: (record) => {
+        sinkCalls.push(record.id);
+        return Promise.resolve();
+      },
+      store,
+    });
+    await poller.track({ id: "batch_sink", provider: "openai" }, {});
+
+    const fetchMock = install([
+      {
+        body: completedBatch("batch_sink"),
+        match: (url, method) =>
+          url.includes("/batches/batch_sink") && method === "GET",
+      },
+    ]);
+
+    const result = await poller.tick();
+    expect(result).toEqual({ checked: 1, delivered: ["batch_sink"] });
+    expect(sinkCalls).toEqual(["batch_sink"]);
+    // The default webhook delivery is replaced — no outbound POST occurred.
+    expect(fetchMock.mock.calls.some((call) => call[0] === WEBHOOK_URL)).toBe(
+      false
+    );
+    const stored = await store.get("batch_sink");
+    expect(stored?.deliveredAt).toBeDefined();
+  });
+
   it("does not deliver while a batch is still in progress", async () => {
     const store = createMemoryStore();
     const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });

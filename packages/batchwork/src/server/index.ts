@@ -2,6 +2,7 @@ export { createBatchPoller } from "./poller";
 export type {
   BatchPoller,
   BatchPollerOptions,
+  CompletionSink,
   CredentialResolver,
   OpenAIWebhookOptions,
   TickResult,

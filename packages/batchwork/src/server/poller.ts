@@ -7,23 +7,36 @@ import type {
   BatchStatus,
   ProviderCredentials,
 } from "../types";
+import { toEvent } from "./events";
 import { signWebhook, verifyWebhook } from "./signing";
-import type {
-  BatchStore,
-  BatchWebhookEvent,
-  BatchWebhookEventType,
-  TrackedBatch,
-} from "./types";
+import type { BatchStore, TrackedBatch } from "./types";
 
 /** Credentials for polling: a fixed config, or one resolved per provider. */
 export type CredentialResolver =
   | ProviderCredentials
   | ((provider: BatchProvider) => ProviderCredentials);
 
+/**
+ * Handles a batch reaching a terminal status. Replaces the default signed
+ * webhook delivery — e.g. to invoke a callback instead (see `batchwork/next`).
+ */
+export type CompletionSink = (
+  record: TrackedBatch,
+  snapshot: BatchSnapshot
+) => Promise<void>;
+
 export interface BatchPollerOptions {
   store: BatchStore;
   /** Falls back to provider env vars (e.g. `OPENAI_API_KEY`) when omitted. */
   credentials?: CredentialResolver;
+  /** Replaces signed-webhook delivery when a batch finishes. */
+  onComplete?: CompletionSink;
+  /**
+   * Called when processing a single batch throws during `tick`. When provided,
+   * the tick reports the error and continues to the next batch; when omitted,
+   * the error propagates out of `tick`.
+   */
+  onError?: (record: TrackedBatch, error: unknown) => void;
 }
 
 export interface TrackTarget {
@@ -33,7 +46,8 @@ export interface TrackTarget {
 }
 
 export interface TrackOptions {
-  webhookUrl: string;
+  /** Where to POST the completion webhook. Omit for callback-based delivery. */
+  webhookUrl?: string;
   /** Signs the outbound webhook (Standard Webhooks HMAC) when provided. */
   secret?: string;
 }
@@ -41,6 +55,8 @@ export interface TrackOptions {
 export interface TickResult {
   checked: number;
   delivered: string[];
+  /** Batches whose processing threw this tick (only when `onError` is set). */
+  failed?: { id: string; error: string }[];
 }
 
 export interface OpenAIWebhookOptions {
@@ -57,24 +73,39 @@ export interface BatchPoller {
   ) => (request: Request) => Promise<Response>;
 }
 
-const EVENT_BY_STATUS: Partial<Record<BatchStatus, BatchWebhookEventType>> = {
-  cancelled: "batch.cancelled",
-  completed: "batch.completed",
-  expired: "batch.expired",
-  failed: "batch.failed",
+/** The default completion sink: POST a signed webhook to the tracked URL. */
+const sendWebhook: CompletionSink = async (record, snapshot) => {
+  if (!record.webhookUrl) {
+    throw new BatchworkError(
+      "batchwork: tracked batch has no webhookUrl to deliver to."
+    );
+  }
+  const body = JSON.stringify(toEvent(record.provider, snapshot));
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (record.webhookSecret) {
+    Object.assign(
+      headers,
+      await signWebhook(
+        record.webhookSecret,
+        record.id,
+        body,
+        Date.now() / 1000
+      )
+    );
+  }
+  const response = await fetch(record.webhookUrl, {
+    body,
+    headers,
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new BatchworkError(
+      `batchwork: webhook delivery to ${record.webhookUrl} failed (${response.status}).`
+    );
+  }
 };
-
-const toEvent = (
-  provider: BatchProvider,
-  snapshot: BatchSnapshot
-): BatchWebhookEvent => ({
-  completedAt: snapshot.completedAt?.toISOString(),
-  createdAt: snapshot.createdAt?.toISOString(),
-  id: snapshot.id,
-  provider,
-  requestCounts: snapshot.requestCounts,
-  type: EVENT_BY_STATUS[snapshot.status] ?? "batch.completed",
-});
 
 /**
  * Create a managed poller: register submitted batches with `track`, then run
@@ -90,42 +121,15 @@ export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
     return options.credentials ?? {};
   };
 
-  const send = async (
-    record: TrackedBatch,
-    snapshot: BatchSnapshot
-  ): Promise<void> => {
-    const body = JSON.stringify(toEvent(record.provider, snapshot));
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-    };
-    if (record.webhookSecret) {
-      Object.assign(
-        headers,
-        await signWebhook(
-          record.webhookSecret,
-          record.id,
-          body,
-          Date.now() / 1000
-        )
-      );
-    }
-    const response = await fetch(record.webhookUrl, {
-      body,
-      headers,
-      method: "POST",
-    });
-    if (!response.ok) {
-      throw new BatchworkError(
-        `batchwork: webhook delivery to ${record.webhookUrl} failed (${response.status}).`
-      );
-    }
-  };
+  const sink = options.onComplete ?? sendWebhook;
 
   const deliver = async (
     record: TrackedBatch,
     snapshot: BatchSnapshot
   ): Promise<void> => {
-    await send(record, snapshot);
+    // Run the side effect before marking delivered: if it throws, the record
+    // stays pending and is retried on the next tick (at-least-once delivery).
+    await sink(record, snapshot);
     await options.store.set({
       ...record,
       deliveredAt: new Date().toISOString(),
@@ -149,26 +153,51 @@ export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
     return record;
   };
 
+  const process = async (
+    record: TrackedBatch,
+    delivered: string[]
+  ): Promise<void> => {
+    const adapter = getAdapter(record.provider);
+    const snapshot = await adapter.retrieve(
+      record.id,
+      resolveCredentials(record.provider)
+    );
+    if (isTerminalStatus(snapshot.status)) {
+      await deliver(record, snapshot);
+      delivered.push(record.id);
+    } else if (snapshot.status !== record.status) {
+      await options.store.set({ ...record, status: snapshot.status });
+    }
+  };
+
   const tick = async (): Promise<TickResult> => {
     const pending = await options.store.list({ delivered: false });
     const delivered: string[] = [];
+    const failed: { id: string; error: string }[] = [];
     for (const record of pending) {
-      const adapter = getAdapter(record.provider);
-      // oxlint-disable-next-line no-await-in-loop -- batches are polled serially.
-      const snapshot = await adapter.retrieve(
-        record.id,
-        resolveCredentials(record.provider)
-      );
-      if (isTerminalStatus(snapshot.status)) {
-        // oxlint-disable-next-line no-await-in-loop -- deliver before the next.
-        await deliver(record, snapshot);
-        delivered.push(record.id);
-      } else if (snapshot.status !== record.status) {
-        // oxlint-disable-next-line no-await-in-loop -- persist the status change.
-        await options.store.set({ ...record, status: snapshot.status });
+      // oxlint-disable-next-line no-await-in-loop -- batches are polled serially
+      // to avoid hammering provider rate limits; deliver before the next.
+      try {
+        // oxlint-disable-next-line no-await-in-loop -- see above.
+        await process(record, delivered);
+      } catch (error) {
+        // Without an `onError` handler, preserve the propagate-the-throw
+        // behavior; with one, report and continue so a single failing batch
+        // can't starve the rest of the queue. Either way the record stays
+        // pending (it was never marked delivered) and retries next tick.
+        if (!options.onError) {
+          throw error;
+        }
+        options.onError(record, error);
+        failed.push({
+          error: error instanceof Error ? error.message : String(error),
+          id: record.id,
+        });
       }
     }
-    return { checked: pending.length, delivered };
+    return failed.length > 0
+      ? { checked: pending.length, delivered, failed }
+      : { checked: pending.length, delivered };
   };
 
   const openaiWebhookHandler =

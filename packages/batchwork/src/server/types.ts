@@ -20,7 +20,8 @@ export interface BatchWebhookEvent {
 export interface TrackedBatch {
   id: string;
   provider: BatchProvider;
-  webhookUrl: string;
+  /** Where to POST the completion webhook. Omitted for callback-based flows. */
+  webhookUrl?: string;
   webhookSecret?: string;
   status: BatchStatus;
   createdAt: string;
