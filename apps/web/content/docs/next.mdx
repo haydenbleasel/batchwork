@@ -7,16 +7,15 @@ In a Next.js app you don't need to POST a webhook back to your own server. `batc
 
 ## Mount the routes
 
-`createBatchRoutes` returns handlers you export directly from a route file.
+`createBatchRoutes` returns `GET`, `POST`, and `track`. A Next.js `route.ts` may only export HTTP method handlers (plus route config) — exporting `track` from one fails the build's type check — so call `createBatchRoutes` in a regular module and re-export just `GET`/`POST` from the route file. Import `track` from that same module wherever you submit batches.
 
 ```ts
-// app/api/batches/route.ts
-import { batch } from "batchwork";
+// lib/batches.ts — a normal module, importable from anywhere
 import { createBatchRoutes, createMemoryStore } from "batchwork/next";
 
 const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapter
 
-export const { GET, POST, track } = createBatchRoutes({
+export const batches = createBatchRoutes({
   store,
   // Optional: require the Vercel Cron bearer token on GET.
   cronSecret: process.env.CRON_SECRET,
@@ -36,6 +35,13 @@ export const { GET, POST, track } = createBatchRoutes({
 });
 ```
 
+```ts
+// app/api/batches/route.ts — re-export only the HTTP handlers
+import { batches } from "@/lib/batches";
+
+export const { GET, POST } = batches;
+```
+
 `store` and `onComplete` are the only required options.
 
 ## Register a batch
@@ -43,8 +49,11 @@ export const { GET, POST, track } = createBatchRoutes({
 After submitting, call `track` so the cron polls it. A `BatchJob` works directly (`track` reads its `id` and `provider`).
 
 ```ts
+import { batch } from "batchwork";
+import { batches } from "@/lib/batches";
+
 const job = await batch({ model, requests });
-await track(job);
+await batches.track(job);
 ```
 
 ## Run the cron
@@ -74,7 +83,8 @@ Because of the retry — and because the cron can race OpenAI's native webhook �
 Set `openaiSigningSecret` and `batchwork/next` mounts an OpenAI webhook handler on `POST`, so OpenAI batches resolve the instant they complete instead of waiting for the next tick. It runs the same `onComplete` callback. When omitted, no `POST` is exported.
 
 ```ts
-export const { GET, POST } = createBatchRoutes({
+// lib/batches.ts
+export const batches = createBatchRoutes({
   store,
   openaiSigningSecret: process.env.OPENAI_WEBHOOK_SECRET,
   onComplete: persistResults,
@@ -96,4 +106,4 @@ const store: BatchStore = {
 };
 ```
 
-See [Server](/docs/server) for the lower-level poller and the webhook-based flow this builds on.
+See [Server](/server) for the lower-level poller and the webhook-based flow this builds on.

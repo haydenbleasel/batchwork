@@ -3,7 +3,7 @@ import { CodeBlock } from "@/components/code-block";
 const FILES = [
   {
     code: `import { batch } from "batchwork";
-import { track } from "./api/batches/route";
+import { batches } from "@/lib/batches";
 import { openai } from "@ai-sdk/openai";
 import type { BatchRequest } from "batchwork";
 
@@ -20,7 +20,7 @@ const requests: BatchRequest[] = [
 const job = await batch({ model, requests });
 
 // Register the batch so the cron polls it
-await track(job);`,
+await batches.track(job);`,
     name: "app/actions.ts",
   },
   {
@@ -37,8 +37,15 @@ const onComplete: OnBatchComplete = async (event, results) => {
   }
 };
 
-// A cron hits GET; each finished batch streams into your DB.
-export const { GET, track } = createBatchRoutes({ store, onComplete });`,
+// A route.ts may only export HTTP handlers, so define the routes here.
+export const batches = createBatchRoutes({ store, onComplete });`,
+    name: "lib/batches.ts",
+  },
+  {
+    code: `import { batches } from "@/lib/batches";
+
+// A cron hits GET; each finished batch streams into onComplete.
+export const { GET } = batches;`,
     name: "app/api/batches/route.ts",
   },
 ];

@@ -45,4 +45,4 @@ A `"provider/model"` string is supported for ergonomics and resolves to the prov
 
 To produce each provider's exact request body — with full AI SDK fidelity for messages, tools, multimodal content, and `providerOptions` — batchwork runs each request through the AI SDK with a **capturing `fetch`** that records the serialized body and aborts before any network call. That body is exactly what `generateText` would have sent; it becomes the OpenAI JSONL line `body` or the Anthropic `params`.
 
-The upshot: anything `generateText` supports for a given model, a batch request supports too.
+The upshot: every **request** field `generateText` accepts — `system`, `messages`, `tools`, multimodal content, `providerOptions` — carries through to a batch request unchanged. batchwork serializes the request only; it does **not** run `generateText`'s response side, so there is no automatic multi-step tool execution and no `generateObject`-style parsing. You get the raw model output back — read tool calls or structured output from [`result.response`](/results) yourself.

@@ -113,4 +113,10 @@ const store: PendingRequestStore = {
 
 Back `claim` with a native primitive — Postgres `SELECT … FOR UPDATE SKIP LOCKED` (then `UPDATE … RETURNING`), or a Redis Lua `ZPOPMIN` script. Durable stores should also reclaim rows whose `claimedAt` is older than a TTL (≈ `2 × maxDuration`) so a crash between claim and submit can't strand them.
 
+## Submission is at-least-once
+
+A flush claims pending rows, submits the provider batch, hands the job to `track`, then deletes the claimed rows — in that order. If the process crashes **after** the batch is submitted but before the rows are deleted, the submitted batch still runs to completion, and the TTL reaper above returns the still-claimed rows to pending, where the next flush resubmits them in a **new** batch.
+
+So pooled submission is **at-least-once**: a request can land in more than one provider batch, and the same `customId` can then be delivered under two different `batchId`s. Key your final persistence by `customId` (the value `add()` returned), not by `batchId`, so a resubmission overwrites rather than duplicates.
+
 See [Next.js](/next) and [Server](/server) for the delivery layer the pooled batches flow into once submitted.

@@ -48,7 +48,7 @@ export const Hero = ({ latestVersion, children }: HeroProps) => (
         transition={{ duration: 0.4, ease: EASE }}
       >
         <span className="inline-block size-1.5 rounded-full bg-emerald-500" />v
-        {latestVersion} · OpenAI + Anthropic
+        {latestVersion} · 7 providers
         <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
       </motion.a>
 

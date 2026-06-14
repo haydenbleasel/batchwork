@@ -21,7 +21,7 @@ You can pass a `"provider/model"` string for ergonomics, but batch traffic resol
 
 ## Are tools, vision, and structured output supported?
 
-Yes — whatever `generateText` supports for a given model, a batch request supports. batchwork derives each request body through the AI SDK itself (see [Models](/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. Read the raw payload from `result.response`.
+Yes, as **request inputs**. batchwork derives each request body through the AI SDK itself (see [Models](/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. It serializes the request only — it does not execute tool calls or parse `generateObject`-style structured output for you, so read the raw payload (tool calls, structured output, finish reasons) from `result.response` and parse it yourself.
 
 ## What happens to failed requests?
 

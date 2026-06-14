@@ -14,7 +14,7 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     description:
-      "One batch() call across OpenAI and Anthropic. Author requests in the same generateText shape you already use, get back one normalized result type keyed by customId.",
+      "One batch() call across seven providers — OpenAI, Anthropic, Google, Groq, Mistral, Together AI, and xAI. Author requests in the same generateText shape you already use, get back one normalized result type keyed by customId.",
     href: "/usage",
     icon: Layers,
     title: "Unified interface",
