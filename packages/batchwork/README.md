@@ -1,6 +1,11 @@
 # batchwork
 
-The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev). Submit thousands of requests at ~50% cost with one unified call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across providers.
+The missing **batch API** for the [Vercel AI SDK](https://ai-sdk.dev). Submit thousands of LLM requests at roughly half the cost with one unified call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
+
+[![npm version](https://img.shields.io/npm/v/batchwork.svg)](https://www.npmjs.com/package/batchwork)
+[![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork)
+[![license](https://img.shields.io/npm/l/batchwork.svg)](#license)
+[![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork)
 
 ```ts
 import { batch } from "batchwork";
@@ -20,11 +25,38 @@ for (const r of results) {
 }
 ```
 
+## Contents
+
+- [Why](#why)
+- [Features](#features)
+- [Install](#install)
+- [Models](#models)
+- [Requests](#requests)
+- [The job handle](#the-job-handle)
+- [How it works](#how-it-works)
+- [Server: managed polling & unified webhooks](#server-managed-polling--unified-webhooks)
+- [Next.js: callback route handlers](#nextjs-callback-route-handlers)
+- [On-demand pooling](#on-demand-pooling)
+- [Roadmap](#roadmap)
+- [Development](#development)
+- [License](#license)
+
 ## Why
 
 Every major LLM provider offers a Batch API at roughly half the price — but each has a different, fiddly shape. OpenAI wants a JSONL file uploaded via the Files API; Anthropic wants an inline JSON array; both return results out of order keyed by a `custom_id`, and you poll for completion. The AI SDK unifies _synchronous_ generation but has no batch support, so today you drop out of it and hand-write provider plumbing.
 
 `batchwork` closes that gap. You author requests in the same `generateText` shape you already use, pass the same AI SDK models, and get back one normalized result type.
+
+## Features
+
+- **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI, built on three batch "shapes".
+- **AI SDK native** — author requests in the familiar `generateText` shape and pass the AI SDK models you already use.
+- **~50% cheaper** — every request runs against the provider's batch window at roughly half synchronous rates.
+- **Normalized results** — correlated by `customId`, with unified status, text, usage, and error types regardless of provider.
+- **Rehydratable** — persist a batch id and reconnect later with no original requests in hand.
+- **Server-ready** — an optional layer turns provider polling and native webhooks into one signed, unified webhook event.
+- **Framework helpers** — drop-in Next.js App Router handlers and an on-demand pooling layer for trickle-in workloads.
+- **Tiny footprint** — depends only on `ai`; provider SDKs are optional peer dependencies you opt into.
 
 ## Install
 
@@ -36,7 +68,7 @@ npm install @ai-sdk/openai @ai-sdk/anthropic
 
 `batchwork` depends on `ai`. The `@ai-sdk/*` provider packages are **optional peer dependencies** — install only the ones you batch with.
 
-Set credentials via the standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) or pass `apiKey` to `batch()`.
+Set credentials via the standard environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) or pass `apiKey` to `batch()`. Requires Node.js 20 or newer.
 
 ## Models
 
@@ -138,7 +170,7 @@ await cancelBatch({ model: "openai/gpt-4o-mini", id: "batch_…" });
 
 To build each provider's request body with full AI SDK fidelity (messages, tools, multimodal content, `providerOptions`) and almost no provider-specific code, `batchwork` runs each request through the AI SDK with a **capturing `fetch`** that records the serialized body and aborts before any network call. That body is exactly what `generateText` would send — it becomes the OpenAI JSONL line `body` or the Anthropic `params`. The lifecycle (upload, submit, poll, results, cancel) is plain `fetch` against each provider's batch endpoints.
 
-Seven providers are supported, built on three batch "shapes":
+The supported providers are built on three batch "shapes":
 
 | Provider      | Submit                            | Results                      |
 | ------------- | --------------------------------- | ---------------------------- |
@@ -287,7 +319,7 @@ const pool = createBatchPool({
 const id = await pool.add({ prompt: "Summarize this…" });
 ```
 
-`add()` returns immediately with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so results come back through `onFlush(job, requests)` or, better, the [server layer](#server-managed-polling--unified-webhooks) (see below). A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms`).
+`add()` returns immediately with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so results come back through `onFlush(job, requests)` or, better, the [server layer](#server-managed-polling--unified-webhooks). A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms`).
 
 ### Serverless: durable pooling + cron
 
@@ -344,6 +376,20 @@ Pooled submission is therefore **at-least-once**: a flush submits the batch befo
 - **Amazon Bedrock** and **Vertex AI** — their batch APIs need object-storage staging (S3/GCS) and cloud IAM auth, which don't fit batchwork's `apiKey` + `fetch` model yet.
 - Embeddings batches.
 
+## Development
+
+This repository is a [Turborepo](https://turbo.build) + [Bun](https://bun.sh) monorepo; the library lives in `packages/batchwork`.
+
+```bash
+bun install
+bun run build      # turbo run build
+bun run test       # turbo run test
+bun run typecheck  # turbo run typecheck
+bun run fix        # ultracite fix (oxlint + oxfmt)
+```
+
+Contributions are welcome — please open an [issue](https://github.com/haydenbleasel/batchwork/issues) or pull request.
+
 ## License
 
-MIT © Hayden Bleasel
+[MIT](https://opensource.org/licenses/MIT) © [Hayden Bleasel](https://github.com/haydenbleasel)
