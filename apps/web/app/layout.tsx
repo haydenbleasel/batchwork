@@ -22,9 +22,9 @@ const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
 const origin = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "localhost:3000";
 const baseUrl = `${protocol}://${origin}`;
 
-const title = "batchwork — the missing batch API for the Vercel AI SDK";
+const title = "Save up to 50% on LLM costs | Batchwork";
 const description =
-  "Submit thousands of LLM requests at ~50% cost with one unified call across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI. batchwork handles JSONL, uploads, polling, and result parsing for you.";
+  "The missing batch API for the Vercel AI SDK. Process LLM requests in bulk with one unified call. Processing, uploading, polling, and result parsing handled for you.";
 
 export const metadata: Metadata = {
   alternates: {
@@ -35,14 +35,14 @@ export const metadata: Metadata = {
   openGraph: {
     description,
     locale: "en_US",
-    siteName: "batchwork",
+    siteName: "Batchwork",
     title,
     type: "website",
     url: "/",
   },
   title: {
     default: title,
-    template: "%s · batchwork",
+    template: "%s · Batchwork",
   },
   twitter: {
     card: "summary_large_image",
@@ -58,7 +58,7 @@ const jsonLd = {
   codeRepository: "https://github.com/haydenbleasel/batchwork",
   description,
   license: "https://opensource.org/licenses/MIT",
-  name: "batchwork",
+  name: "Batchwork",
   programmingLanguage: "TypeScript",
   url: baseUrl,
 };
@@ -80,7 +80,6 @@ const RootLayout = ({ children }: RootLayoutProps) => (
   >
     <body className="flex min-h-full flex-col">
       <script
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD is the standard pattern for structured data
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         type="application/ld+json"
       />

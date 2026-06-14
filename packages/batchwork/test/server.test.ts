@@ -342,6 +342,26 @@ describe("createBatchPoller", () => {
     expect(stored?.deliveredAt).toBeUndefined();
   });
 
+  it("throws when a completed batch has no webhookUrl to deliver to", async () => {
+    const store = createMemoryStore();
+    // No `onComplete` sink and no `webhookUrl`: the default webhook sink has
+    // nowhere to deliver, so delivery throws (and, with no `onError`, the tick
+    // propagates it).
+    const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+    await poller.track({ id: "batch_nourl", provider: "openai" }, {});
+    install([
+      {
+        body: completedBatch("batch_nourl"),
+        match: (url, method) =>
+          url.includes("/batches/batch_nourl") && method === "GET",
+      },
+    ]);
+
+    await expect(poller.tick()).rejects.toThrow("no webhookUrl");
+    const stored = await store.get("batch_nourl");
+    expect(stored?.deliveredAt).toBeUndefined();
+  });
+
   it("throws when webhook delivery fails", async () => {
     const store = createMemoryStore();
     const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });

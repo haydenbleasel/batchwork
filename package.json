@@ -13,6 +13,7 @@
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "turbo run build && changeset publish",

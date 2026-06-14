@@ -94,6 +94,18 @@ describe("createBatchPool", () => {
     );
   });
 
+  it("flushDue does nothing when the pool is empty", async () => {
+    const pool = createBatchPool({
+      apiKey: "test-key",
+      maxDuration: 1,
+      maxSize: 100,
+      model: "openai/gpt-4o-mini",
+      store: createMemoryPendingStore(),
+    });
+
+    expect(await pool.flushDue()).toEqual([]);
+  });
+
   it("flushDue does nothing while items are fresh", async () => {
     const pool = createBatchPool({
       apiKey: "test-key",
@@ -248,6 +260,69 @@ describe("createBatchPool", () => {
     expect(jobs.map((job) => job.id)).toEqual(["batch_1"]);
     expect(tracked).toEqual(["batch_1"]);
     await expect(pool.add({ prompt: "b" })).rejects.toThrow("closed");
+  });
+
+  it("clears the armed timer on close before it fires", async () => {
+    submitRoutes();
+    const tracked: string[] = [];
+    const pool = createBatchPool({
+      apiKey: "test-key",
+      // Long window so the armed timer can't fire during the test — close()
+      // must clear it explicitly.
+      maxDuration: 3600,
+      maxSize: 100,
+      model: "openai/gpt-4o-mini",
+      poolKey: "test",
+      timer: true,
+      track: (job) => {
+        tracked.push(job.id);
+      },
+    });
+
+    await pool.add({ customId: "a", prompt: "hi" });
+    const jobs = await pool.close();
+    expect(jobs.map((job) => job.id)).toEqual(["batch_1"]);
+    expect(tracked).toEqual(["batch_1"]);
+  });
+
+  it("rethrows a submit failure when no onError handler is set", async () => {
+    const store = createMemoryPendingStore();
+    await store.append({
+      enqueuedAt: new Date().toISOString(),
+      id: "row-1",
+      poolKey: "test",
+      request: { customId: "a", prompt: "hi" },
+    });
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+        if (url.endsWith("/files") && method === "POST") {
+          return Promise.resolve(Response.json({ id: "file-in" }));
+        }
+        if (url.endsWith("/batches") && method === "POST") {
+          return Promise.resolve(new Response("boom", { status: 500 }));
+        }
+        return Promise.reject(new Error(`unexpected ${method} ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    const pool = createBatchPool({
+      apiKey: "test-key",
+      maxDuration: 3600,
+      maxSize: 10,
+      model: "openai/gpt-4o-mini",
+      poolKey: "test",
+      store,
+    });
+
+    await expect(pool.flush()).rejects.toThrow();
+    // The failed claim is released back to pending for a later retry.
+    expect(await pool.size()).toBe(1);
   });
 
   it("self-schedules a flush in timer mode", async () => {

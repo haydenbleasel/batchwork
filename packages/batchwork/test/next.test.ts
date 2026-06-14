@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import { createBatchRoutes, createMemoryStore } from "../src/next";
 import type { BatchResult, BatchWebhookEvent } from "../src/next";
 import { signWebhook } from "../src/server/signing";
+import type { BatchProvider } from "../src/types";
 
 interface Route {
   body: unknown;
@@ -101,6 +102,33 @@ describe("createBatchRoutes — GET cron tick", () => {
 
     const stored = await store.get("batch_1");
     expect(stored?.deliveredAt).toBeDefined();
+  });
+
+  it("resolves credentials from a per-provider function on completion", async () => {
+    const store = createMemoryStore();
+    const seen: BatchProvider[] = [];
+    const calls: BatchResult[][] = [];
+    const { GET, track } = createBatchRoutes({
+      credentials: (provider) => {
+        seen.push(provider);
+        return { apiKey: `k-${provider}` };
+      },
+      onComplete: async (_event, results) => {
+        calls.push(await collect(results));
+      },
+      store,
+    });
+    await track({ id: "batch_fn", provider: "openai" });
+    install([
+      retrieveRoute("batch_fn", completedBatch("batch_fn")),
+      outputRoute,
+    ]);
+
+    const response = await GET(new Request(CRON_URL));
+    expect(await response.json()).toMatchObject({ delivered: ["batch_fn"] });
+    // The function resolver was consulted for the completed batch's provider.
+    expect(seen).toContain("openai");
+    expect(calls[0]?.map((r) => r.customId)).toEqual(["a", "b"]);
   });
 
   it("does not invoke onComplete while a batch is still in progress", async () => {
