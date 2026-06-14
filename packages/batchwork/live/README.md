@@ -22,15 +22,15 @@ the ones you have credentials for.
 Set the relevant key(s) in your environment (e.g. a local `.env`, which is
 git-ignored):
 
-| Provider  | Env var                                              | Default model                                 |
-| --------- | ---------------------------------------------------- | --------------------------------------------- |
-| OpenAI    | `OPENAI_API_KEY`                                     | `gpt-4o-mini`                                 |
-| Anthropic | `ANTHROPIC_API_KEY`                                  | `claude-haiku-4-5`                            |
-| Google    | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) | `gemini-2.5-flash`                            |
-| Groq      | `GROQ_API_KEY`                                       | `llama-3.1-8b-instant`                        |
-| Mistral   | `MISTRAL_API_KEY`                                    | `mistral-small-latest`                        |
-| Together  | `TOGETHER_API_KEY`                                   | `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo` |
-| xAI       | `XAI_API_KEY`                                        | `grok-3-mini`                                 |
+| Provider  | Env var                                              | Default model                    |
+| --------- | ---------------------------------------------------- | -------------------------------- |
+| OpenAI    | `OPENAI_API_KEY`                                     | `gpt-4o-mini`                    |
+| Anthropic | `ANTHROPIC_API_KEY`                                  | `claude-haiku-4-5`               |
+| Google    | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) | `gemini-2.5-flash`               |
+| Groq      | `GROQ_API_KEY`                                       | `llama-3.1-8b-instant`           |
+| Mistral   | `MISTRAL_API_KEY`                                    | `mistral-small-latest`           |
+| Together  | `TOGETHER_API_KEY`                                   | `Qwen/Qwen2.5-7B-Instruct-Turbo` |
+| xAI       | `XAI_API_KEY`                                        | `grok-3-mini`                    |
 
 A `.env.local` like this is enough (copy `.env.example`):
 
@@ -53,3 +53,14 @@ All optional, via environment variables:
 | `BATCHWORK_LIVE_TIMEOUT_MS`       | How long to wait for a batch before giving up              | `1800000` (30m) |
 | `BATCHWORK_LIVE_POLL_MS`          | Delay between status polls                                 | `10000` (10s)   |
 | `BATCHWORK_LIVE_<PROVIDER>_MODEL` | Override the model id (e.g. `BATCHWORK_LIVE_OPENAI_MODEL`) | per table above |
+
+## Account gotchas
+
+These tests exercise the library, but some failures are account-level, not bugs:
+
+- **Groq** — the Batch API requires a paid plan. A free-tier key returns
+  `403 not_available_for_plan` on file upload.
+- **Together** — the model must be **serverless and batch-eligible**. Dedicated-only
+  models fail with `Unable to access non-serverless model …`, and a few models are
+  explicitly excluded from batch. Reasoning/code models may also return empty
+  `text` (their output lands in a non-standard field).

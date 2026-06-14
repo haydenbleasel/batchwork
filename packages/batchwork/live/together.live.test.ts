@@ -4,9 +4,9 @@ import { togetherai } from "@ai-sdk/togetherai";
 
 import { LIVE_TEST_TIMEOUT_MS, runLiveBatch } from "./runner";
 
+// Must be a serverless, batch-supported model (Qwen2.5-7B is batch-discounted).
 const MODEL_ID =
-  process.env.BATCHWORK_LIVE_TOGETHER_MODEL ??
-  "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
+  process.env.BATCHWORK_LIVE_TOGETHER_MODEL ?? "Qwen/Qwen2.5-7B-Instruct-Turbo";
 const hasKey = Boolean(process.env.TOGETHER_API_KEY);
 
 describe.skipIf(!hasKey)("together live batch", () => {

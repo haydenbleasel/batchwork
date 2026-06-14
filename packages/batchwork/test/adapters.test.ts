@@ -13,7 +13,9 @@ const credentials = { apiKey: "test-key" };
 
 interface Route {
   body: unknown;
+  headers?: Record<string, string>;
   match: (url: string, method: string) => boolean;
+  status?: number;
 }
 
 const originalFetch = globalThis.fetch;
@@ -31,7 +33,12 @@ const install = (routes: Route[]) => {
         typeof route.body === "string"
           ? route.body
           : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
+      return Promise.resolve(
+        new Response(payload, {
+          headers: route.headers,
+          status: route.status ?? 200,
+        })
+      );
     }
   );
   globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
@@ -205,6 +212,8 @@ describe("openai adapter", () => {
 
     expect(snapshot.id).toBe("batch_1");
     expect(snapshot.status).toBe("validating");
+    // OpenAI derives the name from the file part; no explicit `file_name` field.
+    expect(uploadedForm(fetchMock.mock.calls[0]).has("file_name")).toBe(false);
     // The create call references the uploaded file id.
     const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(createBody.input_file_id).toBe("file-in");
@@ -302,11 +311,26 @@ describe("together adapter", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("uploads body-only lines and sets the endpoint on the batch", async () => {
+  it("uploads via the presigned-URL flow and sets the endpoint on the batch", async () => {
+    const storageUrl = "https://storage.example/presigned-put";
     const fetchMock = install([
+      // 1. Init: JSON metadata POST -> 302 with Location + file id.
+      {
+        body: "",
+        headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+      // 2. Upload the bytes to the presigned URL.
+      {
+        body: "",
+        match: (url, method) => url === storageUrl && method === "PUT",
+      },
+      // 3. Finalize.
       {
         body: { id: "file-in" },
-        match: (url, method) => url.endsWith("/files") && method === "POST",
+        match: (url, method) =>
+          url.endsWith("/files/file-in/preprocess") && method === "POST",
       },
       {
         body: {
@@ -336,15 +360,32 @@ describe("together adapter", () => {
     expect(snapshot.provider).toBe("together");
     expect(snapshot.id).toBe("batch_t");
     expect(snapshot.status).toBe("validating");
-    expect(uploadedForm(fetchMock.mock.calls[0]).get("purpose")).toBe(
-      "batch-api"
-    );
-    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+
+    // Step 1: multipart metadata only (purpose + file_name + file_type, no
+    // file part — the bytes go via the presigned PUT), redirect not followed.
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe("manual");
+    const initForm = uploadedForm(fetchMock.mock.calls[0]);
+    expect(initForm.get("purpose")).toBe("batch-api");
+    expect(initForm.get("file_name")).toBe("batchwork.jsonl");
+    expect(initForm.get("file_type")).toBe("jsonl");
+    expect(initForm.get("file")).toBeNull();
+
+    // Step 2: bytes PUT to the presigned URL, with no Together auth header.
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(storageUrl);
+    const putHeaders = new Headers(fetchMock.mock.calls[1]?.[1]?.headers);
+    expect(putHeaders.has("authorization")).toBe(false);
+    const lines = String(fetchMock.mock.calls[1]?.[1]?.body)
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
     // body-only: no method/url, just custom_id + body.
     expect(lines[0]?.method).toBeUndefined();
     expect(lines[0]?.url).toBeUndefined();
     expect(lines[0]?.custom_id).toBe("a");
-    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+
+    // Step 4 (after preprocess): the batch references the uploaded file id.
+    const createBody = JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body));
+    expect(createBody.input_file_id).toBe("file-in");
     expect(createBody.endpoint).toBe("/v1/chat/completions");
   });
 });

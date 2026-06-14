@@ -32,6 +32,17 @@ export interface OpenAICompatibleConfig {
   filePurpose?: string;
   id: BatchProvider;
   /**
+   * Override the JSONL upload. Defaults to a direct multipart POST to the Files
+   * API (OpenAI, Groq); Together replaces it with its presigned-URL flow.
+   * Returns the uploaded file id.
+   */
+  uploadFile?: (args: {
+    baseUrl: string;
+    headers: Record<string, string>;
+    jsonl: string;
+    purpose: string;
+  }) => Promise<string>;
+  /**
    * Input-line shape. `method-url` writes `{ custom_id, method, url, body }`
    * (OpenAI, Groq); `body-only` writes `{ custom_id, body }` (Together).
    */
@@ -125,13 +136,12 @@ export const createOpenAICompatibleAdapter = (
       })
     );
     const headers = authHeaders(input.credentials);
-    const inputFileId = await uploadInputFile(
-      jsonl,
-      baseUrl(input.credentials),
-      headers,
-      { purpose: config.filePurpose ?? "batch" }
-    );
-    const raw = await requestJson(`${baseUrl(input.credentials)}/batches`, {
+    const url = baseUrl(input.credentials);
+    const purpose = config.filePurpose ?? "batch";
+    const inputFileId = await (config.uploadFile
+      ? config.uploadFile({ baseUrl: url, headers, jsonl, purpose })
+      : uploadInputFile(jsonl, url, headers, { purpose }));
+    const raw = await requestJson(`${url}/batches`, {
       body: JSON.stringify({
         completion_window: completionWindow,
         endpoint,
