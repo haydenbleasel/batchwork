@@ -1,0 +1,67 @@
+{
+  "name": "batchwork",
+  "version": "0.0.0",
+  "description": "The missing batch API for the Vercel AI SDK — unified, low-cost LLM batch processing across providers.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Hayden Bleasel",
+  "keywords": [
+    "ai",
+    "batch",
+    "llm",
+    "openai",
+    "anthropic",
+    "ai-sdk",
+    "vercel"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ai": "^6.0.204"
+  },
+  "peerDependencies": {
+    "@ai-sdk/anthropic": ">=3",
+    "@ai-sdk/openai": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.84",
+    "@ai-sdk/openai": "^3.0.71",
+    "@types/node": "^25.9.3",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

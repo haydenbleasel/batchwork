@@ -1,0 +1,30 @@
+{
+  "name": "batchwork-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The missing batch API for the Vercel AI SDK.",
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "turbo run build && changeset publish",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
+    "@changesets/cli": "^2.31.0",
+    "husky": "^9.1.7",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3",
+    "ultracite": "^7.8.3"
+  }
+}
