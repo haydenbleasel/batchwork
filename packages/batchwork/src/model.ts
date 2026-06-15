@@ -152,9 +152,18 @@ const importProvider = (provider: BatchProvider): Promise<unknown> => {
   }
 };
 
-const loadProvider = async <T>(provider: BatchProvider): Promise<T> => {
+/**
+ * Import the `@ai-sdk/*` package for a provider, translating a missing optional
+ * dependency into a `MissingDependencyError`. The importer is injectable (like
+ * the capturing `fetch`) so tests can drive the failure paths without
+ * uninstalling a package. Exported for testing; not part of the public API.
+ */
+export const loadProvider = async <T>(
+  provider: BatchProvider,
+  load: (target: BatchProvider) => Promise<unknown> = importProvider
+): Promise<T> => {
   try {
-    return (await importProvider(provider)) as T;
+    return (await load(provider)) as T;
   } catch (error) {
     if (error instanceof UnsupportedProviderError) {
       throw error;

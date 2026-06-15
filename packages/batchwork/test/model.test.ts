@@ -2,8 +2,11 @@ import { describe, expect, it } from "bun:test";
 
 import type { LanguageModel } from "ai";
 
-import { UnsupportedProviderError } from "../src/errors";
-import { createCaptureModel, resolveModel } from "../src/model";
+import {
+  MissingDependencyError,
+  UnsupportedProviderError,
+} from "../src/errors";
+import { createCaptureModel, loadProvider, resolveModel } from "../src/model";
 import type { CapturingFetch, ResolvedModel } from "../src/model";
 import type { BatchProvider } from "../src/types";
 
@@ -123,5 +126,24 @@ describe("createCaptureModel", () => {
     await expect(
       createCaptureModel(resolved("cohere" as BatchProvider), {}, fetchImpl)
     ).rejects.toThrow(UnsupportedProviderError);
+  });
+});
+
+describe("loadProvider", () => {
+  it("wraps a missing optional package in MissingDependencyError", async () => {
+    // Inject an importer that fails as if the `@ai-sdk/*` package were absent.
+    await expect(
+      loadProvider("xai", () =>
+        Promise.reject(new Error("Cannot find package '@ai-sdk/xai'"))
+      )
+    ).rejects.toBeInstanceOf(MissingDependencyError);
+  });
+
+  it("rethrows an UnsupportedProviderError without masking it", async () => {
+    // The default importer rejects unknown providers; that error must surface
+    // as-is rather than being wrapped as a missing dependency.
+    await expect(
+      loadProvider("cohere" as BatchProvider)
+    ).rejects.toBeInstanceOf(UnsupportedProviderError);
   });
 });
