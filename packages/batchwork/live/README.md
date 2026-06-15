@@ -56,11 +56,9 @@ All optional, via environment variables:
 
 ## Store adapters
 
-`postgres.live.test.ts` and `redis.live.test.ts` run the full store contract
-(both `BatchStore` and `PendingRequestStore`) against a **real** Postgres and
-Upstash Redis — the only way to exercise the actual `FOR UPDATE SKIP LOCKED`
-concurrency and Lua `claim` scripts the unit suite stubs out. Each is skipped
-unless its credentials are present:
+`postgres.live.test.ts` and `redis.live.test.ts` run the `BatchStore` contract
+against a **real** Postgres and Upstash Redis, driven by the actual clients the
+unit suite stubs out. Each is skipped unless its credentials are present:
 
 | Backend  | Env var(s)                                           |
 | -------- | ---------------------------------------------------- |

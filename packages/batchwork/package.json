@@ -42,10 +42,6 @@
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js"
     },
-    "./pool": {
-      "types": "./dist/pool/index.d.ts",
-      "import": "./dist/pool/index.js"
-    },
     "./postgres": {
       "types": "./dist/postgres/index.d.ts",
       "import": "./dist/postgres/index.js"

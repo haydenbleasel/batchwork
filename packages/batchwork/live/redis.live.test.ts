@@ -2,17 +2,12 @@ import { afterAll, describe, expect, it } from "bun:test";
 
 import { Redis } from "@upstash/redis";
 
-import { createRedisPendingStore, createRedisStore } from "../src/redis";
-import {
-  runBatchStoreContract,
-  runPendingStoreContract,
-} from "../test/store-contract";
+import { createRedisStore } from "../src/redis";
+import { runBatchStoreContract } from "../test/store-contract";
 
-// Runs the full store contract against a real Upstash Redis — the only way to
-// exercise the actual Lua `claim`/`resolve`/`release` scripts (the unit suite
-// uses a JS port). Each test gets a unique key prefix so it is isolated; a
-// best-effort cleanup removes the run's keys afterward. Skipped unless the
-// Upstash REST credentials are set.
+// Runs the batch store contract against a real Upstash Redis. Each test gets a
+// unique key prefix so it is isolated; a best-effort cleanup removes the run's
+// keys afterward. Skipped unless the Upstash REST credentials are set.
 const url = process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -43,10 +38,6 @@ if (url && token) {
 
   runBatchStoreContract("redis (live)", () =>
     createRedisStore({ prefix: nextPrefix(), redis })
-  );
-
-  runPendingStoreContract("redis (live)", () =>
-    createRedisPendingStore({ prefix: nextPrefix(), redis })
   );
 } else {
   describe.skip("redis live (set UPSTASH_REDIS_REST_URL/TOKEN to run)", () => {

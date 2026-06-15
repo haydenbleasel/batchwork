@@ -3,7 +3,7 @@ import type { Redis } from "@upstash/redis";
 /** The Upstash Redis client batchwork's adapters drive. */
 export type RedisClient = Redis;
 
-/** Shared options for both Redis-backed stores. */
+/** Options for the Redis-backed batch store. */
 export interface RedisStoreOptions {
   /** A connected `@upstash/redis` client. */
   redis: Redis;

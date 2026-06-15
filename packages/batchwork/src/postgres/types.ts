@@ -12,15 +12,14 @@ export interface SqlExecutor {
   ) => Promise<{ rows: Row[] }>;
 }
 
-/** Shared options for both Postgres-backed stores. */
+/** Options for the Postgres-backed batch store. */
 export interface PostgresStoreOptions {
   /** A `pg.Pool`-compatible client (anything with `query(text, params)`). */
   client: SqlExecutor;
 }
 
-/** Table names default to these; override per store for custom schemas. */
+/** Table name defaults to this; override for a custom schema. */
 export const DEFAULT_BATCH_TABLE = "batchwork_batches";
-export const DEFAULT_PENDING_TABLE = "batchwork_pending";
 
 /**
  * Guard against SQL injection through a caller-supplied table name: identifiers

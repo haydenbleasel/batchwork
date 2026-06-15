@@ -3,22 +3,16 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { Pool } from "pg";
 
 import {
-  createPostgresPendingStore,
   createPostgresStore,
   DEFAULT_BATCH_TABLE,
-  DEFAULT_PENDING_TABLE,
   migratePostgres,
 } from "../src/postgres";
 import type { SqlExecutor } from "../src/postgres";
-import {
-  runBatchStoreContract,
-  runPendingStoreContract,
-} from "../test/store-contract";
+import { runBatchStoreContract } from "../test/store-contract";
 
-// Runs the full store contract against a real Postgres, driven by the actual
-// `pg` client — so it also proves the generic `SqlExecutor` interface and the
-// real `FOR UPDATE SKIP LOCKED` concurrency (the pool issues concurrent claims
-// on separate connections). Skipped unless DATABASE_URL is set.
+// Runs the batch store contract against a real Postgres, driven by the actual
+// `pg` client — so it also proves the generic `SqlExecutor` interface against a
+// real database. Skipped unless DATABASE_URL is set.
 const url = process.env.DATABASE_URL;
 
 if (url) {
@@ -38,12 +32,6 @@ if (url) {
     await ensure();
     await client.query(`TRUNCATE TABLE ${DEFAULT_BATCH_TABLE}`);
     return createPostgresStore({ client });
-  });
-
-  runPendingStoreContract("postgres (live)", async () => {
-    await ensure();
-    await client.query(`TRUNCATE TABLE ${DEFAULT_PENDING_TABLE}`);
-    return createPostgresPendingStore({ client });
   });
 } else {
   describe.skip("postgres live (set DATABASE_URL to run)", () => {

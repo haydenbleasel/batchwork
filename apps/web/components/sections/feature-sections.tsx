@@ -91,9 +91,12 @@ for await (const result of job.results()) {
     code: `import { batch } from "batchwork";
 import { createBatchPoller, createMemoryStore } from "batchwork/server";
 
-const poller = createBatchPoller({ store: createMemoryStore() });
+const poller = createBatchPoller({
+  store: createMemoryStore()
+});
 
 const job = await batch({ model, requests });
+
 await poller.track(job, {
   webhookUrl: "https://acme.com/webhooks/batch",
   secret: process.env.BATCH_WEBHOOK_SECRET,
@@ -111,12 +114,6 @@ export const GET = async () => Response.json(await poller.tick());`,
 ];
 
 const FEATURES: Feature[] = [
-  {
-    description:
-      "Buffer individual requests and submit a batch automatically when enough work has accumulated or the oldest item has waited long enough.",
-    href: "/pool",
-    title: "Batch trickle-in workloads",
-  },
   {
     description:
       "Export App Router GET and POST handlers for Cron ticks and native webhooks, while onComplete runs in-process so results can go straight to your database.",
@@ -213,12 +210,12 @@ export const FeatureSections = () => (
           </h2>
           <p className="mt-4 text-pretty text-base text-muted-foreground leading-relaxed sm:text-lg">
             Use the plain job handle for scripts and workers, then layer in
-            pooling, route handlers, durable stores, and provider coverage as
-            your workload moves into production.
+            route handlers, durable stores, and provider coverage as your
+            workload moves into production.
           </p>
         </div>
 
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
+        <div className="mt-10 grid gap-4 md:grid-cols-3">
           {FEATURES.map((feature) => (
             <Link
               className="group rounded-lg border border-border bg-card/60 p-6 transition-colors hover:bg-accent/40"

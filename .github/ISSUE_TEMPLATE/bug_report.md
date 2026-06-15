@@ -25,6 +25,6 @@ A clear and concise description of what you expected to happen.
 **Environment (please complete the following information):**
 
 - Provider: [e.g. OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, xAI]
-- Entrypoint: [e.g. `batchwork`, `batchwork/server`, `batchwork/next`, `batchwork/pool`]
+- Entrypoint: [e.g. `batchwork`, `batchwork/server`, `batchwork/next`]
 - Runtime: [e.g. Node 22, Bun 1.3, Vercel serverless]
 - OS: [e.g. macOS 15, Ubuntu 24.04]

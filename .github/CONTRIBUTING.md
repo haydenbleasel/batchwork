@@ -25,7 +25,6 @@ The repo is a [Turborepo](https://turbo.build) + [Bun](https://bun.sh) monorepo:
   - `src/index.ts` — the public `batch()` API, `BatchJob` handle, and shared types (`BatchResult`, status unions, etc.)
   - `src/server/` — the managed poller and unified, signed webhook layer (`batchwork/server`)
   - `src/next/` — Next.js App Router callback route handlers (`batchwork/next`)
-  - `src/pool/` — on-demand pooling for trickle-in workloads (`batchwork/pool`)
   - provider implementations, grouped by the three batch shapes (JSONL upload, inline array, inline Gemini)
   - `test/` — Bun tests that mock at the `fetch` boundary
   - `live/` — opt-in live tests that hit real provider batch endpoints (need credentials)
@@ -122,7 +121,7 @@ We use [Changesets](https://github.com/changesets/changesets) to manage versions
 
 Use the [issue tracker](https://github.com/haydenbleasel/batchwork/issues). A good bug report includes:
 
-- The provider and entrypoint (`batchwork`, `batchwork/server`, `batchwork/next`, `batchwork/pool`) you're using
+- The provider and entrypoint (`batchwork`, `batchwork/server`, `batchwork/next`) you're using
 - A minimal reproduction (the smallest `batch({ ... })` snippet that triggers it)
 - What you expected vs. what happened
 - Library version and runtime (Node, Bun, Vercel serverless, etc.)

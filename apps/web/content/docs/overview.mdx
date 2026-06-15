@@ -34,7 +34,6 @@ Batchwork closes that gap:
 - **Normalized results** — one `BatchResult` shape with `status`, `text`, `usage`, and the raw provider response, correlated by `customId`.
 - **Lazy provider loading** — the `@ai-sdk/*` packages are optional peer dependencies, loaded only for the providers you use.
 - **A server layer** — an optional managed poller that fires **one signed webhook** when each batch finishes, so you never write polling loops in production.
-- **On-demand pooling** — buffer individual requests and submit them automatically once a size or age threshold is hit, so a frontend can push items in one at a time.
 
 ## Next steps
 
@@ -42,4 +41,3 @@ Batchwork closes that gap:
 - [Usage](/usage) — submit a batch and read results end to end.
 - [Models](/models) — the model forms Batchwork accepts.
 - [Server](/server) — managed polling and unified webhooks.
-- [Pooling](/pool) — accumulate requests on demand and batch them automatically.

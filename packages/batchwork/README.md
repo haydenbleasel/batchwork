@@ -47,10 +47,10 @@ Author requests in the same `generateText` shape you already use, pass the AI SD
 - **AI SDK native** — author requests in the familiar `generateText` shape.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
-- **Server-ready** — optional layers for managed polling, unified webhooks, Next.js route handlers, and on-demand pooling.
-- **Durable stores** — drop-in Postgres (`batchwork/postgres`) and Upstash Redis (`batchwork/redis`) adapters for the poller and pool, or bring your own.
+- **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.
+- **Durable stores** — drop-in Postgres (`batchwork/postgres`) and Upstash Redis (`batchwork/redis`) adapters for the poller, or bring your own.
 
-Guides for models, the job handle, rehydration, the server layer, Next.js handlers, and pooling all live at **[batchwork.dev](https://batchwork.dev)**.
+Guides for models, the job handle, rehydration, the server layer, and Next.js handlers all live at **[batchwork.dev](https://batchwork.dev)**.
 
 ## License
 

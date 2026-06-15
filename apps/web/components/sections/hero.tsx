@@ -24,7 +24,7 @@ const LOGOS = [
   { Icon: Anthropic, name: "Anthropic" },
   { Icon: Gemini, name: "Google Gemini" },
   { Icon: Mistral, name: "Mistral AI" },
-  { Icon: Xai, name: "xAI" },
+  { Icon: Xai, name: "X.ai" },
   { Icon: Groq, name: "Groq" },
   { Icon: Together, name: "Together AI" },
 ];
@@ -82,8 +82,8 @@ export const Hero = ({ latestVersion, children }: HeroProps) => (
         transition={{ delay: 0.22, duration: 0.6, ease: EASE }}
       >
         Unified batch API for AI providers. Process LLM requests in bulk with a
-        single call. Processing, uploading, polling, and result parsing handled
-        for you.
+        single call for lower costs. Processing, uploading, polling, and result
+        parsing handled for you.
       </motion.p>
 
       <motion.div
