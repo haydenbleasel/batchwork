@@ -11,7 +11,7 @@ Instead of polling yourself, `batchwork/server` watches open batches and deliver
 import { batch } from "batchwork";
 import { createBatchPoller, createMemoryStore } from "batchwork/server";
 
-const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapter
+const store = createMemoryStore(); // or createPostgresStore / createRedisStore
 const poller = createBatchPoller({ store }); // credentials default to env vars
 
 // 1. When you submit, register the batch and where to notify.
@@ -67,9 +67,41 @@ const handler = poller.openaiWebhookHandler({
 export const POST = (request: Request) => handler(request); // your OpenAI webhook route
 ```
 
-## Bring your own store
+## Durable stores
 
-`createMemoryStore()` is for development. In production, implement `BatchStore` over any KV/DB — Vercel KV, Upstash Redis, Cloudflare KV, Postgres:
+`createMemoryStore()` is for development. For production, batchwork ships two durable adapters — pass either as the poller's `store`.
+
+### Postgres — `batchwork/postgres`
+
+```ts
+import { Pool } from "pg";
+import { createBatchPoller } from "batchwork/server";
+import { createPostgresStore, migratePostgres } from "batchwork/postgres";
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+await migratePostgres(db); // creates the tables (idempotent); run once at boot
+
+const poller = createBatchPoller({
+  store: createPostgresStore({ client: db }),
+});
+```
+
+`client` is anything with a node-postgres-style `query(text, params)` — `pg.Pool`, `@neondatabase/serverless`, etc. — so batchwork adds no driver dependency of its own.
+
+### Redis (Upstash) — `batchwork/redis`
+
+```ts
+import { Redis } from "@upstash/redis";
+import { createRedisStore } from "batchwork/redis";
+
+const store = createRedisStore({ redis: Redis.fromEnv() });
+```
+
+Works on edge runtimes (Upstash speaks HTTP). Pass a `prefix` to namespace keys when one Redis backs multiple apps.
+
+### Custom
+
+Both adapters are thin implementations of the `BatchStore` interface — implement it yourself over any other KV/DB (Cloudflare KV, DynamoDB, …):
 
 ```ts
 import type { BatchStore } from "batchwork/server";

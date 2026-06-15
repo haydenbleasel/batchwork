@@ -54,6 +54,23 @@ All optional, via environment variables:
 | `BATCHWORK_LIVE_POLL_MS`          | Delay between status polls                                 | `10000` (10s)   |
 | `BATCHWORK_LIVE_<PROVIDER>_MODEL` | Override the model id (e.g. `BATCHWORK_LIVE_OPENAI_MODEL`) | per table above |
 
+## Store adapters
+
+`postgres.live.test.ts` and `redis.live.test.ts` run the full store contract
+(both `BatchStore` and `PendingRequestStore`) against a **real** Postgres and
+Upstash Redis — the only way to exercise the actual `FOR UPDATE SKIP LOCKED`
+concurrency and Lua `claim` scripts the unit suite stubs out. Each is skipped
+unless its credentials are present:
+
+| Backend  | Env var(s)                                           |
+| -------- | ---------------------------------------------------- |
+| Postgres | `DATABASE_URL`                                       |
+| Redis    | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
+
+The Postgres test creates its tables via `migratePostgres` and truncates between
+cases; the Redis test namespaces every case under a unique key prefix and cleans
+up afterward. Both are safe to point at a scratch database.
+
 ## Account gotchas
 
 These tests exercise the library, but some failures are account-level, not bugs:

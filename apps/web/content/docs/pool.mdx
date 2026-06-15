@@ -44,7 +44,7 @@ import { createBatchPool, createMemoryPendingStore } from "batchwork/pool";
 import { openai } from "@ai-sdk/openai";
 
 const routes = createBatchRoutes({
-  store: createMemoryStore(), // → KV/Postgres in production
+  store: createMemoryStore(), // → createPostgresStore / createRedisStore in prod
   onComplete: async (event, results) => {
     for await (const r of results) {
       await db.results.upsert({ id: r.customId, text: r.text });
@@ -56,7 +56,7 @@ const pool = createBatchPool({
   model: openai.chat("gpt-5.5"),
   maxSize: 50,
   maxDuration: 3600,
-  store: createMemoryPendingStore(), // → KV/Postgres in production
+  store: createMemoryPendingStore(), // → createPostgresPendingStore / createRedisPendingStore in prod
   track: (job) => routes.track(job), // results flow through onComplete
 });
 
@@ -94,9 +94,48 @@ If submission or tracking fails it routes to `onError(error, requests)` and the 
   buffered items aren't lost.
 </Callout>
 
-## Bring your own pending store
+## Durable pending stores
 
-`createMemoryPendingStore()` is for development and single-process use. For serverless, implement `PendingRequestStore` over any KV/DB. The one method that matters is `claim(poolKey, limit)`: it must **atomically** hand out a disjoint set of pending rows so two concurrent invocations never submit the same request twice.
+`createMemoryPendingStore()` is for development and single-process use. For serverless, batchwork ships two durable adapters whose `claim` is already atomic — and which reclaim rows stranded by a crash once they pass a `claimTtlMs` TTL (defaults to 10 min; set it above your worst-case flush time, `≈ 2 × maxDuration`). Pass either as the pool's `store`.
+
+### Postgres — `batchwork/postgres`
+
+```ts
+import { Pool } from "pg";
+import { createBatchPool } from "batchwork/pool";
+import {
+  createPostgresPendingStore,
+  migratePostgres,
+} from "batchwork/postgres";
+
+const db = new Pool({ connectionString: process.env.DATABASE_URL });
+await migratePostgres(db); // creates the tables (idempotent); run once at boot
+
+createBatchPool({
+  model: openai.chat("gpt-5.5"),
+  maxSize: 50,
+  maxDuration: 3600,
+  store: createPostgresPendingStore({ client: db }),
+  track: (job) => routes.track(job),
+});
+```
+
+`claim` is a CTE with `SELECT … FOR UPDATE SKIP LOCKED`, so two concurrent flushes never grab the same row. `client` is anything with a node-postgres-style `query(text, params)` — `pg.Pool`, `@neondatabase/serverless`, etc. — so batchwork adds no driver dependency of its own.
+
+### Redis — `batchwork/redis`
+
+```ts
+import { Redis } from "@upstash/redis";
+import { createRedisPendingStore } from "batchwork/redis";
+
+const store = createRedisPendingStore({ redis: Redis.fromEnv() });
+```
+
+`claim` runs a Lua `ZPOPMIN` script for the same atomic guarantee, and works on edge runtimes (Upstash speaks HTTP). Pass a `prefix` to namespace keys when one Redis backs multiple apps.
+
+### Custom
+
+Implement `PendingRequestStore` yourself for any other KV/DB. The one method that matters is `claim(poolKey, limit)`: it must **atomically** hand out a disjoint set of pending rows so two concurrent invocations never submit the same request twice.
 
 ```ts
 import type { PendingRequestStore } from "batchwork/pool";

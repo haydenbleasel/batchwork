@@ -48,6 +48,7 @@ Author requests in the same `generateText` shape you already use, pass the AI SD
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, Next.js route handlers, and on-demand pooling.
+- **Durable stores** — drop-in Postgres (`batchwork/postgres`) and Upstash Redis (`batchwork/redis`) adapters for the poller and pool, or bring your own.
 
 Guides for models, the job handle, rehydration, the server layer, Next.js handlers, and pooling all live at **[batchwork.dev](https://batchwork.dev)**.
 
