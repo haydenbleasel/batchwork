@@ -1,0 +1,32 @@
+{
+  "name": "videos",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Remotion videos for Batchwork — launch and marketing motion.",
+  "license": "MIT",
+  "author": "Hayden Bleasel",
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "render": "remotion render BatchworkLaunch out/batchwork-launch.mp4",
+    "still": "remotion still BatchworkLaunch out/still.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.477",
+    "@remotion/google-fonts": "4.0.477",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "4.0.477"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
