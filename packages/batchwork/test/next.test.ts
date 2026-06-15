@@ -333,8 +333,8 @@ describe("createBatchRoutes — OpenAI native webhook (POST)", () => {
     expect(calls[0]?.type).toBe("batch.completed");
     // No HTTP webhook is delivered — the callback is the sink.
     expect(
-      fetchMock.mock.calls.every((call) =>
-        String(call[0]).includes("api.openai.com")
+      fetchMock.mock.calls.every(
+        (call) => new URL(String(call[0])).hostname === "api.openai.com"
       )
     ).toBe(true);
     const stored = await store.get("batch_oai");
