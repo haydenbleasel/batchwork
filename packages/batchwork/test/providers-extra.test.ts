@@ -477,6 +477,14 @@ describe("anthropic branches", () => {
     ).rejects.toThrow("results are not ready");
   });
 
+  it("rejects unsafe Anthropic batch ids before requests", async () => {
+    const fetchMock = install([]);
+    await expect(
+      anthropicAdapter.cancel("../messages", credentials)
+    ).rejects.toThrow("invalid Anthropic batch id");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
   it("cancels a batch", async () => {
     const fetchMock = install([
       {

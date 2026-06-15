@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import { asArray, asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
+import { assertSimpleProviderId } from "./ids";
 
 const ANTHROPIC_BASE = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
@@ -181,8 +182,9 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
+  const batchId = assertSimpleProviderId("Anthropic batch id", id);
   const raw = await requestJson(
-    `${baseUrl(credentials)}/v1/messages/batches/${id}`,
+    `${baseUrl(credentials)}/v1/messages/batches/${batchId}`,
     { headers: headers(credentials) }
   );
   return normalizeSnapshot(raw);
@@ -215,8 +217,9 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
+  const batchId = assertSimpleProviderId("Anthropic batch id", id);
   await requestJson(
-    `${baseUrl(credentials)}/v1/messages/batches/${id}/cancel`,
+    `${baseUrl(credentials)}/v1/messages/batches/${batchId}/cancel`,
     {
       headers: headers(credentials),
       method: "POST",
