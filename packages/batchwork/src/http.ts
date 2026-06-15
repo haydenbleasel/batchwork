@@ -1,18 +1,9 @@
 import { BatchworkError } from "./errors";
 
-const safeText = async (response: Response): Promise<string> => {
-  try {
-    return await response.text();
-  } catch {
-    return "<no body>";
-  }
-};
-
-const assertOk = async (url: string, init: RequestInit, response: Response) => {
+const assertOk = (url: string, init: RequestInit, response: Response) => {
   if (!response.ok) {
-    const detail = await safeText(response);
     throw new BatchworkError(
-      `batchwork: ${init.method ?? "GET"} ${url} failed with ${response.status}: ${detail}`
+      `batchwork: ${init.method ?? "GET"} ${url} failed with ${response.status}.`
     );
   }
 };
@@ -23,7 +14,7 @@ export const requestJson = async <T>(
   init: RequestInit
 ): Promise<T> => {
   const response = await fetch(url, init);
-  await assertOk(url, init, response);
+  assertOk(url, init, response);
   return (await response.json()) as T;
 };
 
@@ -33,7 +24,7 @@ export const requestStream = async (
   init: RequestInit
 ): Promise<ReadableStream<Uint8Array>> => {
   const response = await fetch(url, init);
-  await assertOk(url, init, response);
+  assertOk(url, init, response);
   if (!response.body) {
     throw new BatchworkError(`batchwork: ${url} returned an empty body.`);
   }

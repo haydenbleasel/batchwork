@@ -29,7 +29,7 @@ describe("requestJson", () => {
     ).resolves.toEqual({ ok: true });
   });
 
-  it("throws with the method, url, status, and body on failure", async () => {
+  it("throws with the method, url, and status on failure", async () => {
     install(() =>
       Promise.resolve(
         new Response("upstream is sad", {
@@ -39,18 +39,28 @@ describe("requestJson", () => {
     );
     await expect(
       requestJson("https://x.test/y", { method: "POST" })
-    ).rejects.toThrow("POST https://x.test/y failed with 503: upstream is sad");
+    ).rejects.toThrow("POST https://x.test/y failed with 503.");
   });
 
-  it("falls back to <no body> when the error body cannot be read", async () => {
+  it("does not read or leak provider error bodies", async () => {
+    let read = false;
     install({
       ok: false,
       status: 500,
-      text: () => Promise.reject(new Error("stream broke")),
+      text: () => {
+        read = true;
+        return Promise.resolve("secret prompt");
+      },
     });
-    await expect(requestJson("https://x.test/y", {})).rejects.toThrow(
-      "GET https://x.test/y failed with 500: <no body>"
-    );
+    let message = "";
+    try {
+      await requestJson("https://x.test/y", {});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toBe("batchwork: GET https://x.test/y failed with 500.");
+    expect(message).not.toContain("secret prompt");
+    expect(read).toBe(false);
   });
 });
 

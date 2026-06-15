@@ -78,6 +78,8 @@ All thrown errors extend `BatchworkError`, with two typed subclasses you may wan
 - **`MissingDependencyError`** — you batched a provider whose `@ai-sdk/*` package isn't installed. The message tells you exactly what to `npm install`.
 - **`UnsupportedProviderError`** — the model resolved to a provider without a batch adapter (i.e. not one of the seven [supported providers](/providers)).
 
+Provider error responses include the method, URL, and status code, but not the upstream response body. This keeps prompts, provider diagnostics, and other batch data out of route responses and logs by default.
+
 ```ts
 import { batch, MissingDependencyError } from "batchwork";
 
