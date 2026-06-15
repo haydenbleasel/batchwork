@@ -447,7 +447,9 @@ describe("together adapter", () => {
   it("falls back to <no body> when the failed init response is unreadable", async () => {
     // Force safeText into its catch branch: a response whose body cannot be read.
     const unreadable = new Response("", { status: 500 });
-    unreadable.text = () => Promise.reject(new Error("stream boom"));
+    Object.defineProperty(unreadable, "text", {
+      value: () => Promise.reject(new Error("stream boom")),
+    });
     const fetchMock = mock(() => Promise.resolve(unreadable));
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
