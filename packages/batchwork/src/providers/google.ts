@@ -10,8 +10,10 @@ import type {
 } from "../types";
 import { asArray, asNumber, asRecord, asString, omit } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
+import { assertPrefixedProviderId } from "./ids";
 
 const GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const GOOGLE_BATCH_PREFIX = "batches";
 
 const apiKey = (credentials: ProviderCredentials): string => {
   const key =
@@ -83,8 +85,11 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
   const items = inlinedResponses(raw);
   const failed = items.filter((item) => asRecord(item).error).length;
+  const id = asString(obj.name) ?? "";
   return {
-    id: asString(obj.name) ?? "",
+    id: id
+      ? assertPrefixedProviderId("Google operation id", id, GOOGLE_BATCH_PREFIX)
+      : "",
     provider: "google",
     raw,
     requestCounts: {
@@ -185,7 +190,12 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
-  const raw = await requestJson(`${baseUrl(credentials)}/${id}`, {
+  const operationId = assertPrefixedProviderId(
+    "Google operation id",
+    id,
+    GOOGLE_BATCH_PREFIX
+  );
+  const raw = await requestJson(`${baseUrl(credentials)}/${operationId}`, {
     headers: headers(credentials),
   });
   return normalizeSnapshot(raw);
@@ -227,7 +237,12 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
-  await requestJson(`${baseUrl(credentials)}/${id}:cancel`, {
+  const operationId = assertPrefixedProviderId(
+    "Google operation id",
+    id,
+    GOOGLE_BATCH_PREFIX
+  );
+  await requestJson(`${baseUrl(credentials)}/${operationId}:cancel`, {
     headers: headers(credentials),
     method: "POST",
   });

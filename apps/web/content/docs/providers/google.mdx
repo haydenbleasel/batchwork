@@ -38,6 +38,8 @@ A `"google/…"` or `"gemini/…"` model string works too — see [Models](/mode
 3. **Poll** — the returned long-running operation is polled; its `JOB_STATE_*` value maps onto the normalized status.
 4. **Read** — the inline responses are read back, each correlated by its `metadata.key`.
 
+Batchwork validates Gemini operation ids before using them in API paths.
+
 ## Notes
 
 <Callout type="warn">

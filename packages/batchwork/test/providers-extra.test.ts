@@ -580,6 +580,16 @@ describe("google branches", () => {
     expect(named.status).toBe("in_progress");
   });
 
+  it("rejects unsafe Google operation names returned by the provider", async () => {
+    await expect(
+      retrieveRaw(
+        googleAdapter,
+        { name: "../models/gemini", state: "JOB_STATE_RUNNING" },
+        "batches/1"
+      )
+    ).rejects.toThrow("invalid Google operation id");
+  });
+
   it("succeeds without usage metadata", async () => {
     install([
       {
@@ -678,6 +688,14 @@ describe("google branches", () => {
     await expect(
       collect(googleAdapter.results("batches/1", credentials))
     ).rejects.toThrow("results are not ready");
+  });
+
+  it("rejects unsafe Google operation ids before requests", async () => {
+    const fetchMock = install([]);
+    await expect(
+      googleAdapter.cancel("../models/gemini", credentials)
+    ).rejects.toThrow("invalid Google operation id");
+    expect(fetchMock.mock.calls).toHaveLength(0);
   });
 
   it("cancels a batch", async () => {
