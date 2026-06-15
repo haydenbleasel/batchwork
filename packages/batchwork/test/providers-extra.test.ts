@@ -754,6 +754,34 @@ describe("mistral branches", () => {
     }
   });
 
+  it("rejects unsafe Mistral job ids before requests", async () => {
+    const fetchMock = install([]);
+    await expect(
+      mistralAdapter.cancel("../files/file_1", credentials)
+    ).rejects.toThrow("invalid Mistral job id");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
+  it("rejects unsafe Mistral result file ids before download", async () => {
+    const fetchMock = install([
+      {
+        body: {
+          id: "job_1",
+          output_file: "../secret",
+          status: "SUCCESS",
+          total_requests: 1,
+        },
+        match: (url, method) =>
+          url.endsWith("/batch/jobs/job_1") && method === "GET",
+      },
+    ]);
+
+    await expect(
+      collect(mistralAdapter.results("job_1", credentials))
+    ).rejects.toThrow("invalid Mistral output file id");
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
   it("cancels a job", async () => {
     const fetchMock = install([
       {

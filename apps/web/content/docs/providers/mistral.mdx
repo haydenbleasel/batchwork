@@ -38,6 +38,8 @@ const job = await batch({
 4. **Poll** — Mistral's job `status` (`QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `TIMEOUT_EXCEEDED`, …) maps onto the normalized status.
 5. **Read** — the OpenAI-shaped `output_file` and `error_file` are streamed and parsed into [`BatchResult`](/results)s.
 
+Batchwork validates Mistral job and file ids before using them in API paths.
+
 ## Notes
 
 Mistral has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.

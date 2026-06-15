@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import { asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
+import { assertSimpleProviderId } from "./ids";
 import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 
 const MISTRAL_BASE = "https://api.mistral.ai/v1";
@@ -57,10 +58,11 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
   const succeeded = asNumber(obj.succeeded_requests) ?? 0;
   const failed = asNumber(obj.failed_requests) ?? 0;
+  const id = asString(obj.id) ?? "";
   return {
     completedAt: toDate(obj.completed_at),
     createdAt: toDate(obj.created_at),
-    id: asString(obj.id) ?? "",
+    id: id ? assertSimpleProviderId("Mistral job id", id) : "",
     provider: "mistral",
     raw,
     requestCounts: {
@@ -107,7 +109,8 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
-  const raw = await requestJson(`${baseUrl(credentials)}/batch/jobs/${id}`, {
+  const jobId = assertSimpleProviderId("Mistral job id", id);
+  const raw = await requestJson(`${baseUrl(credentials)}/batch/jobs/${jobId}`, {
     headers: authHeaders(credentials),
   });
   return normalizeSnapshot(raw);
@@ -124,10 +127,18 @@ async function* results(
   const errorFileId = asString(raw.error_file);
   const headers = authHeaders(credentials);
   if (outputFileId) {
-    yield* streamResultFile(outputFileId, baseUrl(credentials), headers);
+    yield* streamResultFile(
+      assertSimpleProviderId("Mistral output file id", outputFileId),
+      baseUrl(credentials),
+      headers
+    );
   }
   if (errorFileId) {
-    yield* streamResultFile(errorFileId, baseUrl(credentials), headers);
+    yield* streamResultFile(
+      assertSimpleProviderId("Mistral error file id", errorFileId),
+      baseUrl(credentials),
+      headers
+    );
   }
   if (!(outputFileId || errorFileId)) {
     throw new BatchworkError(
@@ -140,7 +151,8 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
-  await requestJson(`${baseUrl(credentials)}/batch/jobs/${id}/cancel`, {
+  const jobId = assertSimpleProviderId("Mistral job id", id);
+  await requestJson(`${baseUrl(credentials)}/batch/jobs/${jobId}/cancel`, {
     headers: authHeaders(credentials),
     method: "POST",
   });
