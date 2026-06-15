@@ -415,6 +415,28 @@ describe("anthropic branches", () => {
     });
   });
 
+  it("rejects cross-origin Anthropic result URLs before sending auth headers", async () => {
+    const fetchMock = install([
+      {
+        body: {
+          id: "b1",
+          processing_status: "ended",
+          results_url: "https://attacker.example/results.jsonl",
+        },
+        match: (url, method) => url.endsWith("/b1") && method === "GET",
+      },
+    ]);
+
+    await expect(
+      collect(anthropicAdapter.results("b1", credentials))
+    ).rejects.toThrow("must match the configured API origin");
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).includes("attacker.example")
+      )
+    ).toBe(false);
+  });
+
   it("throws when results are not ready", async () => {
     install([
       {

@@ -27,6 +27,33 @@ const apiKey = (credentials: ProviderCredentials): string => {
 const baseUrl = (credentials: ProviderCredentials): string =>
   credentials.baseURL ?? ANTHROPIC_BASE;
 
+const validateResultsUrl = (
+  rawUrl: string,
+  credentials: ProviderCredentials
+): string => {
+  let resultsUrl: URL;
+  let expectedBase: URL;
+  try {
+    resultsUrl = new URL(rawUrl);
+    expectedBase = new URL(baseUrl(credentials));
+  } catch (error) {
+    throw new BatchworkError("batchwork: invalid Anthropic results_url.", {
+      cause: error,
+    });
+  }
+  if (resultsUrl.origin !== expectedBase.origin) {
+    throw new BatchworkError(
+      "batchwork: Anthropic results_url must match the configured API origin."
+    );
+  }
+  if (resultsUrl.username || resultsUrl.password) {
+    throw new BatchworkError(
+      "batchwork: Anthropic results_url must not include credentials."
+    );
+  }
+  return resultsUrl.toString();
+};
+
 const headers = (credentials: ProviderCredentials): Record<string, string> => ({
   "anthropic-version": ANTHROPIC_VERSION,
   "content-type": "application/json",
@@ -169,9 +196,12 @@ async function* results(
       `batchwork: results are not ready for batch "${id}" (status: ${snapshot.status}).`
     );
   }
-  const stream = await requestStream(resultsUrl, {
-    headers: headers(credentials),
-  });
+  const stream = await requestStream(
+    validateResultsUrl(resultsUrl, credentials),
+    {
+      headers: headers(credentials),
+    }
+  );
   for await (const line of streamJsonl(stream)) {
     yield normalizeResult(line);
   }

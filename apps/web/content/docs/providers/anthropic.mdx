@@ -37,6 +37,8 @@ const job = await batch({
 3. **Poll** — Batchwork reads `processing_status` until it reports `ended`.
 4. **Read** — the JSONL at `results_url` is streamed and parsed into [`BatchResult`](/results)s.
 
+Batchwork only follows `results_url` values on the configured Anthropic API origin, so provider auth headers are not sent to arbitrary hosts.
+
 Each result line carries a `result.type` of `succeeded`, `errored`, `canceled`, or `expired`, which Batchwork maps onto the normalized result `status`.
 
 ## Webhooks
