@@ -1,12 +1,56 @@
-/**
- * JSONL (newline-delimited JSON) helpers. OpenAI batch input/output and
- * Anthropic batch results are all JSONL, so batchwork builds and parses it for
- * the user.
- */
+import { BatchworkError } from "./errors";
+import { byteLength } from "./limits";
 
 const NEWLINE = "\n";
+const DEFAULT_MAX_JSONL_LINE_BYTES = 20 * 1024 * 1024;
 
-/** Serialize an array of values to a JSONL string (trailing newline included). */
+export interface JsonlParseOptions {
+  maxLineBytes?: number;
+}
+
+const resolveMaxLineBytes = (options?: JsonlParseOptions): number => {
+  const maxLineBytes = options?.maxLineBytes ?? DEFAULT_MAX_JSONL_LINE_BYTES;
+  if (!(Number.isInteger(maxLineBytes) && maxLineBytes > 0)) {
+    throw new BatchworkError(
+      "batchwork: JSONL maxLineBytes must be a positive integer."
+    );
+  }
+  return maxLineBytes;
+};
+
+const assertLineSize = (
+  line: string,
+  lineNumber: number,
+  maxLineBytes: number
+): void => {
+  const bytes = byteLength(line);
+  if (bytes > maxLineBytes) {
+    throw new BatchworkError(
+      `batchwork: JSONL line ${lineNumber} is ${bytes} bytes, exceeding the ${maxLineBytes} byte limit.`
+    );
+  }
+};
+
+const parseLine = <T>(
+  line: string,
+  lineNumber: number,
+  maxLineBytes: number
+): T | undefined => {
+  assertLineSize(line, lineNumber, maxLineBytes);
+  const trimmed = line.trim();
+  if (trimmed.length === 0) {
+    return;
+  }
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch (error) {
+    throw new BatchworkError(
+      `batchwork: invalid JSONL at line ${lineNumber}.`,
+      { cause: error }
+    );
+  }
+};
+
 export const encodeJsonl = (items: readonly unknown[]): string => {
   if (items.length === 0) {
     return "";
@@ -15,13 +59,17 @@ export const encodeJsonl = (items: readonly unknown[]): string => {
   return `${body}${NEWLINE}`;
 };
 
-/** Parse a complete JSONL string into an array, skipping blank lines. */
-export const parseJsonl = <T = unknown>(text: string): T[] => {
+export const parseJsonl = <T = unknown>(
+  text: string,
+  options?: JsonlParseOptions
+): T[] => {
+  const maxLineBytes = resolveMaxLineBytes(options);
   const results: T[] = [];
-  for (const line of text.split(NEWLINE)) {
-    const trimmed = line.trim();
-    if (trimmed.length > 0) {
-      results.push(JSON.parse(trimmed) as T);
+  const lines = text.split(NEWLINE);
+  for (const [index, line] of lines.entries()) {
+    const parsed = parseLine<T>(line, index + 1, maxLineBytes);
+    if (parsed !== undefined) {
+      results.push(parsed);
     }
   }
   return results;
@@ -59,35 +107,35 @@ async function* toByteIterable(
   yield* source;
 }
 
-/**
- * Stream-parse JSONL from a byte stream, yielding one parsed value per line as
- * it arrives. Memory-efficient for large result files.
- *
- * @yields {T} the parsed value for each non-empty line.
- */
 // oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 export async function* streamJsonl<T = unknown>(
-  source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
+  source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>,
+  options?: JsonlParseOptions
 ): AsyncGenerator<T> {
   const decoder = new TextDecoder();
+  const maxLineBytes = resolveMaxLineBytes(options);
   let buffer = "";
+  let lineNumber = 1;
 
   for await (const chunk of toByteIterable(source)) {
     buffer += decoder.decode(chunk, { stream: true });
     let newlineIndex = buffer.indexOf(NEWLINE);
     while (newlineIndex !== -1) {
-      const line = buffer.slice(0, newlineIndex).trim();
+      const line = buffer.slice(0, newlineIndex);
       buffer = buffer.slice(newlineIndex + 1);
-      if (line.length > 0) {
-        yield JSON.parse(line) as T;
+      const parsed = parseLine<T>(line, lineNumber, maxLineBytes);
+      if (parsed !== undefined) {
+        yield parsed;
       }
+      lineNumber += 1;
       newlineIndex = buffer.indexOf(NEWLINE);
     }
+    assertLineSize(buffer, lineNumber, maxLineBytes);
   }
 
   buffer += decoder.decode();
-  const tail = buffer.trim();
-  if (tail.length > 0) {
-    yield JSON.parse(tail) as T;
+  const parsed = parseLine<T>(buffer, lineNumber, maxLineBytes);
+  if (parsed !== undefined) {
+    yield parsed;
   }
 }

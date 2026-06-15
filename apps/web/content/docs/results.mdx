@@ -48,6 +48,10 @@ const result = (await job.collect()).find((r) => r.customId === "a");
 const toolCalls = (result?.response as { choices?: unknown[] })?.choices;
 ```
 
+JSONL result streams are parsed incrementally with sanitized parse errors. A
+single result line is capped at 20 MiB by default so malformed or unexpectedly
+large provider files fail before accumulating unbounded memory.
+
 ## Usage and cost
 
 `usage` is normalized to `{ inputTokens, outputTokens, totalTokens }`. Batch pricing is roughly **50% off** synchronous rates across providers — the discount is applied by the provider, so the tokens you see here are billed at the batch rate.

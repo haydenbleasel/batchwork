@@ -53,6 +53,21 @@ describe("encodeJsonl / parseJsonl", () => {
       { b: 2 },
     ]);
   });
+
+  it("throws a sanitized error for malformed JSONL", () => {
+    expect(() => parseJsonl('{"secret":"value"\n')).toThrow(
+      "invalid JSONL at line 1"
+    );
+    expect(() => parseJsonl('{"secret":"value"\n')).not.toThrow(
+      '"secret":"value"'
+    );
+  });
+
+  it("rejects complete JSONL lines above the byte limit", () => {
+    expect(() =>
+      parseJsonl('{"large":"value"}\n', { maxLineBytes: 8 })
+    ).toThrow("JSONL line 1");
+  });
 });
 
 describe(streamJsonl, () => {
@@ -78,5 +93,21 @@ describe(streamJsonl, () => {
     await expect(collect(streamJsonl(stream))).resolves.toStrictEqual([
       { only: true },
     ]);
+  });
+
+  it("throws a sanitized error for malformed streamed JSONL", async () => {
+    await expect(
+      collect(streamJsonl(streamFromChunks(['{"secret":"value"\n'])))
+    ).rejects.toThrow("invalid JSONL at line 1");
+    await expect(
+      collect(streamJsonl(streamFromChunks(['{"secret":"value"\n'])))
+    ).rejects.not.toThrow('"secret":"value"');
+  });
+
+  it("rejects streamed JSONL lines above the byte limit", async () => {
+    const stream = streamFromChunks(['{"large":', '"value"}']);
+    await expect(
+      collect(streamJsonl(stream, { maxLineBytes: 8 }))
+    ).rejects.toThrow("JSONL line 1");
   });
 });
