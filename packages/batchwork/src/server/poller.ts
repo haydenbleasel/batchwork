@@ -25,12 +25,16 @@ export type CompletionSink = (
   snapshot: BatchSnapshot
 ) => Promise<void>;
 
+export type WebhookUrlValidator = (url: URL) => void | Promise<void>;
+
 export interface BatchPollerOptions {
   store: BatchStore;
   /** Falls back to provider env vars (e.g. `OPENAI_API_KEY`) when omitted. */
   credentials?: CredentialResolver;
   /** Replaces signed-webhook delivery when a batch finishes. */
   onComplete?: CompletionSink;
+  /** Override the default webhook URL policy with an application allowlist. */
+  validateWebhookUrl?: WebhookUrlValidator;
   /**
    * Called when processing a single batch throws during `tick`. When provided,
    * the tick reports the error and continues to the next batch; when omitted,
@@ -73,39 +77,120 @@ export interface BatchPoller {
   ) => (request: Request) => Promise<Response>;
 }
 
-/** The default completion sink: POST a signed webhook to the tracked URL. */
-const sendWebhook: CompletionSink = async (record, snapshot) => {
-  if (!record.webhookUrl) {
+const parseIpv4 = (host: string): number[] | undefined => {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)) {
+    return;
+  }
+  const parts = host.split(".").map(Number);
+  const valid = parts.every(
+    (part) => Number.isInteger(part) && part >= 0 && part <= 255
+  );
+  return valid ? parts : undefined;
+};
+
+const isPrivateIpv4 = (parts: number[]): boolean => {
+  const [a = 0, b = 0] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+};
+
+const isPrivateIpv6 = (host: string): boolean => {
+  const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
+  return (
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:")
+  );
+};
+
+const assertSafeWebhookUrl: WebhookUrlValidator = (url) => {
+  if (url.protocol !== "https:") {
+    throw new BatchworkError("batchwork: webhookUrl must use https.");
+  }
+  if (url.username || url.password) {
     throw new BatchworkError(
-      "batchwork: tracked batch has no webhookUrl to deliver to."
+      "batchwork: webhookUrl must not include credentials."
     );
   }
-  const body = JSON.stringify(toEvent(record.provider, snapshot));
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  if (record.webhookSecret) {
-    Object.assign(
-      headers,
-      await signWebhook(
-        record.webhookSecret,
-        record.id,
-        body,
-        Date.now() / 1000
-      )
-    );
-  }
-  const response = await fetch(record.webhookUrl, {
-    body,
-    headers,
-    method: "POST",
-  });
-  if (!response.ok) {
+
+  const host = url.hostname.toLowerCase();
+  const ipv4 = parseIpv4(host);
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    (ipv4 && isPrivateIpv4(ipv4)) ||
+    isPrivateIpv6(host)
+  ) {
     throw new BatchworkError(
-      `batchwork: webhook delivery to ${record.webhookUrl} failed (${response.status}).`
+      "batchwork: webhookUrl must not target localhost or private networks."
     );
   }
 };
+
+const validateWebhookUrl = async (
+  rawUrl: string,
+  validator: WebhookUrlValidator
+): Promise<string> => {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch (error) {
+    throw new BatchworkError("batchwork: webhookUrl must be a valid URL.", {
+      cause: error,
+    });
+  }
+  await validator(url);
+  return url.toString();
+};
+
+/** The default completion sink: POST a signed webhook to the tracked URL. */
+const createWebhookSink =
+  (validator: WebhookUrlValidator): CompletionSink =>
+  async (record, snapshot) => {
+    if (!record.webhookUrl) {
+      throw new BatchworkError(
+        "batchwork: tracked batch has no webhookUrl to deliver to."
+      );
+    }
+    const webhookUrl = await validateWebhookUrl(record.webhookUrl, validator);
+    const body = JSON.stringify(toEvent(record.provider, snapshot));
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    if (record.webhookSecret) {
+      Object.assign(
+        headers,
+        await signWebhook(
+          record.webhookSecret,
+          record.id,
+          body,
+          Date.now() / 1000
+        )
+      );
+    }
+    const response = await fetch(webhookUrl, {
+      body,
+      headers,
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new BatchworkError(
+        `batchwork: webhook delivery to ${webhookUrl} failed (${response.status}).`
+      );
+    }
+  };
 
 /**
  * Create a managed poller: register submitted batches with `track`, then run
@@ -121,7 +206,9 @@ export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
     return options.credentials ?? {};
   };
 
-  const sink = options.onComplete ?? sendWebhook;
+  const webhookUrlValidator =
+    options.validateWebhookUrl ?? assertSafeWebhookUrl;
+  const sink = options.onComplete ?? createWebhookSink(webhookUrlValidator);
 
   const deliver = async (
     record: TrackedBatch,
@@ -141,13 +228,17 @@ export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
     target: TrackTarget,
     opts: TrackOptions
   ): Promise<TrackedBatch> => {
+    const webhookUrl =
+      opts.webhookUrl && !options.onComplete
+        ? await validateWebhookUrl(opts.webhookUrl, webhookUrlValidator)
+        : opts.webhookUrl;
     const record: TrackedBatch = {
       createdAt: new Date().toISOString(),
       id: target.id,
       provider: target.provider,
       status: target.status ?? "in_progress",
       webhookSecret: opts.secret,
-      webhookUrl: opts.webhookUrl,
+      webhookUrl,
     };
     await options.store.set(record);
     return record;

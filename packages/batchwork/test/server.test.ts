@@ -188,6 +188,84 @@ describe("createBatchPoller", () => {
     expect(stored?.deliveredAt).toBeDefined();
   });
 
+  it("rejects unsafe default webhook URLs before tracking", async () => {
+    const poller = createBatchPoller({
+      credentials: { apiKey: "k" },
+      store: createMemoryStore(),
+    });
+
+    await expect(
+      poller.track(
+        { id: "batch_http", provider: "openai" },
+        { webhookUrl: "http://example.com/webhooks/batch" }
+      )
+    ).rejects.toThrow("must use https");
+    await expect(
+      poller.track(
+        { id: "batch_private", provider: "openai" },
+        { webhookUrl: "https://127.0.0.1/internal" }
+      )
+    ).rejects.toThrow("private networks");
+  });
+
+  it("revalidates stored webhook URLs before delivery", async () => {
+    const store = createMemoryStore();
+    const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+    await store.set({
+      createdAt: "now",
+      id: "batch_private",
+      provider: "openai",
+      status: "in_progress",
+      webhookUrl: "https://127.0.0.1/internal",
+    });
+    install([
+      {
+        body: completedBatch("batch_private"),
+        match: (url, method) =>
+          url.includes("/batches/batch_private") && method === "GET",
+      },
+    ]);
+
+    await expect(poller.tick()).rejects.toThrow("private networks");
+    const stored = await store.get("batch_private");
+    expect(stored?.deliveredAt).toBeUndefined();
+  });
+
+  it("supports custom webhook URL validators", async () => {
+    const store = createMemoryStore();
+    const validated: string[] = [];
+    const poller = createBatchPoller({
+      credentials: { apiKey: "k" },
+      store,
+      validateWebhookUrl: (url) => {
+        validated.push(url.toString());
+      },
+    });
+    const webhookUrl = "http://127.0.0.1:8080/internal";
+    await poller.track(
+      { id: "batch_custom", provider: "openai" },
+      { webhookUrl }
+    );
+
+    const fetchMock = install([
+      {
+        body: completedBatch("batch_custom"),
+        match: (url, method) =>
+          url.includes("/batches/batch_custom") && method === "GET",
+      },
+      { body: "ok", match: (url) => url === webhookUrl },
+    ]);
+
+    await expect(poller.tick()).resolves.toEqual({
+      checked: 1,
+      delivered: ["batch_custom"],
+    });
+    expect(validated).toEqual([webhookUrl, webhookUrl]);
+    expect(fetchMock.mock.calls.some((call) => call[0] === webhookUrl)).toBe(
+      true
+    );
+  });
+
   it("routes completion to a custom onComplete sink instead of a webhook", async () => {
     const store = createMemoryStore();
     const sinkCalls: string[] = [];

@@ -29,6 +29,8 @@ export const GET = async () => {
 };
 ```
 
+Default webhook delivery only accepts HTTPS destinations and rejects localhost or private-network URL literals. If your app accepts user-provided webhook URLs, validate them against your own tenant allowlist before calling `track`; for custom network policy, pass `validateWebhookUrl` to `createBatchPoller`.
+
 ## Receive the webhook
 
 Your endpoint receives a unified, signed `BatchWebhookEvent`:

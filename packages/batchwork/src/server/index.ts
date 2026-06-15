@@ -8,6 +8,7 @@ export type {
   TickResult,
   TrackOptions,
   TrackTarget,
+  WebhookUrlValidator,
 } from "./poller";
 export { signWebhook, verifyBatchWebhook, verifyWebhook } from "./signing";
 export type { VerifiedWebhook } from "./signing";
