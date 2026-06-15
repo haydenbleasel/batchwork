@@ -44,8 +44,10 @@ export interface BatchRoutesOptions {
   onComplete: OnBatchComplete;
   /** Falls back to provider env vars (e.g. `OPENAI_API_KEY`) when omitted. */
   credentials?: CredentialResolver;
-  /** When set, the cron `GET` requires `Authorization: Bearer <cronSecret>`. */
+  /** Requires `Authorization: Bearer <cronSecret>` on the cron `GET`. */
   cronSecret?: string;
+  /** Allow unauthenticated cron ticks. Intended only for private/local routes. */
+  allowUnauthenticatedCron?: boolean;
   /** When set, mounts an OpenAI native-webhook handler on `POST`. */
   openaiSigningSecret?: string;
   /** Observe per-batch processing errors during a tick; the tick continues. */
@@ -120,6 +122,9 @@ export const createBatchRoutes = (options: BatchRoutesOptions): BatchRoutes => {
   });
 
   const GET = (request: Request): Promise<Response> => {
+    if (!(options.cronSecret || options.allowUnauthenticatedCron)) {
+      return Promise.resolve(new Response("unauthorized", { status: 401 }));
+    }
     if (
       options.cronSecret &&
       request.headers.get("authorization") !== `Bearer ${options.cronSecret}`

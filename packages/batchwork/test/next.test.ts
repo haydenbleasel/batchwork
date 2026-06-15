@@ -75,6 +75,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const store = createMemoryStore();
     const calls: { event: BatchWebhookEvent; results: BatchResult[] }[] = [];
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: async (event, results) => {
         calls.push({ event, results: await collect(results) });
@@ -109,6 +110,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const seen: BatchProvider[] = [];
     const calls: BatchResult[][] = [];
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: (provider) => {
         seen.push(provider);
         return { apiKey: `k-${provider}` };
@@ -135,6 +137,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const store = createMemoryStore();
     let called = false;
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: () => {
         called = true;
@@ -161,6 +164,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const store = createMemoryStore();
     const calls: { event: BatchWebhookEvent; results: BatchResult[] }[] = [];
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: async (event, results) => {
         calls.push({ event, results: await collect(results) });
@@ -194,6 +198,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const errors: string[] = [];
     let attempts = 0;
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: () => {
         attempts += 1;
@@ -233,6 +238,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     const store = createMemoryStore();
     let calls = 0;
     const { GET, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: () => {
         calls += 1;
@@ -255,6 +261,32 @@ describe("createBatchRoutes — GET cron tick", () => {
 describe("createBatchRoutes — cronSecret", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  it("rejects unauthenticated cron ticks when no secret or explicit opt-in is configured", async () => {
+    let called = false;
+    const { GET } = createBatchRoutes({
+      onComplete: () => {
+        called = true;
+      },
+      store: createMemoryStore(),
+    });
+    const response = await GET(new Request(CRON_URL));
+    expect(response.status).toBe(401);
+    expect(called).toBe(false);
+  });
+
+  it("allows unauthenticated cron ticks only when explicitly opted in", async () => {
+    const { GET } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
+      onComplete: () => {
+        /* no batches tracked */
+      },
+      store: createMemoryStore(),
+    });
+    const response = await GET(new Request(CRON_URL));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ checked: 0, delivered: [] });
   });
 
   it("rejects a request without the matching bearer token", async () => {
@@ -345,6 +377,7 @@ describe("createBatchRoutes — OpenAI native webhook (POST)", () => {
     const store = createMemoryStore();
     let calls = 0;
     const { GET, POST, track } = createBatchRoutes({
+      allowUnauthenticatedCron: true,
       credentials: { apiKey: "k" },
       onComplete: () => {
         calls += 1;

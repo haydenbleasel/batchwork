@@ -17,7 +17,7 @@ const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapte
 
 export const batches = createBatchRoutes({
   store,
-  // Optional: require the Vercel Cron bearer token on GET.
+  // Required for deployed cron routes.
   cronSecret: process.env.CRON_SECRET,
   // Optional: mount OpenAI's native webhook on POST (skips polling for OpenAI).
   openaiSigningSecret: process.env.OPENAI_WEBHOOK_SECRET,
@@ -42,7 +42,7 @@ import { batches } from "@/lib/batches";
 export const { GET, POST } = batches;
 ```
 
-`store` and `onComplete` are the only required options.
+`store` and `onComplete` are required. Deployed `GET` routes also need `cronSecret`; if it is omitted, the cron handler returns `401`. Use `allowUnauthenticatedCron: true` only for private local routes that cannot be reached by arbitrary callers.
 
 ## Register a batch
 
