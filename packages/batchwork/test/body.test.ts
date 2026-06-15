@@ -98,4 +98,30 @@ describe(buildRequestBodies, () => {
       )
     ).rejects.toThrow("duplicate customId");
   });
+
+  it("rejects batches above the request count limit", async () => {
+    const resolved = resolveModel("openai/gpt-4o-mini");
+    await expect(
+      buildRequestBodies(
+        resolved,
+        [{ prompt: "one" }, { prompt: "two" }],
+        undefined,
+        NO_CREDENTIALS,
+        { maxRequests: 1 }
+      )
+    ).rejects.toThrow("request limit");
+  });
+
+  it("rejects captured request bodies above the byte limit", async () => {
+    const resolved = resolveModel("openai/gpt-4o-mini");
+    await expect(
+      buildRequestBodies(
+        resolved,
+        [{ customId: "big", prompt: "this body is too large" }],
+        undefined,
+        NO_CREDENTIALS,
+        { maxRequestBytes: 8 }
+      )
+    ).rejects.toThrow('request "big"');
+  });
 });

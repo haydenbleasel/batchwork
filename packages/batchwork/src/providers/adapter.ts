@@ -1,5 +1,6 @@
 import type { BuiltRequest } from "../body";
 import type {
+  BatchLimits,
   BatchProvider,
   BatchResult,
   BatchSnapshot,
@@ -11,6 +12,7 @@ export interface SubmitInput {
   credentials: ProviderCredentials;
   /** Endpoint path the captured requests target (e.g. `/v1/chat/completions`). */
   endpoint: string;
+  limits?: BatchLimits;
   metadata?: Record<string, string>;
   /**
    * Resolved model id. Needed by providers that set the model on the batch/job

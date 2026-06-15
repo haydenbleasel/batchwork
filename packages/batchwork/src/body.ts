@@ -2,9 +2,20 @@ import { generateText } from "ai";
 import type { LanguageModel } from "ai";
 
 import { BatchworkError } from "./errors";
+import {
+  assertByteLength,
+  mapWithConcurrency,
+  resolveBatchLimits,
+} from "./limits";
+import type { ResolvedBatchLimits } from "./limits";
 import { createCaptureModel } from "./model";
 import type { CapturingFetch, ResolvedModel } from "./model";
-import type { BatchDefaults, BatchRequest, ProviderCredentials } from "./types";
+import type {
+  BatchDefaults,
+  BatchLimits,
+  BatchRequest,
+  ProviderCredentials,
+} from "./types";
 
 type GenerateTextInput = Parameters<typeof generateText>[0];
 
@@ -160,8 +171,15 @@ export const buildRequestBodies = async (
   resolved: ResolvedModel,
   requests: readonly BatchRequest[],
   defaults: BatchDefaults | undefined,
-  credentials: ProviderCredentials
+  credentials: ProviderCredentials,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
 ): Promise<BuiltRequest[]> => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
   const model = await createCaptureModel(resolved, credentials, captureFetch);
   const seen = new Set<string>();
 
@@ -178,9 +196,21 @@ export const buildRequestBodies = async (
     return { customId, request };
   });
 
-  return await Promise.all(
-    items.map((item) =>
-      captureOne(model, mergeDefaults(item.request, defaults), item.customId)
-    )
+  return await mapWithConcurrency(
+    items,
+    limits.captureConcurrency,
+    async (item) => {
+      const built = await captureOne(
+        model,
+        mergeDefaults(item.request, defaults),
+        item.customId
+      );
+      assertByteLength(
+        `request "${item.customId}"`,
+        JSON.stringify(built.body),
+        limits.maxRequestBytes
+      );
+      return built;
+    }
   );
 };

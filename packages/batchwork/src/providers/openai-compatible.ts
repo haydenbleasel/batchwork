@@ -8,6 +8,7 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
+import { assertByteLength, resolveBatchLimits } from "../limits";
 import type {
   BatchProvider,
   BatchResult,
@@ -118,6 +119,7 @@ export const createOpenAICompatibleAdapter = (
   });
 
   const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
+    const limits = resolveBatchLimits(input.limits);
     const endpoint = config.normalizeEndpoint
       ? config.normalizeEndpoint(input.endpoint)
       : input.endpoint;
@@ -135,6 +137,7 @@ export const createOpenAICompatibleAdapter = (
         };
       })
     );
+    assertByteLength("batch upload JSONL", jsonl, limits.maxUploadBytes);
     const headers = authHeaders(input.credentials);
     const url = baseUrl(input.credentials);
     const purpose = config.filePurpose ?? "batch";

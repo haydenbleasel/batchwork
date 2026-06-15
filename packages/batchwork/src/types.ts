@@ -129,9 +129,17 @@ export interface ProviderCredentials {
   headers?: Record<string, string>;
 }
 
+export interface BatchLimits {
+  captureConcurrency?: number;
+  maxRequests?: number;
+  maxRequestBytes?: number;
+  maxUploadBytes?: number;
+}
+
 /** Input to `batch()`. */
 export interface BatchOptions extends ProviderCredentials {
   defaults?: BatchDefaults;
+  limits?: BatchLimits;
   metadata?: Record<string, string>;
   model: LanguageModel;
   requests: BatchRequest[];

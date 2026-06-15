@@ -1,6 +1,7 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
+import { assertByteLength, resolveBatchLimits } from "../limits";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -72,6 +73,7 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
 };
 
 const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
+  const limits = resolveBatchLimits(input.limits);
   // Mistral sets the model on the job, so strip it (and `stream`) from each line.
   const jsonl = encodeJsonl(
     input.built.map((item) => ({
@@ -79,6 +81,7 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
       custom_id: item.customId,
     }))
   );
+  assertByteLength("batch upload JSONL", jsonl, limits.maxUploadBytes);
   const inputFileId = await uploadInputFile(
     jsonl,
     baseUrl(input.credentials),

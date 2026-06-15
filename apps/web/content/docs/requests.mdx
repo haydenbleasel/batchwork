@@ -70,6 +70,26 @@ await batch({ model, requests, metadata: { description: "nightly eval" } });
 
 ## Limits
 
+Batchwork validates every batch before it reaches a provider. The default
+guardrails are 50,000 requests per batch, 20 MiB per captured request body, a
+200 MiB provider upload payload, and 16 concurrent request captures:
+
+```ts
+await batch({
+  model,
+  requests,
+  limits: {
+    captureConcurrency: 8,
+    maxRequests: 10_000,
+    maxRequestBytes: 4 * 1024 * 1024,
+    maxUploadBytes: 100 * 1024 * 1024,
+  },
+});
+```
+
+Provider-side caps still apply, so keep custom limits at or below the target
+provider's maximums.
+
 Per-batch limits vary by provider:
 
 | Provider      | Max requests per batch | Max input size           |

@@ -1,6 +1,7 @@
 import { buildRequestBodies } from "./body";
 import { BatchworkError } from "./errors";
 import { BatchJob } from "./job";
+import { resolveBatchLimits } from "./limits";
 import { resolveModel } from "./model";
 import { getAdapter } from "./providers";
 import type {
@@ -50,18 +51,21 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
 
   const resolved = resolveModel(options.model);
   const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
   const adapter = getAdapter(resolved.provider);
 
   const built = await buildRequestBodies(
     resolved,
     options.requests,
     options.defaults,
-    credentials
+    credentials,
+    limits
   );
   const snapshot = await adapter.submit({
     built,
     credentials,
     endpoint: built[0]?.endpoint ?? "",
+    limits,
     metadata: options.metadata,
     modelId: resolved.modelId,
   });

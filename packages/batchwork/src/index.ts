@@ -8,6 +8,7 @@ export { BatchJob, isTerminalStatus } from "./job";
 export { resolveModel } from "./model";
 export type {
   BatchDefaults,
+  BatchLimits,
   BatchOptions,
   BatchProvider,
   BatchRef,

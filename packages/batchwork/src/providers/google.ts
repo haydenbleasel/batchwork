@@ -1,5 +1,6 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
+import { assertByteLength, resolveBatchLimits } from "../limits";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -157,19 +158,22 @@ const normalizeResult = (item: unknown): BatchResult => {
 };
 
 const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
+  const limits = resolveBatchLimits(input.limits);
   const requests = input.built.map((item) => ({
     metadata: { key: item.customId },
     request: omit(item.body, "stream"),
   }));
+  const body = JSON.stringify({
+    batch: {
+      display_name: "batchwork",
+      input_config: { requests: { requests } },
+    },
+  });
+  assertByteLength("batch upload payload", body, limits.maxUploadBytes);
   const raw = await requestJson(
     `${baseUrl(input.credentials)}/models/${input.modelId}:batchGenerateContent`,
     {
-      body: JSON.stringify({
-        batch: {
-          display_name: "batchwork",
-          input_config: { requests: { requests } },
-        },
-      }),
+      body,
       headers: headers(input.credentials),
       method: "POST",
     }

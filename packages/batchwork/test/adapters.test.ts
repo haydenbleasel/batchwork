@@ -221,6 +221,27 @@ describe("openai adapter", () => {
     expect(createBody.completion_window).toBe("24h");
   });
 
+  it("rejects JSONL uploads above the byte limit before fetch", async () => {
+    const fetchMock = install([]);
+
+    await expect(
+      openaiAdapter.submit({
+        built: [
+          {
+            body: { messages: [], model: "gpt-4o-mini", prompt: "too large" },
+            customId: "a",
+            endpoint: "/v1/chat/completions",
+          },
+        ],
+        credentials,
+        endpoint: "/v1/chat/completions",
+        limits: { maxUploadBytes: 8 },
+        modelId: "gpt-4o-mini",
+      })
+    ).rejects.toThrow("batch upload JSONL");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
   it("streams output and error files into normalized results", async () => {
     const output =
       '{"custom_id":"a","response":{"status_code":200,"body":{"choices":[{"message":{"content":"Hi"}}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}},"error":null}';

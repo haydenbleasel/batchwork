@@ -1,5 +1,6 @@
 import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
+import { assertByteLength, resolveBatchLimits } from "../limits";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -106,6 +107,7 @@ const normalizeResult = (item: unknown): BatchResult => {
 };
 
 const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
+  const limits = resolveBatchLimits(input.limits);
   const jsonl = encodeJsonl(
     input.built.map((item) => ({
       body: omit(item.body, "stream"),
@@ -114,6 +116,7 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
       url: input.endpoint,
     }))
   );
+  assertByteLength("batch upload JSONL", jsonl, limits.maxUploadBytes);
   const inputFileId = await uploadInputFile(
     jsonl,
     baseUrl(input.credentials),
