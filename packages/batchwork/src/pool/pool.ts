@@ -51,9 +51,9 @@ export interface BatchPoolOptions extends ProviderCredentials {
   defaults?: BatchDefaults;
   /** Provider metadata forwarded to each submitted batch. */
   metadata?: Record<string, string>;
-  /** Called after a flush submits (and tracks) a batch. */
-  onFlush?: (job: BatchJob, requests: BatchRequest[]) => void;
-  /** Called when a flush throws; the claimed items are returned to pending first. */
+  /** Called after a flush submits, tracks, and resolves a batch. */
+  onFlush?: (job: BatchJob, requests: BatchRequest[]) => void | Promise<void>;
+  /** Called when submission or tracking throws; claimed items return to pending. */
   onError?: (error: unknown, requests: BatchRequest[]) => void;
 }
 
@@ -132,8 +132,9 @@ export const createBatchPool = (options: BatchPoolOptions): BatchPool => {
       return undefined;
     }
     const requests = claim.requests.map((row) => row.request);
+    let job: BatchJob;
     try {
-      const job = await batch({
+      job = await batch({
         ...credentials,
         defaults,
         metadata,
@@ -146,8 +147,6 @@ export const createBatchPool = (options: BatchPoolOptions): BatchPool => {
         await track(job);
       }
       await store.resolve(claim);
-      options.onFlush?.(job, requests);
-      return job;
     } catch (error) {
       await store.release(claim);
       if (options.onError) {
@@ -156,6 +155,9 @@ export const createBatchPool = (options: BatchPoolOptions): BatchPool => {
       }
       throw error;
     }
+
+    await options.onFlush?.(job, requests);
+    return job;
   };
 
   const flushAll = async (): Promise<BatchJob[]> => {

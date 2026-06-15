@@ -105,5 +105,8 @@
     "@ai-sdk/xai": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

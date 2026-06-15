@@ -5,7 +5,7 @@ description: Common questions about Batchwork.
 
 ## How long does a batch take?
 
-Up to 24 hours, per the providers' SLAs — but small batches typically finish in seconds to minutes. Results are retained for ~30 days (OpenAI) / ~29 days (Anthropic), so you can fetch them well after completion.
+Up to 24 hours, per the providers' SLAs — but small batches typically finish in seconds to minutes. Results stay available well after completion — Anthropic keeps them for ~29 days, and OpenAI retains the batch output file until you delete it — but retention varies by provider, so fetch and persist results once a batch finishes.
 
 ## Does `batch()` block until the batch is done?
 

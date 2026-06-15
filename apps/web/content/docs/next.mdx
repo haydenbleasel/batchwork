@@ -7,7 +7,7 @@ In a Next.js app you don't need to POST a webhook back to your own server. `batc
 
 ## Mount the routes
 
-`createBatchRoutes` returns `GET`, `POST`, and `track`. A Next.js `route.ts` may only export HTTP method handlers (plus route config) — exporting `track` from one fails the build's type check — so call `createBatchRoutes` in a regular module and re-export just `GET`/`POST` from the route file. Import `track` from that same module wherever you submit batches.
+`createBatchRoutes` returns `GET`, `track`, and — when `openaiSigningSecret` is set — `POST`. A Next.js `route.ts` may only export HTTP method handlers (plus route config) — exporting `track` from one fails the build's type check — so call `createBatchRoutes` in a regular module and re-export just `GET`/`POST` from the route file. Import `track` from that same module wherever you submit batches.
 
 ```ts
 // lib/batches.ts — a normal module, importable from anywhere

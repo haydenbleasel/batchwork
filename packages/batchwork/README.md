@@ -319,7 +319,7 @@ const pool = createBatchPool({
 const id = await pool.add({ prompt: "Summarize this…" });
 ```
 
-`add()` returns immediately with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so results come back through `onFlush(job, requests)` or, better, the [server layer](#server-managed-polling--unified-webhooks). A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms`).
+`add()` resolves with the request's `customId` (auto-generated when omitted). A flush can be hours away, so results come back through `onFlush(job, requests)` or, better, the [server layer](#server-managed-polling--unified-webhooks). When an `add()` call hits `maxSize`, that call submits the batch and waits for any async `onFlush` callback. A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms`).
 
 ### Serverless: durable pooling + cron
 
@@ -363,7 +363,7 @@ export const GET = async (request: Request) => {
 };
 ```
 
-`pool.add()` flushes synchronously the moment the buffer reaches `maxSize`; `pool.flushDue()` (called on each cron tick) flushes once the oldest pending request has aged past `maxDuration`. Other handles: `flush()` (one batch now), `flushAll()` (drain everything), `size()`, and `close()` (stop the timer and drain — call it on graceful shutdown). If a flush fails it routes to `onError` and the claimed items return to pending for the next attempt.
+`pool.add()` flushes synchronously the moment the buffer reaches `maxSize`; `pool.flushDue()` (called on each cron tick) flushes once the oldest pending request has aged past `maxDuration`. Other handles: `flush()` (one batch now), `flushAll()` (drain everything), `size()`, and `close()` (stop the timer and drain — call it on graceful shutdown). If submission or tracking fails it routes to `onError` and the claimed items return to pending for the next attempt. If `onFlush` throws, the error propagates after the batch has already been submitted and the claimed items have been resolved.
 
 ### Bring your own pending store
 

@@ -24,7 +24,7 @@ const LOGOS = [
   { Icon: Anthropic, name: "Anthropic" },
   { Icon: Gemini, name: "Google Gemini" },
   { Icon: Mistral, name: "Mistral AI" },
-  { Icon: Xai, name: "X.ai" },
+  { Icon: Xai, name: "xAI" },
   { Icon: Groq, name: "Groq" },
   { Icon: Together, name: "Together AI" },
 ];

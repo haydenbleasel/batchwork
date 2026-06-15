@@ -241,6 +241,38 @@ describe("createBatchPool", () => {
     expect(await pool.size()).toBe(0);
   });
 
+  it("awaits async onFlush after resolving claimed rows", async () => {
+    submitRoutes();
+    const store = createMemoryPendingStore();
+    await store.append({
+      enqueuedAt: new Date().toISOString(),
+      id: "row-1",
+      poolKey: "test",
+      request: { customId: "a", prompt: "hi" },
+    });
+    const order: string[] = [];
+    const pool = createBatchPool({
+      apiKey: "test-key",
+      maxDuration: 3600,
+      maxSize: 10,
+      model: "openai/gpt-4o-mini",
+      onFlush: async () => {
+        expect(await store.count("test")).toBe(0);
+        await sleep(1);
+        order.push("onFlush");
+      },
+      poolKey: "test",
+      store,
+    });
+
+    const job = await pool.flush();
+    order.push("after");
+
+    expect(job?.id).toBe("batch_1");
+    expect(order).toEqual(["onFlush", "after"]);
+    expect(await pool.size()).toBe(0);
+  });
+
   it("close flushes remaining items and rejects further adds", async () => {
     submitRoutes();
     const tracked: string[] = [];

@@ -78,7 +78,7 @@ const RootLayout = ({ children }: RootLayoutProps) => (
     lang="en"
     suppressHydrationWarning
   >
-    <body className="flex min-h-full flex-col">
+    <body className="flex min-h-full flex-col overflow-x-clip">
       <script
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         type="application/ld+json"

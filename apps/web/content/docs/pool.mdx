@@ -27,7 +27,7 @@ const pool = createBatchPool({
 const id = await pool.add({ prompt: "Summarize this…" });
 ```
 
-`add()` returns **immediately** with the request's `customId` (auto-generated when omitted) — a flush can be hours away, so there is no per-item result to await. Results come back through the `onFlush(job, requests)` callback or, in production, the server layer shown below.
+`add()` resolves with the request's `customId` (auto-generated when omitted). A flush can be hours away, so there is no per-item result to await. When an `add()` call hits `maxSize`, that call submits the batch and waits for any async `onFlush(job, requests)` callback. In production, prefer the server layer shown below.
 
 A pool targets **one** model; create one pool per model. `maxDuration` is in **seconds** (note: not `…Ms` like the other options).
 
@@ -86,7 +86,7 @@ The pool exposes everything you need to drive both triggers and drain on demand:
 - **`size()`** — number of pending requests.
 - **`close()`** — stop the timer and drain remaining items. Call it on graceful shutdown; afterwards `add()` throws.
 
-If a flush fails it routes to `onError(error, requests)` and the claimed items return to pending for the next attempt — the same at-least-once behavior as the server poller.
+If submission or tracking fails it routes to `onError(error, requests)` and the claimed items return to pending for the next attempt — the same at-least-once behavior as the server poller. If `onFlush` throws, the error propagates after the batch has already been submitted and the claimed items have been resolved.
 
 <Callout type="info">
   In a single process, an armed age timer keeps the event loop alive until it

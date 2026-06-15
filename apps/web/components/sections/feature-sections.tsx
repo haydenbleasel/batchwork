@@ -138,7 +138,7 @@ const FEATURES: Feature[] = [
 ];
 
 export const FeatureSections = () => (
-  <section className="mx-auto flex max-w-(--fd-layout-width) flex-col gap-20 overflow-x-clip px-4 py-20 sm:gap-28 sm:py-28 md:gap-32">
+  <section className="mx-auto flex max-w-(--fd-layout-width) flex-col gap-20 px-4 py-20 sm:gap-28 sm:py-28 md:gap-32">
     <FadeIn>
       <div className="mx-auto max-w-3xl text-center">
         <h2 className="text-balance font-medium text-3xl text-foreground tracking-tight sm:text-5xl">
