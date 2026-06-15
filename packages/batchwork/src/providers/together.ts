@@ -5,12 +5,77 @@ import { createOpenAICompatibleAdapter } from "./openai-compatible";
 const INPUT_FILE_NAME = "batchwork.jsonl";
 const HTTP_FOUND = 302;
 
-const safeText = async (response: Response): Promise<string> => {
-  try {
-    return await response.text();
-  } catch {
-    return "<no body>";
+const parseIpv4 = (host: string): number[] | undefined => {
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)) {
+    return;
   }
+  const parts = host.split(".").map(Number);
+  const valid = parts.every(
+    (part) => Number.isInteger(part) && part >= 0 && part <= 255
+  );
+  return valid ? parts : undefined;
+};
+
+const isPrivateIpv4 = (parts: number[]): boolean => {
+  const [a = 0, b = 0] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+};
+
+const isPrivateIpv6 = (host: string): boolean => {
+  const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
+  return (
+    normalized === "::" ||
+    normalized === "::1" ||
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe80:")
+  );
+};
+
+const validateUploadLocation = (location: string): string => {
+  let url: URL;
+  try {
+    url = new URL(location);
+  } catch (error) {
+    throw new BatchworkError(
+      "batchwork: Together upload Location must be a valid URL.",
+      { cause: error }
+    );
+  }
+  if (url.protocol !== "https:") {
+    throw new BatchworkError(
+      "batchwork: Together upload Location must use https."
+    );
+  }
+  if (url.username || url.password) {
+    throw new BatchworkError(
+      "batchwork: Together upload Location must not include credentials."
+    );
+  }
+  const host = url.hostname.toLowerCase();
+  const ipv4 = parseIpv4(host);
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    (ipv4 && isPrivateIpv4(ipv4)) ||
+    isPrivateIpv6(host)
+  ) {
+    throw new BatchworkError(
+      "batchwork: Together upload Location must not target localhost or private networks."
+    );
+  }
+  return url.toString();
 };
 
 /**
@@ -45,15 +110,19 @@ const uploadTogetherFile = async (args: {
   const fileId = init.headers.get("x-together-file-id");
   if (init.status !== HTTP_FOUND || !(location && fileId)) {
     throw new BatchworkError(
-      `batchwork: Together upload could not be initiated (${init.status}): ${await safeText(init)}`
+      `batchwork: Together upload could not be initiated (${init.status}).`
     );
   }
 
   // The presigned URL carries its own auth; sending Together's would break it.
-  const upload = await fetch(location, { body: args.jsonl, method: "PUT" });
+  const uploadLocation = validateUploadLocation(location);
+  const upload = await fetch(uploadLocation, {
+    body: args.jsonl,
+    method: "PUT",
+  });
   if (!upload.ok) {
     throw new BatchworkError(
-      `batchwork: Together file upload failed (${upload.status}): ${await safeText(upload)}`
+      `batchwork: Together file upload failed (${upload.status}).`
     );
   }
 

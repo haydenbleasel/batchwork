@@ -403,7 +403,7 @@ describe("together adapter", () => {
     ]);
 
     await expect(submitOneLine()).rejects.toThrow(
-      "Together upload could not be initiated (503): service unavailable"
+      "Together upload could not be initiated (503)."
     );
   });
 
@@ -423,6 +423,23 @@ describe("together adapter", () => {
     );
   });
 
+  it("rejects unsafe presigned upload locations before PUT", async () => {
+    const fetchMock = install([
+      {
+        body: "",
+        headers: {
+          Location: "https://127.0.0.1/presigned-put",
+          "X-Together-File-Id": "file-in",
+        },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+    ]);
+
+    await expect(submitOneLine()).rejects.toThrow("private networks");
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
   it("throws when the presigned PUT upload fails", async () => {
     const storageUrl = "https://storage.example/presigned-put";
     install([
@@ -440,22 +457,26 @@ describe("together adapter", () => {
     ]);
 
     await expect(submitOneLine()).rejects.toThrow(
-      "Together file upload failed (403): access denied"
+      "Together file upload failed (403)."
     );
   });
 
-  it("falls back to <no body> when the failed init response is unreadable", async () => {
-    // Force safeText into its catch branch: a response whose body cannot be read.
+  it("does not read failed init response bodies", async () => {
+    let read = false;
     const unreadable = new Response("", { status: 500 });
     Object.defineProperty(unreadable, "text", {
-      value: () => Promise.reject(new Error("stream boom")),
+      value: () => {
+        read = true;
+        return Promise.resolve("secret init body");
+      },
     });
     const fetchMock = mock(() => Promise.resolve(unreadable));
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     await expect(submitOneLine()).rejects.toThrow(
-      "Together upload could not be initiated (500): <no body>"
+      "Together upload could not be initiated (500)."
     );
+    expect(read).toBe(false);
   });
 });
 

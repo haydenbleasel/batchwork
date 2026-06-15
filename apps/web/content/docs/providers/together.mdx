@@ -39,6 +39,8 @@ The `"together/…"` and `"togetherai/…"` string forms both resolve here — s
 3. **Create** — the batch references the uploaded file id.
 4. **Poll & read** — Batchwork polls `status`, then downloads the OpenAI-shaped output/error files.
 
+Presigned upload `Location` values must be HTTPS and cannot target localhost or private-network URL literals.
+
 ## Notes
 
 Together has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
