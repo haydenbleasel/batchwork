@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -86,6 +87,7 @@ const RootLayout = ({ children }: RootLayoutProps) => (
       <RootProvider search={{ options: { api: "/search" } }}>
         <MotionProvider>{children}</MotionProvider>
       </RootProvider>
+      <Analytics />
     </body>
   </html>
 );
