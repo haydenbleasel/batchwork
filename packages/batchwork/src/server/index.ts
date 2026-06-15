@@ -11,7 +11,11 @@ export type {
   WebhookUrlValidator,
 } from "./poller";
 export { signWebhook, verifyBatchWebhook, verifyWebhook } from "./signing";
-export type { VerifiedWebhook } from "./signing";
+export type {
+  VerifiedWebhook,
+  VerifyWebhookOptions,
+  WebhookReplayStore,
+} from "./signing";
 export { createMemoryStore } from "./store";
 export type {
   BatchStore,

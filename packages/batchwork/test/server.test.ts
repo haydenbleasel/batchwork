@@ -146,21 +146,21 @@ describe("createBatchPoller", () => {
       store,
     });
     await poller.track(
-      { id: "batch_1", provider: "openai" },
+      { id: "batch_delivery", provider: "openai" },
       { secret: SECRET, webhookUrl: WEBHOOK_URL }
     );
 
     const fetchMock = install([
       {
-        body: completedBatch("batch_1"),
+        body: completedBatch("batch_delivery"),
         match: (url, method) =>
-          url.includes("/batches/batch_1") && method === "GET",
+          url.includes("/batches/batch_delivery") && method === "GET",
       },
       { body: "ok", match: (url) => url === WEBHOOK_URL },
     ]);
 
     const result = await poller.tick();
-    expect(result).toEqual({ checked: 1, delivered: ["batch_1"] });
+    expect(result).toEqual({ checked: 1, delivered: ["batch_delivery"] });
 
     const delivery = fetchMock.mock.calls.find(
       (call) => call[0] === WEBHOOK_URL
@@ -171,7 +171,7 @@ describe("createBatchPoller", () => {
 
     const event = JSON.parse(String(init.body)) as BatchWebhookEvent;
     expect(event).toMatchObject({
-      id: "batch_1",
+      id: "batch_delivery",
       provider: "openai",
       type: "batch.completed",
     });
@@ -184,7 +184,7 @@ describe("createBatchPoller", () => {
     });
     expect(await verifyBatchWebhook(received, SECRET)).toEqual(event);
 
-    const stored = await store.get("batch_1");
+    const stored = await store.get("batch_delivery");
     expect(stored?.deliveredAt).toBeDefined();
   });
 
@@ -347,7 +347,7 @@ describe("createBatchPoller", () => {
     });
     const headers = await signWebhook(
       signingSecret,
-      "evt_1",
+      "evt_batch_3",
       incomingBody,
       Date.now() / 1000
     );
@@ -470,11 +470,13 @@ describe("createBatchPoller", () => {
 
   describe("openaiWebhookHandler edge cases", () => {
     const signingSecret = "whsec_dGVzdHNlY3JldA==";
+    let eventIndex = 0;
 
     const signed = async (body: string) => {
+      eventIndex += 1;
       const headers = await signWebhook(
         signingSecret,
-        "evt_1",
+        `evt_edge_${eventIndex}`,
         body,
         Date.now() / 1000
       );
@@ -590,6 +592,26 @@ describe("verifyWebhook edge cases", () => {
     });
     await expect(verifyWebhook(request, SECRET)).rejects.toThrow(
       "timestamp outside tolerance"
+    );
+  });
+
+  it("rejects a replayed webhook id inside the tolerance window", async () => {
+    const body = "{}";
+    const headers = await signWebhook(
+      SECRET,
+      "batch_replay",
+      body,
+      Date.now() / 1000
+    );
+
+    const first = new Request(WEBHOOK_URL, { body, headers, method: "POST" });
+    const second = new Request(WEBHOOK_URL, { body, headers, method: "POST" });
+
+    await expect(verifyWebhook(first, SECRET)).resolves.toMatchObject({
+      id: "batch_replay",
+    });
+    await expect(verifyWebhook(second, SECRET)).rejects.toThrow(
+      "webhook replay detected"
     );
   });
 });

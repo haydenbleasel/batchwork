@@ -325,12 +325,14 @@ describe("createBatchRoutes — OpenAI native webhook (POST)", () => {
   });
 
   const signingSecret = "whsec_dGVzdHNlY3JldA==";
+  let eventIndex = 0;
 
   const signedRequest = async (id: string) => {
+    eventIndex += 1;
     const body = JSON.stringify({ data: { id }, type: "batch.completed" });
     const headers = await signWebhook(
       signingSecret,
-      "evt_1",
+      `evt_next_${eventIndex}`,
       body,
       Date.now() / 1000
     );

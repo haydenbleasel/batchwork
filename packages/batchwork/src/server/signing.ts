@@ -10,6 +10,32 @@ const TOLERANCE_SECONDS = 300;
 const SECRET_PREFIX = "whsec_";
 const encoder = new TextEncoder();
 
+export interface WebhookReplayStore {
+  get: (id: string) => number | Promise<number | undefined> | undefined;
+  set: (id: string, expiresAt: number) => Promise<void> | void;
+}
+
+export interface VerifyWebhookOptions {
+  replayStore?: WebhookReplayStore;
+}
+
+const replayCache = new Map<string, number>();
+
+const defaultReplayStore: WebhookReplayStore = {
+  get: (id) => replayCache.get(id),
+  set: (id, expiresAt) => {
+    replayCache.set(id, expiresAt);
+  },
+};
+
+const pruneReplayCache = (now: number): void => {
+  for (const [id, expiresAt] of replayCache) {
+    if (expiresAt <= now) {
+      replayCache.delete(id);
+    }
+  }
+};
+
 const base64ToBytes = (value: string): Uint8Array<ArrayBuffer> =>
   Uint8Array.from(atob(value), (char) => char.codePointAt(0) ?? 0);
 
@@ -61,6 +87,22 @@ const verifyContent = async (
   );
 };
 
+const rememberWebhookId = async (
+  id: string,
+  timestamp: number,
+  now: number,
+  store: WebhookReplayStore
+): Promise<void> => {
+  if (store === defaultReplayStore) {
+    pruneReplayCache(now);
+  }
+  const expiresAt = await store.get(id);
+  if (expiresAt && expiresAt > now) {
+    throw new BatchworkError("batchwork: webhook replay detected.");
+  }
+  await store.set(id, timestamp + TOLERANCE_SECONDS);
+};
+
 /** Build Standard Webhooks signature headers for an outbound delivery. */
 export const signWebhook = async (
   secret: string,
@@ -90,7 +132,8 @@ export interface VerifiedWebhook {
  */
 export const verifyWebhook = async (
   request: Request,
-  secret: string
+  secret: string,
+  options?: VerifyWebhookOptions
 ): Promise<VerifiedWebhook> => {
   const id = request.headers.get("webhook-id");
   const timestamp = request.headers.get("webhook-timestamp");
@@ -100,9 +143,10 @@ export const verifyWebhook = async (
   }
 
   const seconds = Number(timestamp);
+  const now = Date.now() / 1000;
   if (
     !Number.isFinite(seconds) ||
-    Math.abs(Date.now() / 1000 - seconds) > TOLERANCE_SECONDS
+    Math.abs(now - seconds) > TOLERANCE_SECONDS
   ) {
     throw new BatchworkError("batchwork: webhook timestamp outside tolerance.");
   }
@@ -128,6 +172,13 @@ export const verifyWebhook = async (
     );
   }
 
+  await rememberWebhookId(
+    id,
+    seconds,
+    now,
+    options?.replayStore ?? defaultReplayStore
+  );
+
   return { body, id, timestamp: seconds };
 };
 
@@ -137,8 +188,9 @@ export const verifyWebhook = async (
  */
 export const verifyBatchWebhook = async (
   request: Request,
-  secret: string
+  secret: string,
+  options?: VerifyWebhookOptions
 ): Promise<BatchWebhookEvent> => {
-  const { body } = await verifyWebhook(request, secret);
+  const { body } = await verifyWebhook(request, secret, options);
   return JSON.parse(body) as BatchWebhookEvent;
 };

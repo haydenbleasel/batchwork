@@ -119,3 +119,8 @@ const store: BatchStore = {
 ## Signing
 
 Signing is **Standard Webhooks**-compatible (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256 over `id.timestamp.body`), so existing webhook tooling verifies it. It uses Web Crypto, so it runs on edge runtimes. `signWebhook`, `verifyWebhook`, and `verifyBatchWebhook` are all exported.
+
+`verifyWebhook` and `verifyBatchWebhook` reject replayed `webhook-id` values
+inside the timestamp tolerance window. The default replay cache is in-process;
+pass a durable `replayStore` option if your receiver runs across multiple
+instances or regions.
