@@ -1,5 +1,6 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
+import { assertSimpleProviderId } from "./ids";
 import { createOpenAICompatibleAdapter } from "./openai-compatible";
 
 const INPUT_FILE_NAME = "batchwork.jsonl";
@@ -126,11 +127,12 @@ const uploadTogetherFile = async (args: {
     );
   }
 
-  await requestJson(`${args.baseUrl}/files/${fileId}/preprocess`, {
+  const safeFileId = assertSimpleProviderId("Together file id", fileId);
+  await requestJson(`${args.baseUrl}/files/${safeFileId}/preprocess`, {
     headers: args.headers,
     method: "POST",
   });
-  return fileId;
+  return safeFileId;
 };
 
 /**

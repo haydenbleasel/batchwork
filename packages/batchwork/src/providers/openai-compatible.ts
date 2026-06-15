@@ -18,6 +18,7 @@ import type {
 } from "../types";
 import { asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
+import { assertSimpleProviderId } from "./ids";
 import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 
 // How a batch input line is shaped.
@@ -161,9 +162,13 @@ export const createOpenAICompatibleAdapter = (
     id: string,
     credentials: ProviderCredentials
   ): Promise<BatchSnapshot> => {
-    const raw = await requestJson(`${baseUrl(credentials)}/batches/${id}`, {
-      headers: authHeaders(credentials),
-    });
+    const batchId = assertSimpleProviderId(`${config.id} batch id`, id);
+    const raw = await requestJson(
+      `${baseUrl(credentials)}/batches/${batchId}`,
+      {
+        headers: authHeaders(credentials),
+      }
+    );
     return normalizeSnapshot(raw, config.id);
   };
 
@@ -184,10 +189,18 @@ export const createOpenAICompatibleAdapter = (
     }
     const headers = authHeaders(credentials);
     if (outputFileId) {
-      yield* streamResultFile(outputFileId, baseUrl(credentials), headers);
+      yield* streamResultFile(
+        assertSimpleProviderId(`${config.id} output file id`, outputFileId),
+        baseUrl(credentials),
+        headers
+      );
     }
     if (errorFileId) {
-      yield* streamResultFile(errorFileId, baseUrl(credentials), headers);
+      yield* streamResultFile(
+        assertSimpleProviderId(`${config.id} error file id`, errorFileId),
+        baseUrl(credentials),
+        headers
+      );
     }
   }
 
@@ -195,7 +208,8 @@ export const createOpenAICompatibleAdapter = (
     id: string,
     credentials: ProviderCredentials
   ): Promise<void> => {
-    await requestJson(`${baseUrl(credentials)}/batches/${id}/cancel`, {
+    const batchId = assertSimpleProviderId(`${config.id} batch id`, id);
+    await requestJson(`${baseUrl(credentials)}/batches/${batchId}/cancel`, {
       headers: authHeaders(credentials),
       method: "POST",
     });

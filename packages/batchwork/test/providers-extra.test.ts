@@ -188,6 +188,34 @@ describe("openai-compatible branches", () => {
     ).rejects.toThrow("results are not ready");
   });
 
+  it("rejects unsafe batch ids before OpenAI-compatible requests", async () => {
+    const fetchMock = install([]);
+    await expect(
+      openaiAdapter.cancel("../models", credentials)
+    ).rejects.toThrow("invalid openai batch id");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
+  it("rejects unsafe OpenAI-compatible result file ids before download", async () => {
+    const fetchMock = install([
+      {
+        body: {
+          id: "batch_1",
+          output_file_id: "../secret",
+          request_counts: { completed: 1, failed: 0, total: 1 },
+          status: "completed",
+        },
+        match: (url, method) =>
+          url.endsWith("/batches/batch_1") && method === "GET",
+      },
+    ]);
+
+    await expect(
+      collect(openaiAdapter.results("batch_1", credentials))
+    ).rejects.toThrow("invalid openai output file id");
+    expect(fetchMock.mock.calls).toHaveLength(1);
+  });
+
   it("cancels a batch", async () => {
     const fetchMock = install([
       {

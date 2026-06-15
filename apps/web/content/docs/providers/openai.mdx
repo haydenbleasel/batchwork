@@ -38,6 +38,9 @@ const job = await batch({
 4. **Poll** — Batchwork reads the `status` field until the batch reaches a terminal state.
 5. **Read** — the `output_file_id` and `error_file_id` are streamed and parsed into [`BatchResult`](/results)s.
 
+Batchwork validates provider-returned batch and file ids before using them in
+OpenAI-compatible API paths.
+
 ## Request shapes
 
 OpenAI exposes several endpoints, and Batchwork mirrors whichever your model implies:

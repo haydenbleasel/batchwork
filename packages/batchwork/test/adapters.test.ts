@@ -461,6 +461,25 @@ describe("together adapter", () => {
     expect(fetchMock.mock.calls).toHaveLength(1);
   });
 
+  it("rejects unsafe Together file ids before preprocess", async () => {
+    const storageUrl = "https://storage.example/presigned-put";
+    const fetchMock = install([
+      {
+        body: "",
+        headers: { Location: storageUrl, "X-Together-File-Id": "../secret" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+      {
+        body: "",
+        match: (url, method) => url === storageUrl && method === "PUT",
+      },
+    ]);
+
+    await expect(submitOneLine()).rejects.toThrow("invalid Together file id");
+    expect(fetchMock.mock.calls).toHaveLength(2);
+  });
+
   it("throws when the presigned PUT upload fails", async () => {
     const storageUrl = "https://storage.example/presigned-put";
     install([
