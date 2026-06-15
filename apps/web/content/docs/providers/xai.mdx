@@ -40,6 +40,8 @@ const job = await batch({
 
 Cancellation uses `POST /v1/batches/{id}:cancel`.
 
+Batchwork validates xAI batch ids before using them in API paths.
+
 ## Notes
 
 xAI has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.

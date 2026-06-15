@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
+import { assertSimpleProviderId } from "./ids";
 import {
   resolveApiKey,
   textFromBody,
@@ -55,11 +56,12 @@ const deriveStatus = (state: Record<string, unknown>): BatchStatus => {
 const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const obj = asRecord(raw);
   const state = asRecord(obj.state);
+  const id = asString(obj.batch_id) ?? asString(obj.id) ?? "";
   return {
     completedAt: toDate(obj.cancel_time),
     createdAt: toDate(obj.create_time),
     expiresAt: toDate(obj.expire_time ?? obj.expires_at),
-    id: asString(obj.batch_id) ?? asString(obj.id) ?? "",
+    id: id ? assertSimpleProviderId("xAI batch id", id) : "",
     provider: "xai",
     raw,
     requestCounts: {
@@ -138,7 +140,8 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
-  const raw = await requestJson(`${baseUrl(credentials)}/batches/${id}`, {
+  const batchId = assertSimpleProviderId("xAI batch id", id);
+  const raw = await requestJson(`${baseUrl(credentials)}/batches/${batchId}`, {
     headers: authHeaders(credentials),
   });
   return normalizeSnapshot(raw);
@@ -149,6 +152,7 @@ async function* results(
   id: string,
   credentials: ProviderCredentials
 ): AsyncGenerator<BatchResult> {
+  const batchId = assertSimpleProviderId("xAI batch id", id);
   const headers = authHeaders(credentials);
   let token: string | undefined;
   do {
@@ -158,7 +162,7 @@ async function* results(
     }
     // oxlint-disable-next-line no-await-in-loop -- pages are read sequentially.
     const raw = await requestJson<Record<string, unknown>>(
-      `${baseUrl(credentials)}/batches/${id}/results?${query.toString()}`,
+      `${baseUrl(credentials)}/batches/${batchId}/results?${query.toString()}`,
       { headers }
     );
     const page = asRecord(raw);
@@ -173,7 +177,8 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
-  await requestJson(`${baseUrl(credentials)}/batches/${id}:cancel`, {
+  const batchId = assertSimpleProviderId("xAI batch id", id);
+  await requestJson(`${baseUrl(credentials)}/batches/${batchId}:cancel`, {
     headers: authHeaders(credentials),
     method: "POST",
   });

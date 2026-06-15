@@ -271,6 +271,20 @@ describe("xai branches", () => {
     expect(snapshot.status).toBe("completed");
   });
 
+  it("rejects unsafe xAI batch ids returned by the provider", async () => {
+    await expect(
+      retrieveRaw(xaiAdapter, { batch_id: "../files/file_1", state: {} })
+    ).rejects.toThrow("invalid xAI batch id");
+  });
+
+  it("rejects unsafe xAI batch ids before requests", async () => {
+    const fetchMock = install([]);
+    await expect(
+      collect(xaiAdapter.results("../files/file_1", credentials))
+    ).rejects.toThrow("invalid xAI batch id");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
   it("paginates results across pages", async () => {
     const page1 = {
       pagination_token: "t1",
