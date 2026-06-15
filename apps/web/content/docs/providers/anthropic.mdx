@@ -37,7 +37,7 @@ const job = await batch({
 3. **Poll** — Batchwork reads `processing_status` until it reports `ended`.
 4. **Read** — the JSONL at `results_url` is streamed and parsed into [`BatchResult`](/results)s.
 
-Each result line carries a `result.type` of `succeeded`, `errored`, or `expired`, which Batchwork maps onto the normalized result `status`.
+Each result line carries a `result.type` of `succeeded`, `errored`, `canceled`, or `expired`, which Batchwork maps onto the normalized result `status`.
 
 ## Webhooks
 

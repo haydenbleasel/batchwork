@@ -38,7 +38,7 @@ const providerFromRef = (ref: BatchRef): BatchProvider => {
  *
  * @example
  * const job = await batch({
- *   model: openai("gpt-4o-mini"),
+ *   model: openai("gpt-5.5"),
  *   requests: [{ customId: "a", prompt: "Say hi" }],
  * });
  * const results = await job.wait().then(() => job.collect());

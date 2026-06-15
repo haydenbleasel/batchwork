@@ -69,8 +69,10 @@ Point a [Vercel Cron](https://vercel.com/docs/cron-jobs) job (or any scheduler) 
 Each tick polls every open batch and, when one reaches a terminal status, calls `onComplete` with the unified event and a **streamed** `results` iterable. For failure events (`batch.failed` / `batch.expired` / `batch.cancelled`) the iterable is empty — inspect `event.type`. The `GET` response reports what happened:
 
 ```json
-{ "checked": 3, "delivered": ["batch_abc"], "failed": [] }
+{ "checked": 3, "delivered": ["batch_abc"] }
 ```
+
+If a batch throws while processing, it's reported under a `failed` array of `{ id, error }` entries and the tick continues; the key is omitted when nothing failed.
 
 ## Delivery is at-least-once
 

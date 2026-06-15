@@ -99,7 +99,7 @@ const resolveModelString = (value: string): ResolvedModel => {
 
 /**
  * Resolve any AI SDK `model` (a `"provider/model"` string or a provider model
- * object such as `openai("gpt-4o-mini")`) to a provider + model id + request
+ * object such as `openai("gpt-5.5")`) to a provider + model id + request
  * shape. Gateway/registry model objects whose `modelId` is itself
  * `"provider/model"` are also handled.
  */
