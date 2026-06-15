@@ -41,7 +41,9 @@ export const Hero = ({ latestVersion, children }: HeroProps) => (
       <motion.a
         animate={{ opacity: 1 }}
         className="group inline-flex items-center gap-2 font-mono text-muted-foreground text-xs transition-colors hover:text-foreground"
-        href="https://github.com/haydenbleasel/batchwork"
+        href={`https://github.com/haydenbleasel/batchwork/releases/tag/${encodeURIComponent(
+          `batchwork@${latestVersion}`
+        )}`}
         initial={{ opacity: 0 }}
         rel="noreferrer"
         target="_blank"

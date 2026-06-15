@@ -36,9 +36,9 @@ const Logo = (props: SVGProps<SVGSVGElement>) => (
 export const baseOptions: BaseLayoutProps = {
   githubUrl: "https://github.com/haydenbleasel/batchwork",
   links: [
-    { text: "Docs", url: "/overview" },
-    { text: "Server", url: "/server" },
-    { text: "Providers", url: "/providers" },
+    { text: "Install", url: "/installation" },
+    { text: "Usage", url: "/usage" },
+    { text: "Providers", url: "/providers/openai" },
   ],
   nav: {
     title: (
