@@ -1,0 +1,13 @@
+{
+  "title": "Providers",
+  "pages": [
+    "index",
+    "openai",
+    "anthropic",
+    "google",
+    "groq",
+    "mistral",
+    "together",
+    "xai"
+  ]
+}

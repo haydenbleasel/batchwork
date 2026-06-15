@@ -1,0 +1,53 @@
+---
+title: xAI
+description: Run batches on xAI's (Grok) Batch API — OpenAI-compatible upload, proprietary results.
+---
+
+xAI's Batch API uses an OpenAI-compatible Files API to upload the input and create the batch, but its status, results, and cancel shapes are proprietary — results come back from a paginated `/results` endpoint rather than a downloadable file. Batchwork bridges the two.
+
+| Property     | Value                             |
+| ------------ | --------------------------------- |
+| **Shape**    | JSONL file upload (OpenAI-compat) |
+| **Endpoint** | `/v1/chat/completions`            |
+| **Results**  | Paginated `/results` JSON         |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env var**  | `XAI_API_KEY`                     |
+| **Package**  | `@ai-sdk/xai`                     |
+| **Base URL** | `https://api.x.ai/v1`             |
+
+## Example
+
+```ts
+import { batch } from "batchwork";
+import { xai } from "@ai-sdk/xai";
+
+const job = await batch({
+  model: xai("grok-4"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+```
+
+## How it works
+
+1. **Build** — each request becomes a `{ custom_id, method, url, body }` JSONL line.
+2. **Upload** — the JSONL is uploaded to `/v1/files` (xAI's upload omits the `purpose` field).
+3. **Create** — `POST /v1/batches` references the file via `input_file_id`.
+4. **Poll** — `GET /v1/batches/{id}` returns counts (`num_pending`, `num_requests`, `num_cancelled`, …), from which Batchwork derives the normalized status.
+5. **Read** — the proprietary, paginated `GET /v1/batches/{id}/results` is walked 100 at a time via `pagination_token`. Chat completions live under `batch_result.response.chat_get_completion`.
+
+Cancellation uses `POST /v1/batches/{id}:cancel`.
+
+## Notes
+
+xAI has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
+
+## Credentials
+
+Set `XAI_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:
+
+```bash
+bun add @ai-sdk/xai
+```

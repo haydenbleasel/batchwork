@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
       destination: "/llms.mdx/:path*",
       source: "/:path*.md",
     },
+    {
+      destination: "/providers/openai",
+      source: "/providers",
+    },
   ],
 };
 

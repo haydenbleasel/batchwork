@@ -1,0 +1,57 @@
+---
+title: Google Gemini
+description: Run batches on the Gemini Developer API — inline :batchGenerateContent with results keyed by request.
+---
+
+Google's Gemini **Developer API** runs batches inline: requests are submitted to `:batchGenerateContent`, which returns a long-running operation you poll, then reads the responses back inline — each correlated by a key you set per request. Batchwork wraps that in the standard `batch()` call.
+
+| Property     | Value                                                |
+| ------------ | ---------------------------------------------------- |
+| **Shape**    | Inline `:batchGenerateContent`                       |
+| **Results**  | Inline operation responses                           |
+| **Webhooks** | Poll-only (managed by the server)                    |
+| **Env var**  | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) |
+| **Package**  | `@ai-sdk/google`                                     |
+| **Base URL** | `https://generativelanguage.googleapis.com/v1beta`   |
+
+## Example
+
+```ts
+import { batch } from "batchwork";
+import { google } from "@ai-sdk/google";
+
+const job = await batch({
+  model: google("gemini-2.5-flash"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+```
+
+A `"google/…"` or `"gemini/…"` model string works too — see [Models](/models).
+
+## How it works
+
+1. **Build** — each request becomes `{ metadata: { key: customId }, request }`, where `request` is the captured body.
+2. **Submit** — `POST /v1beta/models/{model}:batchGenerateContent`. The model is set in the URL.
+3. **Poll** — the returned long-running operation is polled; its `JOB_STATE_*` value maps onto the normalized status.
+4. **Read** — the inline responses are read back, each correlated by its `metadata.key`.
+
+## Notes
+
+<Callout type="warn">
+  Batchwork reads Gemini's **inline** response mode. If a batch returns
+  file-mode results (which Gemini may use for very large batches), Batchwork
+  throws rather than silently dropping results.
+</Callout>
+
+This is the Gemini **Developer API**, not **Vertex AI** — Vertex's batch API requires GCS staging and cloud IAM auth, which aren't supported yet. Gemini has no native batch webhook, so it is poll-only; use the [server layer](/server) for unified completion events.
+
+## Credentials
+
+Set `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`), or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:
+
+```bash
+bun add @ai-sdk/google
+```
