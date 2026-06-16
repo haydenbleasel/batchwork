@@ -114,6 +114,9 @@ const isPrivateIpv6 = (host: string): boolean => {
   );
 };
 
+const isRedirectStatus = (status: number): boolean =>
+  status >= 300 && status < 400;
+
 const assertSafeWebhookUrl: WebhookUrlValidator = (url) => {
   if (url.protocol !== "https:") {
     throw new BatchworkError("batchwork: webhookUrl must use https.");
@@ -184,7 +187,13 @@ const createWebhookSink =
       body,
       headers,
       method: "POST",
+      redirect: "manual",
     });
+    if (isRedirectStatus(response.status)) {
+      throw new BatchworkError(
+        `batchwork: webhook delivery to ${webhookUrl} redirected (${response.status}).`
+      );
+    }
     if (!response.ok) {
       throw new BatchworkError(
         `batchwork: webhook delivery to ${webhookUrl} failed (${response.status}).`

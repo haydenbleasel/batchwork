@@ -231,6 +231,63 @@ describe("createBatchPoller", () => {
     expect(stored?.deliveredAt).toBeUndefined();
   });
 
+  it("rejects webhook delivery redirects without following them", async () => {
+    const store = createMemoryStore();
+    const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
+    await poller.track(
+      { id: "batch_redirect", provider: "openai" },
+      { webhookUrl: WEBHOOK_URL }
+    );
+
+    const redirectedUrl = "https://127.0.0.1/internal";
+    const requestedUrls: string[] = [];
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        requestedUrls.push(url);
+
+        if (url.includes("/batches/batch_redirect")) {
+          return Promise.resolve(
+            Response.json(completedBatch("batch_redirect"))
+          );
+        }
+        if (url === WEBHOOK_URL) {
+          if (init?.redirect === "manual") {
+            return Promise.resolve(
+              new Response("redirect", {
+                headers: { location: redirectedUrl },
+                status: 302,
+              })
+            );
+          }
+          requestedUrls.push(redirectedUrl);
+          return Promise.resolve(new Response("internal", { status: 200 }));
+        }
+        if (url === redirectedUrl) {
+          return Promise.resolve(new Response("internal", { status: 200 }));
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(poller.tick()).rejects.toThrow("redirected");
+
+    const delivery = fetchMock.mock.calls.find(
+      (call) => call[0] === WEBHOOK_URL
+    );
+    if (!delivery) {
+      throw new Error("expected webhook delivery request");
+    }
+    expect((delivery[1] as RequestInit).redirect).toBe("manual");
+    expect(requestedUrls).not.toContain(redirectedUrl);
+    const stored = await store.get("batch_redirect");
+    expect(stored?.deliveredAt).toBeUndefined();
+  });
+
   it("supports custom webhook URL validators", async () => {
     const store = createMemoryStore();
     const validated: string[] = [];
