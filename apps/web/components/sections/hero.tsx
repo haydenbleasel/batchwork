@@ -36,7 +36,7 @@ interface HeroProps {
 }
 
 export const Hero = ({ latestVersion, children }: HeroProps) => (
-  <section className="relative overflow-hidden">
+  <section className="relative">
     <div className="mx-auto flex max-w-5xl flex-col items-center px-6 pt-24 pb-16 text-center sm:pt-32 lg:pt-40">
       <motion.a
         animate={{ opacity: 1 }}
