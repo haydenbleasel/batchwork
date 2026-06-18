@@ -58,7 +58,9 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const state = asRecord(obj.state);
   const id = asString(obj.batch_id) ?? asString(obj.id) ?? "";
   return {
-    completedAt: toDate(obj.cancel_time),
+    // xAI reports the completion time on `finish_time`; `cancel_time` is only
+    // set when a batch is cancelled, so it must not stand in for completedAt.
+    completedAt: toDate(obj.finish_time ?? obj.completed_at),
     createdAt: toDate(obj.create_time),
     expiresAt: toDate(obj.expire_time ?? obj.expires_at),
     id: id ? assertSimpleProviderId("xAI batch id", id) : "",
