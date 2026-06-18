@@ -8,10 +8,12 @@ import {
 } from "remotion";
 
 import { COLORS } from "../theme";
+import type { Theme } from "../theme";
 
-// Subtle, desaturated background texture over a near-black base, with a slow
-// zoom and a soft vignette.
-export const Background = () => {
+// Background texture over a solid base, with a slow zoom and a soft vignette.
+// The treatment (image, opacity, wash) comes from the theme, so the same
+// component serves the dark launch video and the light embeddings video.
+export const Background = ({ theme = COLORS }: { theme?: Theme }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const scale = interpolate(frame, [0, durationInFrames], [1.06, 1.16], {
@@ -20,24 +22,19 @@ export const Background = () => {
   });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+    <AbsoluteFill style={{ backgroundColor: theme.background }}>
       <Img
-        src={staticFile("background.jpg")}
+        src={staticFile(theme.backgroundImage)}
         style={{
           height: "100%",
           objectFit: "cover",
-          opacity: 0.1,
+          opacity: theme.backgroundImageOpacity,
           transform: `scale(${scale})`,
+          translate: "-16.4px 4.8px",
           width: "100%",
         }}
-        from={-19}
       />
-      <AbsoluteFill
-        style={{
-          background:
-            "radial-gradient(130% 130% at 50% 40%, rgba(3,12,10,0) 38%, rgba(2,8,7,0.5) 100%)",
-        }}
-      />
+      <AbsoluteFill style={{ background: theme.vignette }} />
     </AbsoluteFill>
   );
 };

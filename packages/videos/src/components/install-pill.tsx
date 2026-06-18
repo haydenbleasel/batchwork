@@ -3,6 +3,7 @@ import { useCurrentFrame } from "remotion";
 import { fadeUp } from "../lib/animation";
 import { MONO } from "../lib/fonts";
 import { COLORS } from "../theme";
+import type { Theme } from "../theme";
 
 // lucide-react "copy" icon, matching apps/web InstallCommand.
 const CopyIcon = () => (
@@ -23,16 +24,24 @@ const CopyIcon = () => (
   </svg>
 );
 
-export const InstallPill = ({ delay = 0 }: { delay?: number }) => {
+export const InstallPill = ({
+  delay = 0,
+  theme = COLORS,
+  showCopy = true,
+}: {
+  delay?: number;
+  theme?: Theme;
+  showCopy?: boolean;
+}) => {
   const frame = useCurrentFrame();
   return (
     <div
       style={{
         alignItems: "center",
-        background: "rgba(255,255,255,0.07)",
-        border: `1px solid ${COLORS.border}`,
+        background: theme.pillBg,
+        border: `1px solid ${theme.border}`,
         borderRadius: 999,
-        color: COLORS.foreground,
+        color: theme.foreground,
         display: "inline-flex",
         fontFamily: MONO,
         fontSize: 28,
@@ -41,13 +50,15 @@ export const InstallPill = ({ delay = 0 }: { delay?: number }) => {
         ...fadeUp(frame, delay),
       }}
     >
-      <span style={{ color: COLORS.faint }}>$</span>
+      <span style={{ color: theme.faint }}>$</span>
       <span>npm install batchwork</span>
-      <span
-        style={{ color: COLORS.muted, display: "inline-flex", marginLeft: 8 }}
-      >
-        <CopyIcon />
-      </span>
+      {showCopy && (
+        <span
+          style={{ color: theme.muted, display: "inline-flex", marginLeft: 8 }}
+        >
+          <CopyIcon />
+        </span>
+      )}
     </div>
   );
 };
