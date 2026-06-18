@@ -30,15 +30,19 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
       reject(new BatchworkError("batchwork: wait aborted."));
       return;
     }
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        reject(new BatchworkError("batchwork: wait aborted."));
-      },
-      { once: true }
-    );
+    // oxlint-disable-next-line prefer-const -- assigned below, after `onAbort` closes over it.
+    let timer: ReturnType<typeof setTimeout>;
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new BatchworkError("batchwork: wait aborted."));
+    };
+    timer = setTimeout(() => {
+      // Detach so a reused signal (one per poll across a long wait) doesn't
+      // accumulate listeners that only fire on abort.
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 
 /**
