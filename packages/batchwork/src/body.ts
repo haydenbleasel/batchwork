@@ -142,9 +142,14 @@ const toGenerateInput = (
  * Turn a thrown capture into a {@link BuiltRequest}. A genuine failure (one that
  * never reached the capturing `fetch`, e.g. an invalid prompt) is rethrown.
  */
-const bodyFromCapture = (error: unknown, customId: string): BuiltRequest => {
+const bodyFromCapture = (
+  error: unknown,
+  customId: string,
+  maxRequestBytes: number
+): BuiltRequest => {
   const capture = findCapture(error);
   if (capture) {
+    assertByteLength(`request "${customId}"`, capture.rawBody, maxRequestBytes);
     return {
       body: JSON.parse(capture.rawBody) as Record<string, unknown>,
       customId,
@@ -157,12 +162,13 @@ const bodyFromCapture = (error: unknown, customId: string): BuiltRequest => {
 const captureOne = async (
   model: LanguageModel,
   request: BatchRequest,
-  customId: string
+  customId: string,
+  maxRequestBytes: number
 ): Promise<BuiltRequest> => {
   try {
     await generateText(toGenerateInput(model, request));
   } catch (error) {
-    return bodyFromCapture(error, customId);
+    return bodyFromCapture(error, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the batch body."
@@ -172,7 +178,8 @@ const captureOne = async (
 const captureEmbeddingOne = async (
   model: EmbeddingModel,
   request: BatchEmbeddingRequest,
-  customId: string
+  customId: string,
+  maxRequestBytes: number
 ): Promise<BuiltRequest> => {
   try {
     // `maxRetries: 0` is load-bearing: with retries enabled the capture error
@@ -185,7 +192,7 @@ const captureEmbeddingOne = async (
       value: request.value,
     });
   } catch (error) {
-    return bodyFromCapture(error, customId);
+    return bodyFromCapture(error, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the embedding body."
@@ -242,7 +249,8 @@ export const buildRequestBodies = async (
       const built = await captureOne(
         model,
         mergeDefaults(item.request, defaults),
-        item.customId
+        item.customId,
+        limits.maxRequestBytes
       );
       assertByteLength(
         `request "${item.customId}"`,
@@ -286,7 +294,8 @@ export const buildEmbeddingBodies = async (
       const built = await captureEmbeddingOne(
         model,
         item.request,
-        item.customId
+        item.customId,
+        limits.maxRequestBytes
       );
       assertByteLength(
         `request "${item.customId}"`,

@@ -193,6 +193,18 @@ describe(buildEmbeddingBodies, () => {
     ).rejects.toThrow("request limit");
   });
 
+  it("rejects captured embedding bodies above the byte limit", async () => {
+    const resolved = resolveModel("openai/text-embedding-3-small");
+    await expect(
+      buildEmbeddingBodies(
+        resolved,
+        [{ customId: "big", value: "this embedding body is too large" }],
+        NO_CREDENTIALS,
+        { maxRequestBytes: 8 }
+      )
+    ).rejects.toThrow('request "big"');
+  });
+
   it("rejects providers without an embedding model", async () => {
     const resolved = resolveModel("anthropic/claude-haiku-4-5");
     await expect(
