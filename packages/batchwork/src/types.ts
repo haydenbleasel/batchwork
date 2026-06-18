@@ -1,4 +1,5 @@
 import type {
+  EmbeddingModel,
   JSONValue,
   LanguageModel,
   ModelMessage,
@@ -55,6 +56,21 @@ export interface BatchRequest extends BatchRequestSettings {
 /** Defaults merged into every request; request-level values take precedence. */
 export type BatchDefaults = BatchRequestSettings;
 
+/**
+ * A single embedding request within a batch. One `value` produces one vector,
+ * correlated to its result by `customId`. Per-request tuning (e.g. output
+ * dimensions, task type) goes through `providerOptions`, mirroring the AI SDK
+ * `embed` call — a top-level `dimensions` field would be dropped by the SDK.
+ */
+export interface BatchEmbeddingRequest {
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /** Forwarded to the provider embedding call (e.g. `{ openai: { dimensions } }`). */
+  providerOptions?: ProviderOptions;
+  /** The text to embed. */
+  value: string;
+}
+
 /** Normalized batch lifecycle status, unified across providers. */
 export type BatchStatus =
   | "validating"
@@ -98,6 +114,8 @@ export interface BatchResultError {
 /** A normalized result line, correlated by `customId`. */
 export interface BatchResult {
   customId: string;
+  /** Normalized embedding vector, when the request produced an embedding. */
+  embedding?: number[];
   /** Normalized error, present when `status` is `"errored"`. */
   error?: BatchResultError;
   /** Raw provider response body (OpenAI `response.body` / Anthropic message). */
@@ -143,6 +161,14 @@ export interface BatchOptions extends ProviderCredentials {
   metadata?: Record<string, string>;
   model: LanguageModel;
   requests: BatchRequest[];
+}
+
+/** Input to `batchEmbeddings()`. */
+export interface BatchEmbeddingsOptions extends ProviderCredentials {
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  model: EmbeddingModel;
+  requests: BatchEmbeddingRequest[];
 }
 
 /**

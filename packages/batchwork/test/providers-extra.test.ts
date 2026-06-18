@@ -6,6 +6,7 @@ import { googleAdapter } from "../src/providers/google";
 import { mistralAdapter } from "../src/providers/mistral";
 import { openaiAdapter } from "../src/providers/openai";
 import {
+  embeddingFromBody,
   normalizeOpenAIResult,
   resolveApiKey,
   textFromBody,
@@ -93,6 +94,35 @@ describe("shared helpers", () => {
     ).toEqual({ inputTokens: 3, outputTokens: 4, totalTokens: 7 });
     expect(usageFromBody({ usage: {} })).toBeUndefined();
     expect(usageFromBody({})).toBeUndefined();
+  });
+
+  it("embeddingFromBody reads the first data vector, else undefined", () => {
+    expect(
+      embeddingFromBody({ data: [{ embedding: [0.1, 0.2], index: 0 }] })
+    ).toStrictEqual([0.1, 0.2]);
+    expect(embeddingFromBody({ data: [] })).toBeUndefined();
+    expect(embeddingFromBody({ choices: [{ message: {} }] })).toBeUndefined();
+  });
+
+  it("normalizeOpenAIResult surfaces embeddings", () => {
+    const result = normalizeOpenAIResult({
+      custom_id: "e",
+      response: {
+        body: {
+          data: [{ embedding: [0.1, 0.2], index: 0 }],
+          object: "list",
+          usage: { prompt_tokens: 3, total_tokens: 3 },
+        },
+        status_code: 200,
+      },
+    });
+    expect(result).toMatchObject({
+      customId: "e",
+      embedding: [0.1, 0.2],
+      status: "succeeded",
+    });
+    expect(result.text).toBeUndefined();
+    expect(result.usage?.inputTokens).toBe(3);
   });
 
   it("normalizeOpenAIResult handles success, top-level error, and HTTP error", () => {
@@ -630,6 +660,75 @@ describe("google branches", () => {
     const out = await collect(googleAdapter.results("batches/1", credentials));
     expect(out[0]).toMatchObject({ status: "succeeded", text: "Hi" });
     expect(out[0]?.usage).toBeUndefined();
+  });
+
+  it("routes embeddings submit to asyncBatchEmbedContent and nests config", async () => {
+    const fetchMock = install([
+      {
+        body: { metadata: { state: "JOB_STATE_PENDING" }, name: "batches/1" },
+        match: (url, method) =>
+          url.includes(":asyncBatchEmbedContent") && method === "POST",
+      },
+    ]);
+
+    const snapshot = await googleAdapter.submit({
+      built: [
+        {
+          body: {
+            content: { parts: [{ text: "hi" }] },
+            model: "models/gemini-embedding-001",
+            outputDimensionality: 256,
+          },
+          customId: "a",
+          endpoint: "/v1beta/models/gemini-embedding-001:embedContent",
+        },
+      ],
+      credentials,
+      endpoint: "/v1beta/models/gemini-embedding-001:embedContent",
+      modelId: "gemini-embedding-001",
+    });
+    expect(snapshot.id).toBe("batches/1");
+
+    const call = fetchMock.mock.calls.find((candidate) =>
+      String(candidate[0]).includes(":asyncBatchEmbedContent")
+    );
+    const sent = JSON.parse(String(call?.[1]?.body));
+    const [request] = sent.batch.input_config.requests.requests;
+    expect(request.metadata).toEqual({ key: "a" });
+    expect(request.request.content).toEqual({ parts: [{ text: "hi" }] });
+    expect(request.request.embedContentConfig).toEqual({
+      outputDimensionality: 256,
+    });
+  });
+
+  it("surfaces Gemini inline embedding responses", async () => {
+    install([
+      {
+        body: {
+          done: true,
+          metadata: { state: "JOB_STATE_SUCCEEDED" },
+          name: "batches/1",
+          response: {
+            inlinedResponses: {
+              inlinedResponses: [
+                {
+                  metadata: { key: "a" },
+                  response: { embedding: { values: [0.1, 0.2, 0.3] } },
+                },
+              ],
+            },
+          },
+        },
+        match: (_url, method) => method === "GET",
+      },
+    ]);
+    const out = await collect(googleAdapter.results("batches/1", credentials));
+    expect(out[0]).toMatchObject({
+      customId: "a",
+      embedding: [0.1, 0.2, 0.3],
+      status: "succeeded",
+    });
+    expect(out[0]?.text).toBeUndefined();
   });
 
   it("parses Gemini dest inline responses", async () => {

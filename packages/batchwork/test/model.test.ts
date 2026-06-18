@@ -6,7 +6,12 @@ import {
   MissingDependencyError,
   UnsupportedProviderError,
 } from "../src/errors";
-import { createCaptureModel, loadProvider, resolveModel } from "../src/model";
+import {
+  createCaptureEmbeddingModel,
+  createCaptureModel,
+  loadProvider,
+  resolveModel,
+} from "../src/model";
 import type { CapturingFetch, ResolvedModel } from "../src/model";
 import type { BatchProvider } from "../src/types";
 
@@ -126,6 +131,38 @@ describe("createCaptureModel", () => {
     await expect(
       createCaptureModel(resolved("cohere" as BatchProvider), {}, fetchImpl)
     ).rejects.toThrow(UnsupportedProviderError);
+  });
+});
+
+describe("createCaptureEmbeddingModel", () => {
+  const fetchImpl = (() =>
+    Promise.reject(new Error("unused"))) as unknown as CapturingFetch;
+
+  it("constructs a model for every embedding-capable provider", async () => {
+    const providers: BatchProvider[] = ["google", "mistral", "openai"];
+    for (const provider of providers) {
+      // oxlint-disable-next-line no-await-in-loop -- exercising each provider.
+      const built = await createCaptureEmbeddingModel(
+        resolved(provider),
+        { apiKey: "k" },
+        fetchImpl
+      );
+      expect(built).toBeDefined();
+    }
+  });
+
+  it("throws for providers without batch embeddings", async () => {
+    const providers: BatchProvider[] = ["anthropic", "groq", "together", "xai"];
+    for (const provider of providers) {
+      // oxlint-disable-next-line no-await-in-loop -- exercising each provider.
+      await expect(
+        createCaptureEmbeddingModel(
+          resolved(provider),
+          { apiKey: "k" },
+          fetchImpl
+        )
+      ).rejects.toThrow(UnsupportedProviderError);
+    }
   });
 });
 

@@ -5,7 +5,7 @@ import type * as MistralModule from "@ai-sdk/mistral";
 import type * as OpenAIModule from "@ai-sdk/openai";
 import type * as TogetherModule from "@ai-sdk/togetherai";
 import type * as XaiModule from "@ai-sdk/xai";
-import type { LanguageModel } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials } from "./types";
@@ -103,7 +103,9 @@ const resolveModelString = (value: string): ResolvedModel => {
  * shape. Gateway/registry model objects whose `modelId` is itself
  * `"provider/model"` are also handled.
  */
-export const resolveModel = (model: LanguageModel): ResolvedModel => {
+export const resolveModel = (
+  model: LanguageModel | EmbeddingModel
+): ResolvedModel => {
   if (typeof model === "string") {
     return resolveModelString(model);
   }
@@ -232,6 +234,66 @@ export const createCaptureModel = async (
     }
     default: {
       throw new UnsupportedProviderError(resolved.provider);
+    }
+  }
+};
+
+/**
+ * Providers whose batch API accepts embeddings. Together is excluded: it exposes
+ * an embedding model, but its batch endpoint rejects `/v1/embeddings`. Anthropic,
+ * Groq, and xAI have no embedding model at all.
+ */
+export const EMBEDDING_PROVIDERS = new Set<BatchProvider>([
+  "google",
+  "mistral",
+  "openai",
+]);
+
+export const unsupportedEmbeddingProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch embeddings. Embeddings are supported for: openai, mistral, google.`
+  );
+
+/**
+ * Construct an AI SDK text embedding model wired to a capturing `fetch`, used to
+ * derive the provider embedding request body for each batch item without making
+ * a network call. Throws for providers without an embedding model.
+ */
+export const createCaptureEmbeddingModel = async (
+  resolved: ResolvedModel,
+  credentials: ProviderCredentials,
+  fetchImpl: CapturingFetch
+): Promise<EmbeddingModel> => {
+  const settings = {
+    apiKey: credentials.apiKey ?? CAPTURE_API_KEY,
+    baseURL: credentials.baseURL,
+    fetch: fetchImpl,
+    headers: credentials.headers,
+  };
+
+  switch (resolved.provider) {
+    case "openai": {
+      const { createOpenAI } =
+        await loadProvider<typeof OpenAIModule>("openai");
+      return createOpenAI(settings).textEmbeddingModel(resolved.modelId);
+    }
+    case "mistral": {
+      const { createMistral } =
+        await loadProvider<typeof MistralModule>("mistral");
+      return createMistral(settings).textEmbeddingModel(resolved.modelId);
+    }
+    case "google": {
+      const { createGoogleGenerativeAI } =
+        await loadProvider<typeof GoogleModule>("google");
+      return createGoogleGenerativeAI(settings).textEmbeddingModel(
+        resolved.modelId
+      );
+    }
+    default: {
+      throw unsupportedEmbeddingProvider(resolved.provider);
     }
   }
 };

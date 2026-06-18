@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { anthropic } from "@ai-sdk/anthropic";
 import { openai } from "@ai-sdk/openai";
 
-import { buildRequestBodies } from "../src/body";
+import { buildEmbeddingBodies, buildRequestBodies } from "../src/body";
 import { resolveModel } from "../src/model";
 
 const NO_CREDENTIALS = {};
@@ -123,5 +123,80 @@ describe(buildRequestBodies, () => {
         { maxRequestBytes: 8 }
       )
     ).rejects.toThrow('request "big"');
+  });
+});
+
+describe(buildEmbeddingBodies, () => {
+  it("derives an OpenAI embeddings body and endpoint", async () => {
+    const resolved = resolveModel("openai/text-embedding-3-small");
+    const built = await buildEmbeddingBodies(
+      resolved,
+      [{ customId: "a", value: "hello world" }],
+      NO_CREDENTIALS
+    );
+
+    expect(built).toHaveLength(1);
+    expect(built[0]?.customId).toBe("a");
+    expect(built[0]?.endpoint).toBe("/v1/embeddings");
+    expect(built[0]?.body.model).toBe("text-embedding-3-small");
+    expect(built[0]?.body.input).toStrictEqual(["hello world"]);
+    expect(built[0]?.body.encoding_format).toBe("float");
+  });
+
+  it("derives a Mistral embeddings body", async () => {
+    const resolved = resolveModel("mistral/mistral-embed");
+    const built = await buildEmbeddingBodies(
+      resolved,
+      [{ value: "hi" }],
+      NO_CREDENTIALS
+    );
+
+    expect(built[0]?.customId).toBe("request-0");
+    expect(built[0]?.endpoint).toBe("/v1/embeddings");
+    expect(built[0]?.body.model).toBe("mistral-embed");
+    expect(built[0]?.body.input).toBeDefined();
+  });
+
+  it("auto-generates custom ids and rejects duplicates", async () => {
+    const resolved = resolveModel("openai/text-embedding-3-small");
+    const built = await buildEmbeddingBodies(
+      resolved,
+      [{ value: "one" }, { value: "two" }],
+      NO_CREDENTIALS
+    );
+    expect(built.map((item) => item.customId)).toStrictEqual([
+      "request-0",
+      "request-1",
+    ]);
+
+    await expect(
+      buildEmbeddingBodies(
+        resolved,
+        [
+          { customId: "dup", value: "one" },
+          { customId: "dup", value: "two" },
+        ],
+        NO_CREDENTIALS
+      )
+    ).rejects.toThrow("duplicate customId");
+  });
+
+  it("rejects embeddings batches above the request count limit", async () => {
+    const resolved = resolveModel("openai/text-embedding-3-small");
+    await expect(
+      buildEmbeddingBodies(
+        resolved,
+        [{ value: "one" }, { value: "two" }],
+        NO_CREDENTIALS,
+        { maxRequests: 1 }
+      )
+    ).rejects.toThrow("request limit");
+  });
+
+  it("rejects providers without an embedding model", async () => {
+    const resolved = resolveModel("anthropic/claude-haiku-4-5");
+    await expect(
+      buildEmbeddingBodies(resolved, [{ value: "hi" }], NO_CREDENTIALS)
+    ).rejects.toThrow("does not offer batch embeddings");
   });
 });

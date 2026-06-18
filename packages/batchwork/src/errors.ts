@@ -12,9 +12,10 @@ export class BatchworkError extends Error {
 export class UnsupportedProviderError extends BatchworkError {
   readonly provider: string;
 
-  constructor(provider: string) {
+  constructor(provider: string, detail?: string) {
     super(
-      `batchwork: provider "${provider}" is not supported yet. Supported providers: openai, anthropic, google, groq, mistral, together, xai.`
+      detail ??
+        `batchwork: provider "${provider}" is not supported yet. Supported providers: openai, anthropic, google, groq, mistral, together, xai.`
     );
     this.name = "UnsupportedProviderError";
     this.provider = provider;

@@ -54,6 +54,24 @@ All optional, via environment variables:
 | `BATCHWORK_LIVE_POLL_MS`          | Delay between status polls                                 | `10000` (10s)   |
 | `BATCHWORK_LIVE_<PROVIDER>_MODEL` | Override the model id (e.g. `BATCHWORK_LIVE_OPENAI_MODEL`) | per table above |
 
+## Embeddings
+
+`*-embeddings.live.test.ts` round-trip a 20-record **embedding** batch
+(`batchEmbeddings()` → `wait()` → `collect()`) and assert every record returns a
+non-empty vector. Only providers whose batch API accepts embeddings have one —
+Anthropic, Groq, and xAI expose no embedding model, and Together's batch endpoint
+rejects `/v1/embeddings`:
+
+| Provider | Key (as above)                 | Default embedding model  | Override env var                         |
+| -------- | ------------------------------ | ------------------------ | ---------------------------------------- |
+| OpenAI   | `OPENAI_API_KEY`               | `text-embedding-3-small` | `BATCHWORK_LIVE_OPENAI_EMBEDDING_MODEL`  |
+| Mistral  | `MISTRAL_API_KEY`              | `mistral-embed`          | `BATCHWORK_LIVE_MISTRAL_EMBEDDING_MODEL` |
+| Google   | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-embedding-001`   | `BATCHWORK_LIVE_GOOGLE_EMBEDDING_MODEL`  |
+
+```sh
+bun test --env-file=.env.local ./live/openai-embeddings.live.test.ts
+```
+
 ## Store adapters
 
 `postgres.live.test.ts` and `redis.live.test.ts` run the `BatchStore` contract

@@ -1,5 +1,5 @@
-import { generateText } from "ai";
-import type { LanguageModel } from "ai";
+import { embed, generateText } from "ai";
+import type { EmbeddingModel, LanguageModel } from "ai";
 
 import { BatchworkError } from "./errors";
 import {
@@ -8,10 +8,11 @@ import {
   resolveBatchLimits,
 } from "./limits";
 import type { ResolvedBatchLimits } from "./limits";
-import { createCaptureModel } from "./model";
+import { createCaptureEmbeddingModel, createCaptureModel } from "./model";
 import type { CapturingFetch, ResolvedModel } from "./model";
 import type {
   BatchDefaults,
+  BatchEmbeddingRequest,
   BatchLimits,
   BatchRequest,
   ProviderCredentials,
@@ -137,6 +138,22 @@ const toGenerateInput = (
     topP: request.topP,
   }) as GenerateTextInput;
 
+/**
+ * Turn a thrown capture into a {@link BuiltRequest}. A genuine failure (one that
+ * never reached the capturing `fetch`, e.g. an invalid prompt) is rethrown.
+ */
+const bodyFromCapture = (error: unknown, customId: string): BuiltRequest => {
+  const capture = findCapture(error);
+  if (capture) {
+    return {
+      body: JSON.parse(capture.rawBody) as Record<string, unknown>,
+      customId,
+      endpoint: endpointFromUrl(capture.url),
+    };
+  }
+  throw error;
+};
+
 const captureOne = async (
   model: LanguageModel,
   request: BatchRequest,
@@ -145,20 +162,55 @@ const captureOne = async (
   try {
     await generateText(toGenerateInput(model, request));
   } catch (error) {
-    const capture = findCapture(error);
-    if (capture) {
-      return {
-        body: JSON.parse(capture.rawBody) as Record<string, unknown>,
-        customId,
-        endpoint: endpointFromUrl(capture.url),
-      };
-    }
-    // A genuine failure (e.g. invalid prompt) — surface it to the caller.
-    throw error;
+    return bodyFromCapture(error, customId);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the batch body."
   );
+};
+
+const captureEmbeddingOne = async (
+  model: EmbeddingModel,
+  request: BatchEmbeddingRequest,
+  customId: string
+): Promise<BuiltRequest> => {
+  try {
+    // `maxRetries: 0` is load-bearing: with retries enabled the capture error
+    // is wrapped in a `RetryError` (under `.errors`, not `.cause`) and
+    // `findCapture`'s cause walk would miss it.
+    await embed({
+      maxRetries: 0,
+      model,
+      providerOptions: request.providerOptions,
+      value: request.value,
+    });
+  } catch (error) {
+    return bodyFromCapture(error, customId);
+  }
+  throw new BatchworkError(
+    "batchwork: the request was not intercepted while building the embedding body."
+  );
+};
+
+/**
+ * Assign and validate a unique `customId` for each request (sequentially, so
+ * duplicates are reported deterministically before bodies are captured in
+ * parallel). Auto-generates `request-{index}` when omitted.
+ */
+const assignCustomIds = <T extends { customId?: string }>(
+  requests: readonly T[]
+): { customId: string; request: T }[] => {
+  const seen = new Set<string>();
+  return requests.map((request, index) => {
+    const customId = request.customId ?? `request-${index}`;
+    if (seen.has(customId)) {
+      throw new BatchworkError(
+        `batchwork: duplicate customId "${customId}". customId values must be unique within a batch.`
+      );
+    }
+    seen.add(customId);
+    return { customId, request };
+  });
 };
 
 /**
@@ -181,20 +233,7 @@ export const buildRequestBodies = async (
     );
   }
   const model = await createCaptureModel(resolved, credentials, captureFetch);
-  const seen = new Set<string>();
-
-  // Assign and validate customIds up front (sequentially, so duplicates are
-  // reported deterministically) before capturing bodies in parallel.
-  const items = requests.map((request, index) => {
-    const customId = request.customId ?? `request-${index}`;
-    if (seen.has(customId)) {
-      throw new BatchworkError(
-        `batchwork: duplicate customId "${customId}". customId values must be unique within a batch.`
-      );
-    }
-    seen.add(customId);
-    return { customId, request };
-  });
+  const items = assignCustomIds(requests);
 
   return await mapWithConcurrency(
     items,
@@ -203,6 +242,50 @@ export const buildRequestBodies = async (
       const built = await captureOne(
         model,
         mergeDefaults(item.request, defaults),
+        item.customId
+      );
+      assertByteLength(
+        `request "${item.customId}"`,
+        JSON.stringify(built.body),
+        limits.maxRequestBytes
+      );
+      return built;
+    }
+  );
+};
+
+/**
+ * Derive provider embedding request bodies for every batch item by running each
+ * through the AI SDK `embed` with a capturing `fetch`. Mirrors
+ * {@link buildRequestBodies} for the embedding endpoint; each item maps to a
+ * single embedding (`input: [value]`), correlated by `customId`.
+ */
+export const buildEmbeddingBodies = async (
+  resolved: ResolvedModel,
+  requests: readonly BatchEmbeddingRequest[],
+  credentials: ProviderCredentials,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): Promise<BuiltRequest[]> => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  const model = await createCaptureEmbeddingModel(
+    resolved,
+    credentials,
+    captureFetch
+  );
+  const items = assignCustomIds(requests);
+
+  return await mapWithConcurrency(
+    items,
+    limits.captureConcurrency,
+    async (item) => {
+      const built = await captureEmbeddingOne(
+        model,
+        item.request,
         item.customId
       );
       assertByteLength(

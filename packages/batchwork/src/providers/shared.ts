@@ -14,7 +14,7 @@ import type {
   BatchUsage,
   ProviderCredentials,
 } from "../types";
-import { asArray, asNumber, asRecord, asString } from "../util";
+import { asArray, asNumber, asNumberArray, asRecord, asString } from "../util";
 
 const HTTP_OK_MIN = 200;
 const HTTP_OK_MAX = 300;
@@ -44,6 +44,15 @@ export const textFromBody = (body: unknown): string | undefined => {
     }
   }
   return asString(obj.output_text);
+};
+
+/** Read the embedding vector from an OpenAI-shaped embeddings response body. */
+export const embeddingFromBody = (body: unknown): number[] | undefined => {
+  const data = asArray(asRecord(body).data);
+  if (data.length === 0) {
+    return;
+  }
+  return asNumberArray(asRecord(data[0]).embedding);
 };
 
 export const usageFromBody = (body: unknown): BatchUsage | undefined => {
@@ -97,6 +106,7 @@ export const normalizeOpenAIResult = (line: unknown): BatchResult => {
   if (statusCode >= HTTP_OK_MIN && statusCode < HTTP_OK_MAX) {
     return {
       customId,
+      embedding: embeddingFromBody(response.body),
       response: response.body,
       status: "succeeded",
       text: textFromBody(response.body),

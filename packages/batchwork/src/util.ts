@@ -16,6 +16,17 @@ export const asNumber = (value: unknown): number | undefined =>
 export const asArray = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
 
+/** Read a non-empty array of numbers (e.g. an embedding vector), else undefined. */
+export const asNumberArray = (value: unknown): number[] | undefined => {
+  if (!Array.isArray(value) || value.length === 0) {
+    return;
+  }
+  const numbers = value.filter(
+    (item): item is number => typeof item === "number"
+  );
+  return numbers.length === value.length ? numbers : undefined;
+};
+
 /** Return a shallow copy of `obj` without `key`. */
 export const omit = (
   obj: Record<string, unknown>,

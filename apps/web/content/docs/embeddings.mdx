@@ -1,0 +1,107 @@
+---
+title: Embeddings
+description: Batch thousands of texts into vectors with batchEmbeddings — the same job handle, one vector per request.
+---
+
+## Submit an embedding batch
+
+`batchEmbeddings()` mirrors [`batch()`](/usage): pass a text embedding model and a list of `value`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one vector, correlated by `customId`.
+
+```ts
+import { batchEmbeddings } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batchEmbeddings({
+  model: openai.textEmbeddingModel("text-embedding-3-small"),
+  requests: [
+    { customId: "a", value: "The quick brown fox." },
+    { customId: "b", value: "A lazy dog sleeps." },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.embedding?.length);
+}
+```
+
+Everything on the [job handle](/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`.
+
+You can also pass a `"provider/model"` string (e.g. `"openai/text-embedding-3-small"`), though the model object is recommended.
+
+## Supported providers
+
+Batch embeddings are available for the providers whose batch API accepts the embeddings endpoint:
+
+| Provider      | Example model            | Notes                                  |
+| ------------- | ------------------------ | -------------------------------------- |
+| OpenAI        | `text-embedding-3-small` | `/v1/embeddings` batch endpoint.       |
+| Mistral       | `mistral-embed`          | Model set on the batch job.            |
+| Google Gemini | `gemini-embedding-001`   | Async `:asyncBatchEmbedContent` batch. |
+
+<Callout type="warn">
+  Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's
+  batch API rejects the embeddings endpoint. Calling `batchEmbeddings()` with
+  any of them throws `UnsupportedProviderError` before any network request.
+</Callout>
+
+## Request shape
+
+Each request is a single text to embed plus an optional `customId`. There are no `prompt`, `messages`, or sampling fields — embeddings only need the input.
+
+| Field             | Notes                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `value`           | The text to embed. One `value` → one vector.                                                          |
+| `customId`        | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `providerOptions` | Provider-specific options (e.g. output dimensions, task type). See below.                             |
+
+`limits` and `metadata` work exactly as in [`batch()`](/requests#limits).
+
+## Output dimensions and task type
+
+Pass provider-specific knobs through `providerOptions`, keyed by provider — the same shape the AI SDK's `embed` uses:
+
+```ts
+// OpenAI — shorten the vector
+await batchEmbeddings({
+  model: openai.textEmbeddingModel("text-embedding-3-small"),
+  requests: [{ customId: "a", value: "…" }],
+  // applied per request
+});
+
+// Google — output dimensionality + retrieval task type
+await batchEmbeddings({
+  model: google.textEmbeddingModel("gemini-embedding-001"),
+  requests: [
+    {
+      customId: "a",
+      value: "…",
+      providerOptions: {
+        google: { outputDimensionality: 768, taskType: "RETRIEVAL_DOCUMENT" },
+      },
+    },
+  ],
+});
+```
+
+OpenAI reads `providerOptions.openai.dimensions`; Google reads `providerOptions.google.outputDimensionality` / `taskType`. Check the relevant `@ai-sdk/*` provider docs for the exact option names.
+
+## Results
+
+Embeddings reuse the normalized [`BatchResult`](/results). The vector lands on `result.embedding`; `text` is `undefined` for embedding batches.
+
+```ts
+for await (const result of job.results()) {
+  if (result.status === "succeeded" && result.embedding) {
+    index(result.customId, result.embedding); // store in your vector DB
+  } else if (result.status === "errored") {
+    console.error(result.customId, result.error?.message);
+  }
+}
+```
+
+`usage` is normalized to `{ inputTokens, totalTokens }` where the provider reports it, billed at the batch rate (~50% off).
+
+## How it's built
+
+Like [`batch()`](/models#how-the-body-is-built), `batchEmbeddings()` derives each provider request body by running the AI SDK's `embed()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request embeds a single `value`, so every batch line maps to exactly one vector, correlated by `customId`.

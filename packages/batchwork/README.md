@@ -41,10 +41,35 @@ for (const r of results) {
 
 Author requests in the same `generateText` shape you already use, pass the AI SDK models you already use, and get back one normalized result type correlated by `customId`.
 
+## Embeddings
+
+Batch embeddings work the same way — pass a text embedding model and `value`s, and get one vector per request back on `result.embedding`:
+
+```ts
+import { batchEmbeddings } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batchEmbeddings({
+  model: openai.textEmbeddingModel("text-embedding-3-small"),
+  requests: [
+    { customId: "a", value: "The quick brown fox." },
+    { customId: "b", value: "A lazy dog sleeps." },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.embedding?.length);
+}
+```
+
+Batch embeddings are available for **OpenAI, Mistral, and Google Gemini** — the providers whose batch API accepts embeddings. The rest throw a clear error: Anthropic, Groq, and xAI have no embedding model, and Together AI's batch API doesn't accept the embeddings endpoint.
+
 ## Features
 
 - **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
+- **Chat & embeddings** — `batch()` for completions, `batchEmbeddings()` for vectors.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.

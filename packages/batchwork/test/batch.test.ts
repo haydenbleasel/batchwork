@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
-import { batch, cancelBatch, getBatch, getBatchResults } from "../src/batch";
+import {
+  batch,
+  batchEmbeddings,
+  cancelBatch,
+  getBatch,
+  getBatchResults,
+} from "../src/batch";
 import type { BatchResult } from "../src/types";
 
 interface Route {
@@ -92,6 +98,86 @@ describe("batch (end-to-end, mocked transport)", () => {
   it("rejects an empty request list", async () => {
     await expect(
       batch({ apiKey: "test-key", model: "openai/gpt-4o-mini", requests: [] })
+    ).rejects.toThrow("must not be empty");
+  });
+});
+
+describe("batchEmbeddings (end-to-end, mocked transport)", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("submits an OpenAI embeddings batch against the embeddings endpoint", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_1",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_1",
+          output_file_id: "file-out",
+          request_counts: { completed: 1, failed: 0, total: 1 },
+          status: "completed",
+        },
+        match: (url, method) =>
+          url.includes("/batches/batch_1") && method === "GET",
+      },
+      {
+        body: '{"custom_id":"a","response":{"status_code":200,"body":{"object":"list","data":[{"embedding":[0.1,0.2],"index":0}],"usage":{"prompt_tokens":2,"total_tokens":2}}}}',
+        match: (url) => url.includes("/files/file-out/content"),
+      },
+    ]);
+
+    const job = await batchEmbeddings({
+      apiKey: "test-key",
+      model: "openai/text-embedding-3-small",
+      requests: [{ customId: "a", value: "hello world" }],
+    });
+    expect(job).toMatchObject({ id: "batch_1", provider: "openai" });
+
+    const createCall = fetchMock.mock.calls.find(
+      (call) =>
+        String(call[0]).endsWith("/batches") && call[1]?.method === "POST"
+    );
+    expect(String(createCall?.[1]?.body)).toContain(
+      '"endpoint":"/v1/embeddings"'
+    );
+
+    await job.wait({ pollIntervalMs: 1 });
+    const results = await job.collect();
+    expect(results[0]).toMatchObject({
+      customId: "a",
+      embedding: [0.1, 0.2],
+      status: "succeeded",
+    });
+  });
+
+  it("throws for a provider without an embedding model", async () => {
+    await expect(
+      batchEmbeddings({
+        apiKey: "k",
+        model: "anthropic/claude-haiku-4-5",
+        requests: [{ value: "hi" }],
+      })
+    ).rejects.toThrow("does not offer batch embeddings");
+  });
+
+  it("rejects an empty embeddings request list", async () => {
+    await expect(
+      batchEmbeddings({
+        apiKey: "k",
+        model: "openai/text-embedding-3-small",
+        requests: [],
+      })
     ).rejects.toThrow("must not be empty");
   });
 });

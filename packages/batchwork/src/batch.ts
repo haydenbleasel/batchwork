@@ -1,10 +1,15 @@
-import { buildRequestBodies } from "./body";
+import { buildEmbeddingBodies, buildRequestBodies } from "./body";
 import { BatchworkError } from "./errors";
 import { BatchJob } from "./job";
 import { resolveBatchLimits } from "./limits";
-import { resolveModel } from "./model";
+import {
+  EMBEDDING_PROVIDERS,
+  resolveModel,
+  unsupportedEmbeddingProvider,
+} from "./model";
 import { getAdapter } from "./providers";
 import type {
+  BatchEmbeddingsOptions,
   BatchOptions,
   BatchProvider,
   BatchRef,
@@ -58,6 +63,55 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
     resolved,
     options.requests,
     options.defaults,
+    credentials,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
+ * Submit a batch of embedding requests to the model's provider and return a
+ * handle. Each request's `value` produces one vector, correlated by `customId`
+ * via {@link BatchJob.results}. Supported for OpenAI, Mistral, Together, and
+ * Google; other providers throw {@link UnsupportedProviderError}.
+ *
+ * @example
+ * const job = await batchEmbeddings({
+ *   model: openai.textEmbeddingModel("text-embedding-3-small"),
+ *   requests: [{ customId: "a", value: "hello world" }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ * for (const r of results) {
+ *   console.log(r.customId, r.embedding?.length);
+ * }
+ */
+export const batchEmbeddings = async (
+  options: BatchEmbeddingsOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError("batchwork: `requests` must not be empty.");
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!EMBEDDING_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedEmbeddingProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = await buildEmbeddingBodies(
+    resolved,
+    options.requests,
     credentials,
     limits
   );

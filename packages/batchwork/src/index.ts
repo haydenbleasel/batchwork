@@ -1,4 +1,10 @@
-export { batch, cancelBatch, getBatch, getBatchResults } from "./batch";
+export {
+  batch,
+  batchEmbeddings,
+  cancelBatch,
+  getBatch,
+  getBatchResults,
+} from "./batch";
 export {
   BatchworkError,
   MissingDependencyError,
@@ -8,6 +14,8 @@ export { BatchJob, isTerminalStatus } from "./job";
 export { resolveModel } from "./model";
 export type {
   BatchDefaults,
+  BatchEmbeddingRequest,
+  BatchEmbeddingsOptions,
   BatchLimits,
   BatchOptions,
   BatchProvider,

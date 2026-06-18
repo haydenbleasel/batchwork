@@ -8,7 +8,14 @@ import type {
   BatchUsage,
   ProviderCredentials,
 } from "../types";
-import { asArray, asNumber, asRecord, asString, omit } from "../util";
+import {
+  asArray,
+  asNumber,
+  asNumberArray,
+  asRecord,
+  asString,
+  omit,
+} from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
 import { assertPrefixedProviderId } from "./ids";
 
@@ -114,6 +121,9 @@ const textFromResponse = (response: unknown): string | undefined => {
   return text.length > 0 ? text : undefined;
 };
 
+const embeddingFromResponse = (response: unknown): number[] | undefined =>
+  asNumberArray(asRecord(asRecord(response).embedding).values);
+
 const usageFromResponse = (response: unknown): BatchUsage | undefined => {
   const usage = asRecord(asRecord(response).usageMetadata);
   const inputTokens = asNumber(usage.promptTokenCount);
@@ -155,6 +165,7 @@ const normalizeResult = (item: unknown): BatchResult => {
   }
   return {
     customId,
+    embedding: embeddingFromResponse(obj.response),
     response: obj.response,
     status: "succeeded",
     text: textFromResponse(obj.response),
@@ -162,12 +173,48 @@ const normalizeResult = (item: unknown): BatchResult => {
   };
 };
 
+// Fields the single-value embedding capture emits flat, but the async batch
+// embedding API expects nested under `embedContentConfig`.
+const EMBED_CONFIG_KEYS = new Set([
+  "outputDimensionality",
+  "taskType",
+  "title",
+]);
+
+/** Reshape a captured `:embedContent` body into an async-batch `request`. */
+const toEmbedRequest = (
+  body: Record<string, unknown>
+): Record<string, unknown> => {
+  const request: Record<string, unknown> = {};
+  const config: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (EMBED_CONFIG_KEYS.has(key)) {
+      config[key] = value;
+    } else {
+      request[key] = value;
+    }
+  }
+  if (Object.keys(config).length > 0) {
+    request.embedContentConfig = config;
+  }
+  return request;
+};
+
 const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
   const limits = resolveBatchLimits(input.limits);
-  const requests = input.built.map((item) => ({
-    metadata: { key: item.customId },
-    request: omit(item.body, "stream"),
-  }));
+  // Embeddings capture targets `:embedContent`; route to the async batch
+  // embedding method and reshape each request, otherwise generate content.
+  const isEmbedding = input.endpoint.toLowerCase().includes("embedcontent");
+  const method = isEmbedding
+    ? "asyncBatchEmbedContent"
+    : "batchGenerateContent";
+  const requests = input.built.map((item) => {
+    const payload = omit(item.body, "stream");
+    return {
+      metadata: { key: item.customId },
+      request: isEmbedding ? toEmbedRequest(payload) : payload,
+    };
+  });
   const body = JSON.stringify({
     batch: {
       display_name: "batchwork",
@@ -176,7 +223,7 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
   });
   assertByteLength("batch upload payload", body, limits.maxUploadBytes);
   const raw = await requestJson(
-    `${baseUrl(input.credentials)}/models/${input.modelId}:batchGenerateContent`,
+    `${baseUrl(input.credentials)}/models/${input.modelId}:${method}`,
     {
       body,
       headers: headers(input.credentials),
