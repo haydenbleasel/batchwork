@@ -206,6 +206,18 @@ describe("createBatchPoller", () => {
         { webhookUrl: "https://127.0.0.1/internal" }
       )
     ).rejects.toThrow("private networks");
+    await expect(
+      poller.track(
+        { id: "batch_mapped_loopback", provider: "openai" },
+        { webhookUrl: "https://[::ffff:127.0.0.1]/internal" }
+      )
+    ).rejects.toThrow("private networks");
+    await expect(
+      poller.track(
+        { id: "batch_mapped_private", provider: "openai" },
+        { webhookUrl: "https://[::ffff:192.168.0.1]/internal" }
+      )
+    ).rejects.toThrow("private networks");
   });
 
   it("revalidates stored webhook URLs before delivery", async () => {

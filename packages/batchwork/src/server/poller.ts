@@ -103,6 +103,42 @@ const isPrivateIpv4 = (parts: number[]): boolean => {
   );
 };
 
+const parseIpv4MappedIpv6 = (host: string): number[] | undefined => {
+  const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
+  if (!normalized.startsWith("::ffff:")) {
+    return;
+  }
+
+  const suffix = normalized.slice("::ffff:".length);
+  const dotted = parseIpv4(suffix);
+  if (dotted) {
+    return dotted;
+  }
+
+  const [high, low, extra] = suffix.split(":");
+  if (!(high && low) || extra !== undefined) {
+    return;
+  }
+  const highBits = Number.parseInt(high, 16);
+  const lowBits = Number.parseInt(low, 16);
+  if (
+    !Number.isInteger(highBits) ||
+    !Number.isInteger(lowBits) ||
+    highBits < 0 ||
+    highBits > 65_535 ||
+    lowBits < 0 ||
+    lowBits > 65_535
+  ) {
+    return;
+  }
+  return [
+    Math.floor(highBits / 256),
+    highBits % 256,
+    Math.floor(lowBits / 256),
+    lowBits % 256,
+  ];
+};
+
 const isPrivateIpv6 = (host: string): boolean => {
   const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
   // Only an IPv6 literal can be a private address, and one always contains a
@@ -134,11 +170,13 @@ const assertSafeWebhookUrl: WebhookUrlValidator = (url) => {
 
   const host = url.hostname.toLowerCase();
   const ipv4 = parseIpv4(host);
+  const mappedIpv4 = parseIpv4MappedIpv6(host);
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
     host.endsWith(".local") ||
     (ipv4 && isPrivateIpv4(ipv4)) ||
+    (mappedIpv4 && isPrivateIpv4(mappedIpv4)) ||
     isPrivateIpv6(host)
   ) {
     throw new BatchworkError(
