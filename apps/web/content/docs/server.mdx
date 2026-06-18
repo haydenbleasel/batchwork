@@ -123,4 +123,7 @@ Signing is **Standard Webhooks**-compatible (`webhook-id` / `webhook-timestamp` 
 `verifyWebhook` and `verifyBatchWebhook` reject replayed `webhook-id` values
 inside the timestamp tolerance window. The default replay cache is in-process;
 pass a durable `replayStore` option if your receiver runs across multiple
-instances or regions.
+instances or regions. Durable stores should implement the atomic `claim`
+method so only one instance can reserve a webhook id before work continues; the
+legacy `get`/`set` methods are serialized within a single process for backward
+compatibility.

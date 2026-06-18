@@ -11,6 +11,11 @@ const SECRET_PREFIX = "whsec_";
 const encoder = new TextEncoder();
 
 export interface WebhookReplayStore {
+  claim?: (
+    id: string,
+    expiresAt: number,
+    now: number
+  ) => boolean | Promise<boolean>;
   get: (id: string) => number | Promise<number | undefined> | undefined;
   set: (id: string, expiresAt: number) => Promise<void> | void;
 }
@@ -20,18 +25,63 @@ export interface VerifyWebhookOptions {
 }
 
 const replayCache = new Map<string, number>();
+const replayLocks = new WeakMap<
+  WebhookReplayStore,
+  Map<string, Promise<void>>
+>();
+
+const pruneReplayCache = (now: number): void => {
+  for (const [id, expiresAt] of replayCache) {
+    if (expiresAt <= now) {
+      replayCache.delete(id);
+    }
+  }
+};
 
 const defaultReplayStore: WebhookReplayStore = {
+  claim: (id, expiresAt, now) => {
+    pruneReplayCache(now);
+    const existing = replayCache.get(id);
+    if (existing && existing > now) {
+      return false;
+    }
+    replayCache.set(id, expiresAt);
+    return true;
+  },
   get: (id) => replayCache.get(id),
   set: (id, expiresAt) => {
     replayCache.set(id, expiresAt);
   },
 };
 
-const pruneReplayCache = (now: number): void => {
-  for (const [id, expiresAt] of replayCache) {
-    if (expiresAt <= now) {
-      replayCache.delete(id);
+const withReplayLock = async <Result>(
+  store: WebhookReplayStore,
+  id: string,
+  task: () => Promise<Result>
+): Promise<Result> => {
+  let locks = replayLocks.get(store);
+  if (!locks) {
+    locks = new Map();
+    replayLocks.set(store, locks);
+  }
+
+  const previous = locks.get(id);
+  let release!: () => void;
+  // oxlint-disable-next-line promise/avoid-new -- a per-id lock needs a deferred release signal.
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  locks.set(id, current);
+
+  if (previous) {
+    await previous;
+  }
+  try {
+    return await task();
+  } finally {
+    release();
+    if (locks.get(id) === current) {
+      locks.delete(id);
     }
   }
 };
@@ -93,14 +143,25 @@ const rememberWebhookId = async (
   now: number,
   store: WebhookReplayStore
 ): Promise<void> => {
-  if (store === defaultReplayStore) {
-    pruneReplayCache(now);
+  const expiresAt = timestamp + TOLERANCE_SECONDS;
+  if (store.claim) {
+    const claimed = await store.claim(id, expiresAt, now);
+    if (!claimed) {
+      throw new BatchworkError("batchwork: webhook replay detected.");
+    }
+    return;
   }
-  const expiresAt = await store.get(id);
-  if (expiresAt && expiresAt > now) {
-    throw new BatchworkError("batchwork: webhook replay detected.");
-  }
-  await store.set(id, timestamp + TOLERANCE_SECONDS);
+
+  await withReplayLock(store, id, async () => {
+    if (store === defaultReplayStore) {
+      pruneReplayCache(now);
+    }
+    const existing = await store.get(id);
+    if (existing && existing > now) {
+      throw new BatchworkError("batchwork: webhook replay detected.");
+    }
+    await store.set(id, expiresAt);
+  });
 };
 
 /** Build Standard Webhooks signature headers for an outbound delivery. */

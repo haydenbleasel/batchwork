@@ -683,4 +683,99 @@ describe("verifyWebhook edge cases", () => {
       "webhook replay detected"
     );
   });
+
+  it("rejects concurrent replays with an async get/set replay store", async () => {
+    const body = "{}";
+    const headers = await signWebhook(
+      SECRET,
+      "batch_race",
+      body,
+      Date.now() / 1000
+    );
+    const entries = new Map<string, number>();
+    let releaseFirstGet!: () => void;
+    let markFirstGetStarted!: () => void;
+    // oxlint-disable-next-line promise/avoid-new -- coordinates the replay race deterministically.
+    const firstGetStarted = new Promise<void>((resolve) => {
+      markFirstGetStarted = resolve;
+    });
+    // oxlint-disable-next-line promise/avoid-new -- holds the first store read open while the second verifier starts.
+    const firstGetCanReturn = new Promise<void>((resolve) => {
+      releaseFirstGet = resolve;
+    });
+    let getCalls = 0;
+    const replayStore = {
+      get: async (id: string) => {
+        const existing = entries.get(id);
+        getCalls += 1;
+        if (getCalls === 1) {
+          markFirstGetStarted();
+          await firstGetCanReturn;
+        }
+        return existing;
+      },
+      set: (id: string, expiresAt: number) => {
+        entries.set(id, expiresAt);
+      },
+    };
+
+    const first = verifyWebhook(
+      new Request(WEBHOOK_URL, { body, headers, method: "POST" }),
+      SECRET,
+      { replayStore }
+    );
+    const second = verifyWebhook(
+      new Request(WEBHOOK_URL, { body, headers, method: "POST" }),
+      SECRET,
+      { replayStore }
+    );
+    await firstGetStarted;
+    await Promise.resolve();
+    releaseFirstGet();
+
+    const results = await Promise.allSettled([first, second]);
+    expect(
+      results.filter((result) => result.status === "fulfilled")
+    ).toHaveLength(1);
+    expect(
+      results.filter(
+        (result) =>
+          result.status === "rejected" &&
+          result.reason instanceof Error &&
+          result.reason.message.includes("webhook replay detected")
+      )
+    ).toHaveLength(1);
+  });
+
+  it("uses an atomic replay-store claim when available", async () => {
+    const body = "{}";
+    const headers = await signWebhook(
+      SECRET,
+      "batch_claim",
+      body,
+      Date.now() / 1000
+    );
+    const claimedIds: string[] = [];
+    const replayStore = {
+      claim: (id: string) => {
+        claimedIds.push(id);
+        return false;
+      },
+      get: () => {
+        throw new Error("claim should replace get");
+      },
+      set: () => {
+        throw new Error("claim should replace set");
+      },
+    };
+
+    await expect(
+      verifyWebhook(
+        new Request(WEBHOOK_URL, { body, headers, method: "POST" }),
+        SECRET,
+        { replayStore }
+      )
+    ).rejects.toThrow("webhook replay detected");
+    expect(claimedIds).toEqual(["batch_claim"]);
+  });
 });
