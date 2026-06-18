@@ -41,12 +41,18 @@ export const omit = (
   return result;
 };
 
+// An empty or malformed timestamp yields an `Invalid Date`, which later throws
+// `RangeError` from `.toISOString()` (e.g. when serializing a webhook event).
+// Normalize those to `undefined` so a bad provider value is simply omitted.
+const validDate = (date: Date): Date | undefined =>
+  Number.isNaN(date.getTime()) ? undefined : date;
+
 /** Coerce a provider timestamp (ISO string or unix seconds) to a `Date`. */
 export const toDate = (value: unknown): Date | undefined => {
   if (typeof value === "string") {
-    return new Date(value);
+    return validDate(new Date(value));
   }
   if (typeof value === "number") {
-    return new Date(value * 1000);
+    return validDate(new Date(value * 1000));
   }
 };
