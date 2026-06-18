@@ -105,6 +105,11 @@ const isPrivateIpv4 = (parts: number[]): boolean => {
 
 const isPrivateIpv6 = (host: string): boolean => {
   const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
+  // Only an IPv6 literal can be a private address, and one always contains a
+  // colon — guard so a bare DNS name like `fc2.com` is not mistaken for `fc00::/7`.
+  if (!normalized.includes(":")) {
+    return false;
+  }
   return (
     normalized === "::" ||
     normalized === "::1" ||
