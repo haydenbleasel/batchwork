@@ -146,6 +146,7 @@ export const uploadInputFile = async (
     body: form,
     headers,
     method: "POST",
+    redirect: "manual",
   });
   return raw.id;
 };

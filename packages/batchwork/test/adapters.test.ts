@@ -242,6 +242,64 @@ describe("openai adapter", () => {
     expect(fetchMock.mock.calls).toHaveLength(0);
   });
 
+  it("rejects direct file upload redirects without following them", async () => {
+    const redirectedUrl = "https://127.0.0.1/internal-upload";
+    const requestedUrls: string[] = [];
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        requestedUrls.push(url);
+        if (url.endsWith("/files")) {
+          if (init?.redirect === "manual") {
+            return Promise.resolve(
+              new Response("redirect", {
+                headers: { location: redirectedUrl },
+                status: 307,
+              })
+            );
+          }
+          requestedUrls.push(redirectedUrl);
+          return Promise.resolve(Response.json({ id: "file-in" }));
+        }
+        if (url.endsWith("/batches")) {
+          return Promise.resolve(Response.json({ id: "batch_1" }));
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(
+      openaiAdapter.submit({
+        built: [
+          {
+            body: { messages: [], model: "gpt-4o-mini" },
+            customId: "a",
+            endpoint: "/v1/chat/completions",
+          },
+        ],
+        credentials,
+        endpoint: "/v1/chat/completions",
+        modelId: "gpt-4o-mini",
+      })
+    ).rejects.toThrow("POST https://api.openai.com/v1/files failed with 307");
+
+    const upload = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith("/files")
+    );
+    if (!upload) {
+      throw new Error("expected file upload request");
+    }
+    expect((upload[1] as RequestInit).redirect).toBe("manual");
+    expect(requestedUrls).not.toContain(redirectedUrl);
+    expect(
+      fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/batches"))
+    ).toBe(false);
+  });
+
   it("streams output and error files into normalized results", async () => {
     const output =
       '{"custom_id":"a","response":{"status_code":200,"body":{"choices":[{"message":{"content":"Hi"}}],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}},"error":null}';
