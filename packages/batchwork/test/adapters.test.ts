@@ -559,6 +559,65 @@ describe("together adapter", () => {
     );
   });
 
+  it("rejects presigned PUT redirects without following them", async () => {
+    const storageUrl = "https://storage.example/presigned-put";
+    const redirectedUrl = "https://127.0.0.1/internal-upload";
+    const requestedUrls: string[] = [];
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        requestedUrls.push(url);
+        if (url.endsWith("/files") && init?.method === "POST") {
+          return Promise.resolve(
+            new Response("", {
+              headers: {
+                Location: storageUrl,
+                "X-Together-File-Id": "file-in",
+              },
+              status: 302,
+            })
+          );
+        }
+        if (url === storageUrl && init?.method === "PUT") {
+          if (init.redirect === "manual") {
+            return Promise.resolve(
+              new Response("redirect", {
+                headers: { location: redirectedUrl },
+                status: 307,
+              })
+            );
+          }
+          requestedUrls.push(redirectedUrl);
+          return Promise.resolve(new Response("", { status: 200 }));
+        }
+        if (url.endsWith("/files/file-in/preprocess")) {
+          return Promise.resolve(Response.json({ id: "file-in" }));
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(submitOneLine()).rejects.toThrow(
+      "Together file upload failed (307)."
+    );
+
+    const upload = fetchMock.mock.calls.find((call) => call[0] === storageUrl);
+    if (!upload) {
+      throw new Error("expected presigned PUT request");
+    }
+    expect((upload[1] as RequestInit).redirect).toBe("manual");
+    expect(requestedUrls).not.toContain(redirectedUrl);
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).endsWith("/files/file-in/preprocess")
+      )
+    ).toBe(false);
+  });
+
   it("does not read failed init response bodies", async () => {
     let read = false;
     const unreadable = new Response("", { status: 500 });

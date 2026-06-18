@@ -125,6 +125,7 @@ const uploadTogetherFile = async (args: {
   const upload = await fetch(uploadLocation, {
     body: args.jsonl,
     method: "PUT",
+    redirect: "manual",
   });
   if (!upload.ok) {
     throw new BatchworkError(
