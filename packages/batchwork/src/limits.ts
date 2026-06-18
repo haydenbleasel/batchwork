@@ -50,17 +50,24 @@ export const resolveBatchLimits = (
 export const byteLength = (value: string): number =>
   encoder.encode(value).length;
 
-export const assertByteLength = (
+export const assertByteCount = (
   label: string,
-  value: string,
+  bytes: number,
   maxBytes: number
 ): void => {
-  const bytes = byteLength(value);
   if (bytes > maxBytes) {
     throw new BatchworkError(
       `batchwork: ${label} is ${bytes} bytes, exceeding the ${maxBytes} byte limit.`
     );
   }
+};
+
+export const assertByteLength = (
+  label: string,
+  value: string,
+  maxBytes: number
+): void => {
+  assertByteCount(label, byteLength(value), maxBytes);
 };
 
 export const mapWithConcurrency = async <Input, Output>(

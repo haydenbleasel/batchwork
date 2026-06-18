@@ -1,5 +1,5 @@
 import { BatchworkError } from "./errors";
-import { byteLength } from "./limits";
+import { assertByteCount, byteLength } from "./limits";
 
 const NEWLINE = "\n";
 const DEFAULT_MAX_JSONL_LINE_BYTES = 20 * 1024 * 1024;
@@ -7,6 +7,13 @@ const DEFAULT_MAX_JSONL_LINE_BYTES = 20 * 1024 * 1024;
 export interface JsonlParseOptions {
   maxLineBytes?: number;
 }
+
+export interface JsonlEncodeOptions {
+  label?: string;
+  maxBytes?: number;
+}
+
+const NEWLINE_BYTES = byteLength(NEWLINE);
 
 const resolveMaxLineBytes = (options?: JsonlParseOptions): number => {
   const maxLineBytes = options?.maxLineBytes ?? DEFAULT_MAX_JSONL_LINE_BYTES;
@@ -51,12 +58,41 @@ const parseLine = <T>(
   }
 };
 
-export const encodeJsonl = (items: readonly unknown[]): string => {
+const resolveMaxBytes = (options?: JsonlEncodeOptions): number | undefined => {
+  const maxBytes = options?.maxBytes;
+  if (maxBytes !== undefined && !(Number.isInteger(maxBytes) && maxBytes > 0)) {
+    throw new BatchworkError(
+      "batchwork: JSONL maxBytes must be a positive integer."
+    );
+  }
+  return maxBytes;
+};
+
+export const encodeJsonl = (
+  items: readonly unknown[],
+  options?: JsonlEncodeOptions
+): string => {
   if (items.length === 0) {
     return "";
   }
-  const body = items.map((item) => JSON.stringify(item)).join(NEWLINE);
-  return `${body}${NEWLINE}`;
+  const lines: string[] = [];
+  const maxBytes = resolveMaxBytes(options);
+  const label = options?.label ?? "JSONL";
+  let bytes = 0;
+  for (const item of items) {
+    const line = JSON.stringify(item);
+    if (line === undefined) {
+      throw new BatchworkError(
+        `batchwork: ${label} contains a value that cannot be JSON encoded.`
+      );
+    }
+    bytes += byteLength(line) + NEWLINE_BYTES;
+    if (maxBytes !== undefined) {
+      assertByteCount(label, bytes, maxBytes);
+    }
+    lines.push(line);
+  }
+  return `${lines.join(NEWLINE)}${NEWLINE}`;
 };
 
 export const parseJsonl = <T = unknown>(

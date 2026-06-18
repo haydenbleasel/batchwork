@@ -47,6 +47,15 @@ describe("encodeJsonl / parseJsonl", () => {
     expect(encodeJsonl([])).toBe("");
   });
 
+  it("rejects encoded JSONL above the byte limit", () => {
+    expect(() =>
+      encodeJsonl([{ body: { prompt: "too large" }, custom_id: "a" }], {
+        label: "batch upload JSONL",
+        maxBytes: 8,
+      })
+    ).toThrow("batch upload JSONL");
+  });
+
   it("skips blank lines when parsing", () => {
     expect(parseJsonl('{"a":1}\n\n{"b":2}\n')).toStrictEqual([
       { a: 1 },

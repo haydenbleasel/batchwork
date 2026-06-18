@@ -1,7 +1,7 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
-import { assertByteLength, resolveBatchLimits } from "../limits";
+import { resolveBatchLimits } from "../limits";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -81,9 +81,9 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
     input.built.map((item) => ({
       body: omit(omit(item.body, "stream"), "model"),
       custom_id: item.customId,
-    }))
+    })),
+    { label: "batch upload JSONL", maxBytes: limits.maxUploadBytes }
   );
-  assertByteLength("batch upload JSONL", jsonl, limits.maxUploadBytes);
   const inputFileId = await uploadInputFile(
     jsonl,
     baseUrl(input.credentials),

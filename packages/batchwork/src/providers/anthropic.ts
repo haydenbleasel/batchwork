@@ -1,7 +1,8 @@
 import { BatchworkError } from "../errors";
 import { requestJson, requestStream } from "../http";
 import { streamJsonl } from "../jsonl";
-import { assertByteLength, resolveBatchLimits } from "../limits";
+import { resolveBatchLimits } from "../limits";
+import { encodeJsonArrayPayload } from "../payload";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -165,8 +166,13 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
     custom_id: item.customId,
     params: omit(item.body, "stream"),
   }));
-  const body = JSON.stringify({ requests });
-  assertByteLength("batch upload payload", body, limits.maxUploadBytes);
+  const body = encodeJsonArrayPayload({
+    items: requests,
+    label: "batch upload payload",
+    maxBytes: limits.maxUploadBytes,
+    prefix: '{"requests":[',
+    suffix: "]}",
+  });
   const raw = await requestJson(
     `${baseUrl(input.credentials)}/v1/messages/batches`,
     {

@@ -1,6 +1,7 @@
 import { BatchworkError } from "../errors";
 import { requestJson } from "../http";
-import { assertByteLength, resolveBatchLimits } from "../limits";
+import { resolveBatchLimits } from "../limits";
+import { encodeJsonArrayPayload } from "../payload";
 import type {
   BatchResult,
   BatchSnapshot,
@@ -215,13 +216,14 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
       request: isEmbedding ? toEmbedRequest(payload) : payload,
     };
   });
-  const body = JSON.stringify({
-    batch: {
-      display_name: "batchwork",
-      input_config: { requests: { requests } },
-    },
+  const body = encodeJsonArrayPayload({
+    items: requests,
+    label: "batch upload payload",
+    maxBytes: limits.maxUploadBytes,
+    prefix:
+      '{"batch":{"display_name":"batchwork","input_config":{"requests":{"requests":[',
+    suffix: "]}}}}",
   });
-  assertByteLength("batch upload payload", body, limits.maxUploadBytes);
   const raw = await requestJson(
     `${baseUrl(input.credentials)}/models/${input.modelId}:${method}`,
     {

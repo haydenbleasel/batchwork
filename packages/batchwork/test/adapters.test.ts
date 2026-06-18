@@ -127,6 +127,31 @@ describe("anthropic adapter", () => {
     expect(sentBody.requests[0].custom_id).toBe("a");
   });
 
+  it("rejects inline payloads above the byte limit before fetch", async () => {
+    const fetchMock = install([]);
+
+    await expect(
+      anthropicAdapter.submit({
+        built: [
+          {
+            body: {
+              max_tokens: 10,
+              messages: [{ content: "too large", role: "user" }],
+              model: "claude",
+            },
+            customId: "a",
+            endpoint: "/v1/messages",
+          },
+        ],
+        credentials,
+        endpoint: "/v1/messages",
+        limits: { maxUploadBytes: 64 },
+        modelId: "claude",
+      })
+    ).rejects.toThrow("batch upload payload");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
+
   it("normalizes every result outcome", async () => {
     const jsonl = [
       '{"custom_id":"a","result":{"type":"succeeded","message":{"content":[{"type":"text","text":"Hello"}],"usage":{"input_tokens":5,"output_tokens":2}}}}',
@@ -719,6 +744,30 @@ describe("mistral adapter", () => {
     expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
     expect(out[1]?.error?.message).toBe("bad request");
   });
+
+  it("rejects JSONL uploads above the byte limit before fetch", async () => {
+    const fetchMock = install([]);
+
+    await expect(
+      mistralAdapter.submit({
+        built: [
+          {
+            body: {
+              messages: [{ content: "too large", role: "user" }],
+              model: "mistral-small",
+            },
+            customId: "a",
+            endpoint: "/v1/chat/completions",
+          },
+        ],
+        credentials,
+        endpoint: "/v1/chat/completions",
+        limits: { maxUploadBytes: 8 },
+        modelId: "mistral-small-latest",
+      })
+    ).rejects.toThrow("batch upload JSONL");
+    expect(fetchMock.mock.calls).toHaveLength(0);
+  });
 });
 
 describe("google adapter", () => {
@@ -756,6 +805,27 @@ describe("google adapter", () => {
     const { requests } = sentBody.batch.input_config.requests;
     expect(requests[0].metadata.key).toBe("a");
     expect(requests[0].request.contents[0].parts[0].text).toBe("Hi");
+  });
+
+  it("rejects inline payloads above the byte limit before fetch", async () => {
+    const fetchMock = install([]);
+
+    await expect(
+      googleAdapter.submit({
+        built: [
+          {
+            body: { contents: [{ parts: [{ text: "too large" }] }] },
+            customId: "a",
+            endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+          },
+        ],
+        credentials,
+        endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+        limits: { maxUploadBytes: 96 },
+        modelId: "gemini-2.5-flash",
+      })
+    ).rejects.toThrow("batch upload payload");
+    expect(fetchMock.mock.calls).toHaveLength(0);
   });
 
   it("parses inline responses keyed back by metadata.key", async () => {
@@ -902,5 +972,29 @@ describe("xai adapter", () => {
     });
     expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
     expect(out[1]?.error?.message).toBe("rate limited");
+  });
+
+  it("rejects JSONL uploads above the byte limit before fetch", async () => {
+    const fetchMock = install([]);
+
+    await expect(
+      xaiAdapter.submit({
+        built: [
+          {
+            body: {
+              messages: [{ content: "too large", role: "user" }],
+              model: "grok-4",
+            },
+            customId: "a",
+            endpoint: "/v1/chat/completions",
+          },
+        ],
+        credentials,
+        endpoint: "/v1/chat/completions",
+        limits: { maxUploadBytes: 8 },
+        modelId: "grok-4",
+      })
+    ).rejects.toThrow("batch upload JSONL");
+    expect(fetchMock.mock.calls).toHaveLength(0);
   });
 });
