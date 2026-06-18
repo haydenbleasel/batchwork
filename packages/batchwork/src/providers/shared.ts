@@ -163,6 +163,7 @@ export async function* streamResultFile(
 ): AsyncGenerator<BatchResult> {
   const stream = await requestStream(`${baseUrl}/files/${fileId}/content`, {
     headers,
+    redirect: "manual",
   });
   for await (const line of streamJsonl(stream)) {
     yield normalizeOpenAIResult(line);

@@ -206,6 +206,7 @@ async function* results(
     validateResultsUrl(resultsUrl, credentials),
     {
       headers: headers(credentials),
+      redirect: "manual",
     }
   );
   for await (const line of streamJsonl(stream)) {

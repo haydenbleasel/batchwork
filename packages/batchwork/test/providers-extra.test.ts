@@ -246,6 +246,61 @@ describe("openai-compatible branches", () => {
     expect(fetchMock.mock.calls).toHaveLength(1);
   });
 
+  it("rejects OpenAI-compatible result file redirects without following them", async () => {
+    const redirectedUrl = "https://127.0.0.1/internal-jsonl";
+    const requestedUrls: string[] = [];
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        requestedUrls.push(url);
+        if (url.endsWith("/batches/batch_1")) {
+          return Promise.resolve(
+            Response.json({
+              id: "batch_1",
+              output_file_id: "file-out",
+              request_counts: { completed: 1, failed: 0, total: 1 },
+              status: "completed",
+            })
+          );
+        }
+        if (url.endsWith("/files/file-out/content")) {
+          if (init?.redirect === "manual") {
+            return Promise.resolve(
+              new Response("redirect", {
+                headers: { location: redirectedUrl },
+                status: 307,
+              })
+            );
+          }
+          requestedUrls.push(redirectedUrl);
+          return Promise.resolve(
+            new Response(
+              '{"custom_id":"a","response":{"status_code":200,"body":{}}}\n'
+            )
+          );
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(
+      collect(openaiAdapter.results("batch_1", credentials))
+    ).rejects.toThrow("failed with 307");
+
+    const resultDownload = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith("/files/file-out/content")
+    );
+    if (!resultDownload) {
+      throw new Error("expected result download request");
+    }
+    expect((resultDownload[1] as RequestInit).redirect).toBe("manual");
+    expect(requestedUrls).not.toContain(redirectedUrl);
+  });
+
   it("cancels a batch", async () => {
     const fetchMock = install([
       {
@@ -507,6 +562,61 @@ describe("anthropic branches", () => {
         String(call[0]).includes("attacker.example")
       )
     ).toBe(false);
+  });
+
+  it("rejects Anthropic result redirects without following them", async () => {
+    const redirectedUrl = "https://127.0.0.1/internal-jsonl";
+    const requestedUrls: string[] = [];
+    const fetchMock = mock(
+      (
+        input: string | URL | Request,
+        init?: RequestInit
+      ): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        requestedUrls.push(url);
+        if (url.endsWith("/v1/messages/batches/b1")) {
+          return Promise.resolve(
+            Response.json({
+              id: "b1",
+              processing_status: "ended",
+              results_url:
+                "https://api.anthropic.com/v1/messages/batches/b1/results",
+            })
+          );
+        }
+        if (url.endsWith("/v1/messages/batches/b1/results")) {
+          if (init?.redirect === "manual") {
+            return Promise.resolve(
+              new Response("redirect", {
+                headers: { location: redirectedUrl },
+                status: 307,
+              })
+            );
+          }
+          requestedUrls.push(redirectedUrl);
+          return Promise.resolve(
+            new Response(
+              '{"custom_id":"a","result":{"type":"succeeded","message":{}}}\n'
+            )
+          );
+        }
+        return Promise.reject(new Error(`unexpected ${url}`));
+      }
+    );
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+
+    await expect(
+      collect(anthropicAdapter.results("b1", credentials))
+    ).rejects.toThrow("failed with 307");
+
+    const resultDownload = fetchMock.mock.calls.find((call) =>
+      String(call[0]).endsWith("/v1/messages/batches/b1/results")
+    );
+    if (!resultDownload) {
+      throw new Error("expected result download request");
+    }
+    expect((resultDownload[1] as RequestInit).redirect).toBe("manual");
+    expect(requestedUrls).not.toContain(redirectedUrl);
   });
 
   it("throws when results are not ready", async () => {
