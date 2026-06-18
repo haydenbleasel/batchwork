@@ -1,5 +1,25 @@
 # batchwork
 
+## 1.1.0
+
+### Minor Changes
+
+- b92aa39: Add `batchEmbeddings()` for batch embedding requests. It returns the same `BatchJob` handle as `batch()`, with one vector per request correlated by `customId`, and exposes the vector on a new `BatchResult.embedding` field. Supported on OpenAI, Mistral, and Google Gemini (Anthropic, Groq, and xAI have no embedding model, and Together's batch API doesn't accept the embeddings endpoint).
+
+### Patch Changes
+
+- 6dd605a: Enforce captured provider request byte limits before parsing the captured body so oversized requests are rejected before JSON allocation.
+- ec523e0: Fix `BatchJob.wait()` leaking `abort` event listeners on the provided `AbortSignal`. The internal delay attached a listener each poll but only removed it on abort, so a long-running wait accumulated one dangling listener per poll interval. The listener is now detached when the delay resolves normally.
+- af7a1a0: Reject redirects during direct provider file uploads so multipart JSONL request bodies cannot be replayed to redirected destinations.
+- 29d0d71: Fix webhook and Together upload URL validation rejecting legitimate hostnames that begin with `fc`/`fd` (e.g. `fc2.com`). The private-IPv6 guard now only applies to actual IPv6 literals (those containing a colon), so bare DNS names are no longer mistaken for `fc00::/7` addresses.
+- 7d44c0a: Reject redirects while downloading provider result files so result URL and file-id validation cannot be bypassed by a redirected response.
+- 9d610fe: Fix `toDate` returning an `Invalid Date` for empty or malformed provider timestamps. Such a value previously survived into a snapshot and threw `RangeError: Invalid time value` when the date was serialized (e.g. building a webhook event); the field is now coerced to `undefined` instead.
+- 397c95d: Reject redirects during Together presigned PUT uploads so JSONL batch bodies cannot be replayed after the initial upload URL validation.
+- 7e702cd: Check aggregate upload byte limits while encoding provider payloads so oversized JSONL and inline batch submissions are rejected before full payload materialization.
+- 1c12f63: Block IPv4-mapped IPv6 literals in the default webhook URL validator so mapped loopback and private-network destinations cannot bypass the private IPv4 checks.
+- 4054ff0: Harden webhook replay tracking by supporting atomic replay-store claims and serializing legacy async replay stores per webhook id to prevent concurrent signed replays.
+- ac706ba: Fix the xAI batch snapshot reporting `completedAt` from the batch's `cancel_time`. A normally-completed batch now reads its completion timestamp from `finish_time`, and `completedAt` is left unset for batches that were never cancelled but had no finish time (rather than surfacing a misleading cancellation time).
+
 ## 1.0.1
 
 ### Patch Changes
