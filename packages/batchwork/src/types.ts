@@ -1,5 +1,6 @@
 import type {
   EmbeddingModel,
+  ImageModel,
   JSONValue,
   LanguageModel,
   ModelMessage,
@@ -71,6 +72,47 @@ export interface BatchEmbeddingRequest {
   value: string;
 }
 
+/**
+ * A generated image. Returned inline as base64 (`data` + `mediaType`) by most
+ * providers, or as a hosted `url` by some (e.g. xAI batch, whose signed URLs
+ * expire ~1h after completion — download promptly).
+ */
+export interface BatchImage {
+  /** Base64-encoded image data (no `data:` prefix), when returned inline. */
+  data?: string;
+  /** MIME type, e.g. `"image/png"`, when known. */
+  mediaType?: string;
+  /** Hosted image URL, when returned instead of inline data. */
+  url?: string;
+}
+
+/**
+ * A single image-generation request within a batch. One `prompt` produces one
+ * or more images, correlated to its result by `customId`. Generation only;
+ * image editing (input images / masks) is not supported by batch APIs.
+ */
+export interface BatchImageRequest {
+  /** Aspect ratio, `"{width}:{height}"` (e.g. Gemini image models). */
+  aspectRatio?: `${number}:${number}`;
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /** Number of images to generate. Defaults to 1. */
+  n?: number;
+  /** The text prompt describing the image to generate. */
+  prompt: string;
+  /** Forwarded to the provider image call (e.g. `{ openai: { quality } }`). */
+  providerOptions?: ProviderOptions;
+  /** Seed for deterministic generation, where the provider supports it. */
+  seed?: number;
+  /** Image size, `"{width}x{height}"` (e.g. OpenAI image models). */
+  size?: `${number}x${number}`;
+}
+
+/** Defaults merged into every image request; request-level values take precedence. */
+export type BatchImageDefaults = Partial<
+  Omit<BatchImageRequest, "customId" | "prompt">
+>;
+
 /** Normalized batch lifecycle status, unified across providers. */
 export type BatchStatus =
   | "validating"
@@ -118,6 +160,8 @@ export interface BatchResult {
   embedding?: number[];
   /** Normalized error, present when `status` is `"errored"`. */
   error?: BatchResultError;
+  /** Generated images, when the request produced images. */
+  images?: BatchImage[];
   /** Raw provider response body (OpenAI `response.body` / Anthropic message). */
   response?: unknown;
   status: BatchResultStatus;
@@ -169,6 +213,15 @@ export interface BatchEmbeddingsOptions extends ProviderCredentials {
   metadata?: Record<string, string>;
   model: EmbeddingModel;
   requests: BatchEmbeddingRequest[];
+}
+
+/** Input to `batchImages()`. */
+export interface BatchImageOptions extends ProviderCredentials {
+  defaults?: BatchImageDefaults;
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  model: ImageModel;
+  requests: BatchImageRequest[];
 }
 
 /**

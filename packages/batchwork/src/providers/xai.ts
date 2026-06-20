@@ -2,12 +2,13 @@ import { requestJson } from "../http";
 import { encodeJsonl } from "../jsonl";
 import { resolveBatchLimits } from "../limits";
 import type {
+  BatchImage,
   BatchResult,
   BatchSnapshot,
   BatchStatus,
   ProviderCredentials,
 } from "../types";
-import { asNumber, asRecord, asString, omit, toDate } from "../util";
+import { asArray, asNumber, asRecord, asString, omit, toDate } from "../util";
 import type { BatchAdapter, SubmitInput } from "./adapter";
 import { assertSimpleProviderId } from "./ids";
 import {
@@ -77,6 +78,33 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   };
 };
 
+/**
+ * Read images from an xAI batch image result. The `image_response` op carries
+ * either an OpenAI-like `data: [{ base64|b64_json, url }]` array or a single
+ * `{ base64, url }`; xAI batch hands back signed `url`s (expiring ~1h) and/or
+ * inline `base64`. Returns undefined for chat results, which carry neither.
+ */
+const imagesFromXaiCompletion = (
+  completion: unknown
+): BatchImage[] | undefined => {
+  const obj = asRecord(completion);
+  const entries = asArray(obj.data);
+  const sources = entries.length > 0 ? entries : [obj];
+  const images: BatchImage[] = [];
+  for (const source of sources) {
+    const record = asRecord(source);
+    const data = asString(record.base64) ?? asString(record.b64_json);
+    const url = asString(record.url);
+    if (data || url) {
+      images.push({
+        ...(data ? { data } : {}),
+        ...(url ? { url } : {}),
+      });
+    }
+  }
+  return images.length > 0 ? images : undefined;
+};
+
 const normalizeResult = (item: unknown): BatchResult => {
   const obj = asRecord(item);
   const customId = asString(obj.batch_request_id) ?? "";
@@ -103,6 +131,7 @@ const normalizeResult = (item: unknown): BatchResult => {
   const completion = response.chat_get_completion ?? Object.values(response)[0];
   return {
     customId,
+    images: imagesFromXaiCompletion(completion),
     response: completion,
     status: "succeeded",
     text: textFromBody(completion),

@@ -1,6 +1,7 @@
 export {
   batch,
   batchEmbeddings,
+  batchImages,
   cancelBatch,
   getBatch,
   getBatchResults,
@@ -16,6 +17,10 @@ export type {
   BatchDefaults,
   BatchEmbeddingRequest,
   BatchEmbeddingsOptions,
+  BatchImage,
+  BatchImageDefaults,
+  BatchImageOptions,
+  BatchImageRequest,
   BatchLimits,
   BatchOptions,
   BatchProvider,

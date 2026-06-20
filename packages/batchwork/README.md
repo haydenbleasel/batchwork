@@ -65,11 +65,39 @@ for (const r of results) {
 
 Batch embeddings are available for **OpenAI, Mistral, and Google Gemini** — the providers whose batch API accepts embeddings. The rest throw a clear error: Anthropic, Groq, and xAI have no embedding model, and Together AI's batch API doesn't accept the embeddings endpoint.
 
+## Images
+
+Generate images in bulk — pass an image model and `prompt`s, and get base64 images back on `result.images`:
+
+```ts
+import { batchImages } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batchImages({
+  model: openai.imageModel("gpt-image-1"),
+  requests: [
+    { customId: "a", prompt: "A red bicycle against a brick wall." },
+    { customId: "b", prompt: "A watercolor painting of a sleeping cat." },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  for (const image of r.images ?? []) {
+    // Inline base64 (`image.data` + `image.mediaType`), or a hosted
+    // `image.url` for providers that return one (e.g. xAI batch).
+    console.log(r.customId, image.mediaType ?? image.url);
+  }
+}
+```
+
+Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-1`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing, video, and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+
 ## Features
 
 - **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
-- **Chat & embeddings** — `batch()` for completions, `batchEmbeddings()` for vectors.
+- **Chat, embeddings & images** — `batch()` for completions, `batchEmbeddings()` for vectors, `batchImages()` for image generation.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.

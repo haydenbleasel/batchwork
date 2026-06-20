@@ -1,15 +1,22 @@
-import { buildEmbeddingBodies, buildRequestBodies } from "./body";
+import {
+  buildEmbeddingBodies,
+  buildImageBodies,
+  buildRequestBodies,
+} from "./body";
 import { BatchworkError } from "./errors";
 import { BatchJob } from "./job";
 import { resolveBatchLimits } from "./limits";
 import {
   EMBEDDING_PROVIDERS,
+  IMAGE_PROVIDERS,
   resolveModel,
   unsupportedEmbeddingProvider,
+  unsupportedImageProvider,
 } from "./model";
 import { getAdapter } from "./providers";
 import type {
   BatchEmbeddingsOptions,
+  BatchImageOptions,
   BatchOptions,
   BatchProvider,
   BatchRef,
@@ -112,6 +119,56 @@ export const batchEmbeddings = async (
   const built = await buildEmbeddingBodies(
     resolved,
     options.requests,
+    credentials,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
+ * Submit a batch of image-generation requests to the model's provider and
+ * return a handle. Each request's `prompt` produces one or more images,
+ * correlated by `customId` via {@link BatchJob.results}. Supported for OpenAI
+ * and Google; other providers throw {@link UnsupportedProviderError}.
+ *
+ * @example
+ * const job = await batchImages({
+ *   model: openai.imageModel("gpt-image-1"),
+ *   requests: [{ customId: "a", prompt: "a red bicycle" }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ * for (const r of results) {
+ *   console.log(r.customId, r.images?.length);
+ * }
+ */
+export const batchImages = async (
+  options: BatchImageOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError("batchwork: `requests` must not be empty.");
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!IMAGE_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedImageProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = await buildImageBodies(
+    resolved,
+    options.requests,
+    options.defaults,
     credentials,
     limits
   );

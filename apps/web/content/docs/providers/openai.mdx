@@ -5,15 +5,15 @@ description: Run batches on OpenAI's Batch API — JSONL upload, file-based resu
 
 OpenAI's Batch API is the reference "shape" Batchwork is built around: requests are serialized to a JSONL file, uploaded via the Files API, and referenced by a batch you poll until it finishes — then the output and error files are downloaded and parsed. Batchwork does all of that for you.
 
-| Property      | Value                                                      |
-| ------------- | ---------------------------------------------------------- |
-| **Shape**     | JSONL file upload → create batch                           |
-| **Endpoints** | `/v1/chat/completions`, `/v1/responses`, `/v1/completions` |
-| **Results**   | Output + error files (JSONL)                               |
-| **Webhooks**  | Native (`batch.completed`, `batch.failed`, …)              |
-| **Env var**   | `OPENAI_API_KEY`                                           |
-| **Package**   | `@ai-sdk/openai`                                           |
-| **Base URL**  | `https://api.openai.com/v1`                                |
+| Property      | Value                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| **Shape**     | JSONL file upload → create batch                                                                       |
+| **Endpoints** | `/v1/chat/completions`, `/v1/responses`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations` |
+| **Results**   | Output + error files (JSONL)                                                                           |
+| **Webhooks**  | Native (`batch.completed`, `batch.failed`, …)                                                          |
+| **Env var**   | `OPENAI_API_KEY`                                                                                       |
+| **Package**   | `@ai-sdk/openai`                                                                                       |
+| **Base URL**  | `https://api.openai.com/v1`                                                                            |
 
 ## Example
 
@@ -45,13 +45,33 @@ OpenAI-compatible API paths.
 
 OpenAI exposes several endpoints, and Batchwork mirrors whichever your model implies:
 
-| Model                                   | Batch endpoint         |
-| --------------------------------------- | ---------------------- |
-| `openai.chat("…")`                      | `/v1/chat/completions` |
-| `openai("…")` / `openai.responses("…")` | `/v1/responses`        |
-| `openai.completion("…")`                | `/v1/completions`      |
+| Model                                   | Batch endpoint           |
+| --------------------------------------- | ------------------------ |
+| `openai.chat("…")`                      | `/v1/chat/completions`   |
+| `openai("…")` / `openai.responses("…")` | `/v1/responses`          |
+| `openai.completion("…")`                | `/v1/completions`        |
+| `openai.textEmbeddingModel("…")`        | `/v1/embeddings`         |
+| `openai.imageModel("…")`                | `/v1/images/generations` |
 
-A `"openai/…"` string defaults to chat completions — see [Models](/models).
+A `"openai/…"` string defaults to chat completions — see [Models](/models). The
+last two rows are submitted via [`batchEmbeddings()`](/embeddings) and
+[`batchImages()`](/images) rather than `batch()`.
+
+## Images
+
+OpenAI image models (e.g. `gpt-image-1`) batch through `/v1/images/generations` — same upload → create → poll → read flow as chat, just a different per-line endpoint. Use [`batchImages()`](/images):
+
+```ts
+import { batchImages } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batchImages({
+  model: openai.imageModel("gpt-image-1"),
+  requests: [{ customId: "a", prompt: "A red bicycle against a brick wall." }],
+});
+```
+
+Results come back as inline base64 on `result.images[].data` (with `mediaType`). Pass `size`, `n`, or `providerOptions.openai` (e.g. `quality`) per request — see [Images](/images).
 
 ## Webhooks
 

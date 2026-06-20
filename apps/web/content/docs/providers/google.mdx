@@ -50,6 +50,24 @@ Batchwork validates Gemini operation ids before using them in API paths.
 
 This is the Gemini **Developer API**, not **Vertex AI** — Vertex's batch API requires GCS staging and cloud IAM auth, which aren't supported yet. Gemini has no native batch webhook, so it is poll-only; use the [server layer](/server) for unified completion events.
 
+## Images
+
+Gemini **image** models (e.g. `gemini-2.5-flash-image`) run through the same `:batchGenerateContent` flow — submit with [`batchImages()`](/images):
+
+```ts
+import { batchImages } from "batchwork";
+import { google } from "@ai-sdk/google";
+
+const job = await batchImages({
+  model: google.imageModel("gemini-2.5-flash-image"),
+  requests: [
+    { customId: "a", prompt: "A sunlit forest path.", aspectRatio: "16:9" },
+  ],
+});
+```
+
+Images are read back inline from each response's `candidates[].content.parts[].inlineData` and land as base64 on `result.images[].data` (with `mediaType`). Google's **Imagen** models (`:predict`) aren't batch-supported. See [Images](/images).
+
 ## Credentials
 
 Set `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`), or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:

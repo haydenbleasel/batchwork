@@ -44,6 +44,8 @@ Batchwork validates Mistral job and file ids before using them in API paths.
 
 Mistral has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
 
+Mistral supports batch [embeddings](/embeddings) (`mistral-embed`) but has no image model, so [`batchImages()`](/images) throws `UnsupportedProviderError`.
+
 ## Credentials
 
 Set `MISTRAL_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:

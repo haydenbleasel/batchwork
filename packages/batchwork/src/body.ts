@@ -1,5 +1,5 @@
-import { embed, generateText } from "ai";
-import type { EmbeddingModel, LanguageModel } from "ai";
+import { embed, generateImage, generateText } from "ai";
+import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
 import { BatchworkError } from "./errors";
 import {
@@ -8,11 +8,17 @@ import {
   resolveBatchLimits,
 } from "./limits";
 import type { ResolvedBatchLimits } from "./limits";
-import { createCaptureEmbeddingModel, createCaptureModel } from "./model";
+import {
+  createCaptureEmbeddingModel,
+  createCaptureImageModel,
+  createCaptureModel,
+} from "./model";
 import type { CapturingFetch, ResolvedModel } from "./model";
 import type {
   BatchDefaults,
   BatchEmbeddingRequest,
+  BatchImageDefaults,
+  BatchImageRequest,
   BatchLimits,
   BatchRequest,
   ProviderCredentials,
@@ -199,6 +205,37 @@ const captureEmbeddingOne = async (
   );
 };
 
+const captureImageOne = async (
+  model: ImageModel,
+  request: BatchImageRequest,
+  customId: string,
+  maxRequestBytes: number
+): Promise<BuiltRequest> => {
+  try {
+    await generateImage({
+      aspectRatio: request.aspectRatio,
+      // `maxImagesPerCall: n` forces a single `doGenerate` call so the captured
+      // body carries the requested `n` rather than a fanned-out per-call count.
+      maxImagesPerCall: request.n,
+      // `maxRetries: 0` is load-bearing: with retries enabled the capture error
+      // is wrapped in a `RetryError` (under `.errors`, not `.cause`) and
+      // `findCapture`'s cause walk would miss it.
+      maxRetries: 0,
+      model,
+      n: request.n,
+      prompt: request.prompt,
+      providerOptions: request.providerOptions,
+      seed: request.seed,
+      size: request.size,
+    });
+  } catch (error) {
+    return bodyFromCapture(error, customId, maxRequestBytes);
+  }
+  throw new BatchworkError(
+    "batchwork: the request was not intercepted while building the image body."
+  );
+};
+
 /**
  * Assign and validate a unique `customId` for each request (sequentially, so
  * duplicates are reported deterministically before bodies are captured in
@@ -294,6 +331,62 @@ export const buildEmbeddingBodies = async (
       const built = await captureEmbeddingOne(
         model,
         item.request,
+        item.customId,
+        limits.maxRequestBytes
+      );
+      assertByteLength(
+        `request "${item.customId}"`,
+        JSON.stringify(built.body),
+        limits.maxRequestBytes
+      );
+      return built;
+    }
+  );
+};
+
+const mergeImageDefaults = (
+  request: BatchImageRequest,
+  defaults: BatchImageDefaults | undefined
+): BatchImageRequest => {
+  if (!defaults) {
+    return request;
+  }
+  return { ...defaults, ...request };
+};
+
+/**
+ * Derive provider image-generation request bodies for every batch item by
+ * running each through the AI SDK `generateImage` with a capturing `fetch`.
+ * Mirrors {@link buildRequestBodies} for the image endpoint; each item maps to a
+ * single image-generation call, correlated by `customId`.
+ */
+export const buildImageBodies = async (
+  resolved: ResolvedModel,
+  requests: readonly BatchImageRequest[],
+  defaults: BatchImageDefaults | undefined,
+  credentials: ProviderCredentials,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): Promise<BuiltRequest[]> => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  const model = await createCaptureImageModel(
+    resolved,
+    credentials,
+    captureFetch
+  );
+  const items = assignCustomIds(requests);
+
+  return await mapWithConcurrency(
+    items,
+    limits.captureConcurrency,
+    async (item) => {
+      const built = await captureImageOne(
+        model,
+        mergeImageDefaults(item.request, defaults),
         item.customId,
         limits.maxRequestBytes
       );

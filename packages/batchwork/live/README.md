@@ -72,6 +72,27 @@ rejects `/v1/embeddings`:
 bun test --env-file=.env.local ./live/openai-embeddings.live.test.ts
 ```
 
+## Images
+
+`*-images.live.test.ts` round-trip a small **image-generation** batch
+(`batchImages()` → `wait()` → `collect()`) and assert every record returns at
+least one image (inline `data` or a hosted `url`). Generation is pricier and
+slower, so fewer records are submitted. OpenAI, Google Gemini, and xAI image
+models are batch-supported (Together's batch API is chat/audio only):
+
+| Provider | Key (as above)                 | Default image model          | Override env var                    |
+| -------- | ------------------------------ | ---------------------------- | ----------------------------------- |
+| OpenAI   | `OPENAI_API_KEY`               | `gpt-image-1`                | `BATCHWORK_LIVE_OPENAI_IMAGE_MODEL` |
+| Google   | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.5-flash-image`     | `BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL` |
+| xAI      | `XAI_API_KEY`                  | `grok-imagine-image-quality` | `BATCHWORK_LIVE_XAI_IMAGE_MODEL`    |
+
+xAI batch returns signed image URLs (`image.url`) that expire ~1h after
+completion rather than inline base64.
+
+```sh
+bun test --env-file=.env.local ./live/openai-images.live.test.ts
+```
+
 ## Store adapters
 
 `postgres.live.test.ts` and `redis.live.test.ts` run the `BatchStore` contract

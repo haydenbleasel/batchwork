@@ -45,6 +45,8 @@ Presigned upload `Location` values must be HTTPS and cannot target localhost or 
 
 Together has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
 
+Together's batch API is chat/audio only — it rejects the embeddings endpoint and offers no batch image generation, so [`batchEmbeddings()`](/embeddings) and [`batchImages()`](/images) throw `UnsupportedProviderError`.
+
 ## Credentials
 
 Set `TOGETHER_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:

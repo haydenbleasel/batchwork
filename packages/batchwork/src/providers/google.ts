@@ -3,6 +3,7 @@ import { requestJson } from "../http";
 import { resolveBatchLimits } from "../limits";
 import { encodeJsonArrayPayload } from "../payload";
 import type {
+  BatchImage,
   BatchResult,
   BatchSnapshot,
   BatchStatus,
@@ -125,6 +126,26 @@ const textFromResponse = (response: unknown): string | undefined => {
 const embeddingFromResponse = (response: unknown): number[] | undefined =>
   asNumberArray(asRecord(asRecord(response).embedding).values);
 
+/**
+ * Read inline base64 images from a Gemini `generateContent` response
+ * (`candidates[0].content.parts[].inlineData`). Returns undefined when no part
+ * carries image data, so text/embedding results are unaffected.
+ */
+const imagesFromResponse = (response: unknown): BatchImage[] | undefined => {
+  const candidate = asRecord(asArray(asRecord(response).candidates)[0]);
+  const images: BatchImage[] = [];
+  for (const part of asArray(asRecord(candidate.content).parts)) {
+    const partObj = asRecord(part);
+    const inline = asRecord(partObj.inlineData ?? partObj.inline_data);
+    const data = asString(inline.data);
+    const mediaType = asString(inline.mimeType) ?? asString(inline.mime_type);
+    if (data && mediaType?.startsWith("image/")) {
+      images.push({ data, mediaType });
+    }
+  }
+  return images.length > 0 ? images : undefined;
+};
+
 const usageFromResponse = (response: unknown): BatchUsage | undefined => {
   const usage = asRecord(asRecord(response).usageMetadata);
   const inputTokens = asNumber(usage.promptTokenCount);
@@ -167,6 +188,7 @@ const normalizeResult = (item: unknown): BatchResult => {
   return {
     customId,
     embedding: embeddingFromResponse(obj.response),
+    images: imagesFromResponse(obj.response),
     response: obj.response,
     status: "succeeded",
     text: textFromResponse(obj.response),

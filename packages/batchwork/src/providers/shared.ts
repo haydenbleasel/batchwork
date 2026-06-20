@@ -9,6 +9,7 @@ import { BatchworkError } from "../errors";
 import { requestJson, requestStream } from "../http";
 import { streamJsonl } from "../jsonl";
 import type {
+  BatchImage,
   BatchResult,
   BatchResultError,
   BatchUsage,
@@ -53,6 +54,24 @@ export const embeddingFromBody = (body: unknown): number[] | undefined => {
     return;
   }
   return asNumberArray(asRecord(data[0]).embedding);
+};
+
+/**
+ * Read base64 images from an OpenAI-shaped images response body
+ * (`{ data: [{ b64_json }], output_format? }`). Returns undefined when the body
+ * carries no image data, so chat/embedding results are unaffected.
+ */
+export const imagesFromBody = (body: unknown): BatchImage[] | undefined => {
+  const obj = asRecord(body);
+  const mediaType = `image/${asString(obj.output_format) ?? "png"}`;
+  const images: BatchImage[] = [];
+  for (const item of asArray(obj.data)) {
+    const b64 = asString(asRecord(item).b64_json);
+    if (b64) {
+      images.push({ data: b64, mediaType });
+    }
+  }
+  return images.length > 0 ? images : undefined;
 };
 
 export const usageFromBody = (body: unknown): BatchUsage | undefined => {
@@ -107,6 +126,7 @@ export const normalizeOpenAIResult = (line: unknown): BatchResult => {
     return {
       customId,
       embedding: embeddingFromBody(response.body),
+      images: imagesFromBody(response.body),
       response: response.body,
       status: "succeeded",
       text: textFromBody(response.body),

@@ -43,6 +43,10 @@ Batchwork validates Anthropic batch ids before using them in API paths.
 
 Each result line carries a `result.type` of `succeeded`, `errored`, `canceled`, or `expired`, which Batchwork maps onto the normalized result `status`.
 
+## Images and embeddings
+
+Anthropic exposes no image or embedding model, so [`batchImages()`](/images) and [`batchEmbeddings()`](/embeddings) throw `UnsupportedProviderError` before any network request. Batch chat completions are fully supported.
+
 ## Webhooks
 
 Anthropic has no native batch webhook, so it is **poll-only**. Use the [server layer](/server)'s managed poller to get one unified, signed event when a batch finishes — the same event shape as every other provider.

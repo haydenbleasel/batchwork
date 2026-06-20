@@ -40,6 +40,8 @@ Groq is served under `/openai/v1`, but its batch `url` must be `/v1/chat/complet
 
 Groq has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
 
+Groq exposes no image or embedding model, so [`batchImages()`](/images) and [`batchEmbeddings()`](/embeddings) throw `UnsupportedProviderError`.
+
 ## Credentials
 
 Set `GROQ_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:

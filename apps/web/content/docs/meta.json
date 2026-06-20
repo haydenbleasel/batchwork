@@ -9,6 +9,7 @@
     "requests",
     "results",
     "embeddings",
+    "images",
     "job",
     "server",
     "---Providers---",

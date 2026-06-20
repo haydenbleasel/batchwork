@@ -5,7 +5,7 @@ import type * as MistralModule from "@ai-sdk/mistral";
 import type * as OpenAIModule from "@ai-sdk/openai";
 import type * as TogetherModule from "@ai-sdk/togetherai";
 import type * as XaiModule from "@ai-sdk/xai";
-import type { EmbeddingModel, LanguageModel } from "ai";
+import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials } from "./types";
@@ -104,7 +104,7 @@ const resolveModelString = (value: string): ResolvedModel => {
  * `"provider/model"` are also handled.
  */
 export const resolveModel = (
-  model: LanguageModel | EmbeddingModel
+  model: LanguageModel | EmbeddingModel | ImageModel
 ): ResolvedModel => {
   if (typeof model === "string") {
     return resolveModelString(model);
@@ -294,6 +294,65 @@ export const createCaptureEmbeddingModel = async (
     }
     default: {
       throw unsupportedEmbeddingProvider(resolved.provider);
+    }
+  }
+};
+
+/**
+ * Providers whose batch API accepts image generation. OpenAI and xAI expose
+ * `/v1/images/generations` as a batch endpoint; Google runs Gemini image models
+ * through `:batchGenerateContent`. Imagen (Google `:predict`) is not
+ * batch-supported, Together's batch API is chat/audio only, and Anthropic, Groq,
+ * and Mistral have no image model.
+ */
+export const IMAGE_PROVIDERS = new Set<BatchProvider>([
+  "google",
+  "openai",
+  "xai",
+]);
+
+export const unsupportedImageProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch image generation. Image batches are supported for: openai, google, xai.`
+  );
+
+/**
+ * Construct an AI SDK image model wired to a capturing `fetch`, used to derive
+ * the provider image-generation request body for each batch item without making
+ * a network call. Throws for providers without batch image support.
+ */
+export const createCaptureImageModel = async (
+  resolved: ResolvedModel,
+  credentials: ProviderCredentials,
+  fetchImpl: CapturingFetch
+): Promise<ImageModel> => {
+  const settings = {
+    apiKey: credentials.apiKey ?? CAPTURE_API_KEY,
+    baseURL: credentials.baseURL,
+    fetch: fetchImpl,
+    headers: credentials.headers,
+  };
+
+  switch (resolved.provider) {
+    case "openai": {
+      const { createOpenAI } =
+        await loadProvider<typeof OpenAIModule>("openai");
+      return createOpenAI(settings).imageModel(resolved.modelId);
+    }
+    case "google": {
+      const { createGoogleGenerativeAI } =
+        await loadProvider<typeof GoogleModule>("google");
+      return createGoogleGenerativeAI(settings).imageModel(resolved.modelId);
+    }
+    case "xai": {
+      const { createXai } = await loadProvider<typeof XaiModule>("xai");
+      return createXai(settings).imageModel(resolved.modelId);
+    }
+    default: {
+      throw unsupportedImageProvider(resolved.provider);
     }
   }
 };
