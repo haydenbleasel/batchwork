@@ -42,19 +42,19 @@ Batchwork validates Mistral job and file ids before using them in API paths.
 
 ## Embeddings
 
-Mistral's `mistral-embed` model batches through the same job flow — the model is set on the job, and each request embeds one `value`. Submit with [`batchEmbeddings()`](/embeddings):
+Mistral's `mistral-embed` model batches through the same job flow — the model is set on the job, and each request embeds one `value`. Submit with [`batch.embeddings()`](/embeddings):
 
 ```ts
-import { batchEmbeddings } from "batchwork";
+import { batch } from "batchwork";
 import { mistral } from "@ai-sdk/mistral";
 
-const job = await batchEmbeddings({
-  model: mistral.textEmbeddingModel("mistral-embed"),
+const job = await batch.embeddings({
+  model: mistral.embeddingModel("mistral-embed"),
   requests: [{ customId: "a", value: "The quick brown fox." }],
 });
 ```
 
-The vector lands on `result.embedding`. Mistral has no image model, so [`batchImages()`](/images) throws `UnsupportedProviderError`.
+The vector lands on `result.embedding`. Mistral has no image model, so [`batch.images()`](/images) throws `UnsupportedProviderError`.
 
 ## Notes
 

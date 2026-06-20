@@ -198,7 +198,7 @@ export interface BatchLimits {
   maxUploadBytes?: number;
 }
 
-/** Input to `batch()`. */
+/** Input to `batch()` / `batch.text()`. */
 export interface BatchOptions extends ProviderCredentials {
   defaults?: BatchDefaults;
   limits?: BatchLimits;
@@ -207,7 +207,7 @@ export interface BatchOptions extends ProviderCredentials {
   requests: BatchRequest[];
 }
 
-/** Input to `batchEmbeddings()`. */
+/** Input to `batch.embeddings()`. */
 export interface BatchEmbeddingsOptions extends ProviderCredentials {
   limits?: BatchLimits;
   metadata?: Record<string, string>;
@@ -215,7 +215,7 @@ export interface BatchEmbeddingsOptions extends ProviderCredentials {
   requests: BatchEmbeddingRequest[];
 }
 
-/** Input to `batchImages()`. */
+/** Input to `batch.images()`. */
 export interface BatchImageOptions extends ProviderCredentials {
   defaults?: BatchImageDefaults;
   limits?: BatchLimits;

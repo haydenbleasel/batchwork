@@ -57,7 +57,7 @@ All optional, via environment variables:
 ## Embeddings
 
 `*-embeddings.live.test.ts` round-trip a 20-record **embedding** batch
-(`batchEmbeddings()` → `wait()` → `collect()`) and assert every record returns a
+(`batch.embeddings()` → `wait()` → `collect()`) and assert every record returns a
 non-empty vector. Only providers whose batch API accepts embeddings have one —
 Anthropic, Groq, and xAI expose no embedding model, and Together's batch endpoint
 rejects `/v1/embeddings`:
@@ -75,14 +75,14 @@ bun test --env-file=.env.local ./live/openai-embeddings.live.test.ts
 ## Images
 
 `*-images.live.test.ts` round-trip a small **image-generation** batch
-(`batchImages()` → `wait()` → `collect()`) and assert every record returns at
+(`batch.images()` → `wait()` → `collect()`) and assert every record returns at
 least one image (inline `data` or a hosted `url`). Generation is pricier and
 slower, so fewer records are submitted. OpenAI, Google Gemini, and xAI image
 models are batch-supported (Together's batch API is chat/audio only):
 
 | Provider | Key (as above)                 | Default image model          | Override env var                    |
 | -------- | ------------------------------ | ---------------------------- | ----------------------------------- |
-| OpenAI   | `OPENAI_API_KEY`               | `gpt-image-1`                | `BATCHWORK_LIVE_OPENAI_IMAGE_MODEL` |
+| OpenAI   | `OPENAI_API_KEY`               | `gpt-image-2`                | `BATCHWORK_LIVE_OPENAI_IMAGE_MODEL` |
 | Google   | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.5-flash-image`     | `BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL` |
 | xAI      | `XAI_API_KEY`                  | `grok-imagine-image-quality` | `BATCHWORK_LIVE_XAI_IMAGE_MODEL`    |
 

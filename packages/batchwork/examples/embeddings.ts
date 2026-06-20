@@ -7,7 +7,7 @@
  */
 import { openai } from "@ai-sdk/openai";
 
-import { batchEmbeddings } from "../src/index";
+import { batch } from "../src/index";
 
 if (!process.env.OPENAI_API_KEY) {
   console.error("Set OPENAI_API_KEY to run this example.");
@@ -16,8 +16,8 @@ if (!process.env.OPENAI_API_KEY) {
 
 console.log("Submitting an embeddings batch to OpenAI…");
 
-const job = await batchEmbeddings({
-  model: openai.textEmbeddingModel("text-embedding-3-small"),
+const job = await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
   requests: [
     { customId: "fox", value: "The quick brown fox jumps over the lazy dog." },
     { customId: "weather", value: "It is sunny with a chance of rain today." },

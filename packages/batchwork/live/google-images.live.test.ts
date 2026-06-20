@@ -13,7 +13,7 @@ const hasKey = Boolean(
 describe.skipIf(!hasKey)("google live image batch", () => {
   it(
     `round-trips image records through ${MODEL_ID}`,
-    () => runLiveImages("google", google.imageModel(MODEL_ID)),
+    () => runLiveImages("google", google.image(MODEL_ID)),
     LIVE_TEST_TIMEOUT_MS
   );
 });

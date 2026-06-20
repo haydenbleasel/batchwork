@@ -43,7 +43,8 @@ const providerFromRef = (ref: BatchRef): BatchProvider => {
 };
 
 /**
- * Submit a batch of requests to the model's provider and return a handle.
+ * Submit a batch of text/chat requests to the model's provider and return a
+ * handle. Reachable as both `batch()` (shorthand) and `batch.text()`.
  *
  * Resolves immediately once the batch is accepted — it does not wait for
  * processing. Use the returned {@link BatchJob} to poll, wait, or stream
@@ -56,7 +57,7 @@ const providerFromRef = (ref: BatchRef): BatchProvider => {
  * });
  * const results = await job.wait().then(() => job.collect());
  */
-export const batch = async (options: BatchOptions): Promise<BatchJob> => {
+const submitText = async (options: BatchOptions): Promise<BatchJob> => {
   if (options.requests.length === 0) {
     throw new BatchworkError("batchwork: `requests` must not be empty.");
   }
@@ -92,8 +93,8 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
  * Google; other providers throw {@link UnsupportedProviderError}.
  *
  * @example
- * const job = await batchEmbeddings({
- *   model: openai.textEmbeddingModel("text-embedding-3-small"),
+ * const job = await batch.embeddings({
+ *   model: openai.embeddingModel("text-embedding-3-small"),
  *   requests: [{ customId: "a", value: "hello world" }],
  * });
  * const results = await job.wait().then(() => job.collect());
@@ -101,7 +102,7 @@ export const batch = async (options: BatchOptions): Promise<BatchJob> => {
  *   console.log(r.customId, r.embedding?.length);
  * }
  */
-export const batchEmbeddings = async (
+const submitEmbeddings = async (
   options: BatchEmbeddingsOptions
 ): Promise<BatchJob> => {
   if (options.requests.length === 0) {
@@ -141,8 +142,8 @@ export const batchEmbeddings = async (
  * and Google; other providers throw {@link UnsupportedProviderError}.
  *
  * @example
- * const job = await batchImages({
- *   model: openai.imageModel("gpt-image-1"),
+ * const job = await batch.images({
+ *   model: openai.image("gpt-image-2"),
  *   requests: [{ customId: "a", prompt: "a red bicycle" }],
  * });
  * const results = await job.wait().then(() => job.collect());
@@ -150,9 +151,7 @@ export const batchEmbeddings = async (
  *   console.log(r.customId, r.images?.length);
  * }
  */
-export const batchImages = async (
-  options: BatchImageOptions
-): Promise<BatchJob> => {
+const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
   if (options.requests.length === 0) {
     throw new BatchworkError("batchwork: `requests` must not be empty.");
   }
@@ -183,6 +182,43 @@ export const batchImages = async (
 
   return new BatchJob(adapter, credentials, snapshot);
 };
+
+/**
+ * Submit a batch of requests and return a {@link BatchJob} handle.
+ *
+ * Callable directly as a shorthand for text/chat batches, with one method per
+ * modality:
+ *
+ * - `batch()` / {@link batch.text} — text & chat completions
+ * - {@link batch.embeddings} — embedding vectors
+ * - {@link batch.images} — image generation
+ *
+ * @example
+ * const job = await batch({
+ *   model: openai("gpt-5.5"),
+ *   requests: [{ customId: "a", prompt: "Say hi" }],
+ * });
+ */
+export const batch = Object.assign(submitText, {
+  /** Submit a batch of embedding requests. */
+  embeddings: submitEmbeddings,
+  /** Submit a batch of image-generation requests. */
+  images: submitImages,
+  /** Submit a batch of text/chat requests. Equivalent to calling `batch()`. */
+  text: submitText,
+});
+
+/**
+ * @deprecated Use {@link batch.embeddings} instead. Kept as a standalone alias
+ * for backward compatibility; it will be removed in a future major.
+ */
+export const batchEmbeddings = submitEmbeddings;
+
+/**
+ * @deprecated Use {@link batch.images} instead. Kept as a standalone alias for
+ * backward compatibility; it will be removed in a future major.
+ */
+export const batchImages = submitImages;
 
 /**
  * Rehydrate a {@link BatchJob} for an existing batch id (e.g. one persisted

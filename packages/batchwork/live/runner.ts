@@ -13,7 +13,7 @@ import { expect } from "bun:test";
 
 import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
-import { batch, batchEmbeddings, batchImages } from "../src/index";
+import { batch } from "../src/index";
 import type {
   BatchEmbeddingRequest,
   BatchImageRequest,
@@ -133,7 +133,7 @@ export const runLiveEmbeddings = async (
   const requests = buildEmbeddingRequests(ids);
 
   log(`[${label}] submitting ${requests.length} embedding records…`);
-  const job = await batchEmbeddings({ model, requests });
+  const job = await batch.embeddings({ model, requests });
   log(`[${label}] submitted ${job.id} (${job.provider})`);
   expect(job.id).toBeTruthy();
 
@@ -190,7 +190,7 @@ export const runLiveImages = async (
   const requests = buildImageRequests(ids);
 
   log(`[${label}] submitting ${requests.length} image records…`);
-  const job = await batchImages({ model, requests });
+  const job = await batch.images({ model, requests });
   log(`[${label}] submitted ${job.id} (${job.provider})`);
   expect(job.id).toBeTruthy();
 

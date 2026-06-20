@@ -11,7 +11,7 @@ const hasKey = Boolean(process.env.OPENAI_API_KEY);
 describe.skipIf(!hasKey)("openai live embeddings batch", () => {
   it(
     `round-trips 20 records through ${MODEL_ID}`,
-    () => runLiveEmbeddings("openai", openai.textEmbeddingModel(MODEL_ID)),
+    () => runLiveEmbeddings("openai", openai.embeddingModel(MODEL_ID)),
     LIVE_TEST_TIMEOUT_MS
   );
 });

@@ -44,14 +44,14 @@ Batchwork validates xAI batch ids before using them in API paths.
 
 ## Images
 
-xAI image models (e.g. `grok-imagine-image-quality`) batch through `/v1/images/generations`, uploaded and polled the same way as chat. Submit with [`batchImages()`](/images):
+xAI image models (e.g. `grok-imagine-image-quality`) batch through `/v1/images/generations`, uploaded and polled the same way as chat. Submit with [`batch.images()`](/images):
 
 ```ts
-import { batchImages } from "batchwork";
+import { batch } from "batchwork";
 import { xai } from "@ai-sdk/xai";
 
-const job = await batchImages({
-  model: xai.imageModel("grok-imagine-image-quality"),
+const job = await batch.images({
+  model: xai.image("grok-imagine-image-quality"),
   requests: [{ customId: "a", prompt: "A red bicycle against a brick wall." }],
 });
 ```
@@ -68,7 +68,7 @@ Image results come back under the `image_response` op in the paginated `/results
 
 xAI has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
 
-xAI exposes no embedding model, so [`batchEmbeddings()`](/embeddings) throws `UnsupportedProviderError`.
+xAI exposes no embedding model, so [`batch.embeddings()`](/embeddings) throws `UnsupportedProviderError`.
 
 ## Credentials
 

@@ -1,18 +1,18 @@
 ---
 title: Embeddings
-description: Batch thousands of texts into vectors with batchEmbeddings — the same job handle, one vector per request.
+description: Batch thousands of texts into vectors with batch.embeddings — the same job handle, one vector per request.
 ---
 
 ## Submit an embedding batch
 
-`batchEmbeddings()` mirrors [`batch()`](/usage): pass a text embedding model and a list of `value`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one vector, correlated by `customId`.
+`batch.embeddings()` mirrors [`batch()`](/usage): pass a text embedding model and a list of `value`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one vector, correlated by `customId`.
 
 ```ts
-import { batchEmbeddings } from "batchwork";
+import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
-const job = await batchEmbeddings({
-  model: openai.textEmbeddingModel("text-embedding-3-small"),
+const job = await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
   requests: [
     { customId: "a", value: "The quick brown fox." },
     { customId: "b", value: "A lazy dog sleeps." },
@@ -41,7 +41,7 @@ Batch embeddings are available for the providers whose batch API accepts the emb
 
 <Callout type="warn">
   Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's
-  batch API rejects the embeddings endpoint. Calling `batchEmbeddings()` with
+  batch API rejects the embeddings endpoint. Calling `batch.embeddings()` with
   any of them throws `UnsupportedProviderError` before any network request.
 </Callout>
 
@@ -63,15 +63,15 @@ Pass provider-specific knobs through `providerOptions`, keyed by provider — th
 
 ```ts
 // OpenAI — shorten the vector
-await batchEmbeddings({
-  model: openai.textEmbeddingModel("text-embedding-3-small"),
+await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
   requests: [{ customId: "a", value: "…" }],
   // applied per request
 });
 
 // Google — output dimensionality + retrieval task type
-await batchEmbeddings({
-  model: google.textEmbeddingModel("gemini-embedding-001"),
+await batch.embeddings({
+  model: google.embeddingModel("gemini-embedding-001"),
   requests: [
     {
       customId: "a",
@@ -104,4 +104,4 @@ for await (const result of job.results()) {
 
 ## How it's built
 
-Like [`batch()`](/models#how-the-body-is-built), `batchEmbeddings()` derives each provider request body by running the AI SDK's `embed()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request embeds a single `value`, so every batch line maps to exactly one vector, correlated by `customId`.
+Like [`batch()`](/models#how-the-body-is-built), `batch.embeddings()` derives each provider request body by running the AI SDK's `embed()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request embeds a single `value`, so every batch line maps to exactly one vector, correlated by `customId`.

@@ -278,17 +278,17 @@ export const createCaptureEmbeddingModel = async (
     case "openai": {
       const { createOpenAI } =
         await loadProvider<typeof OpenAIModule>("openai");
-      return createOpenAI(settings).textEmbeddingModel(resolved.modelId);
+      return createOpenAI(settings).embeddingModel(resolved.modelId);
     }
     case "mistral": {
       const { createMistral } =
         await loadProvider<typeof MistralModule>("mistral");
-      return createMistral(settings).textEmbeddingModel(resolved.modelId);
+      return createMistral(settings).embeddingModel(resolved.modelId);
     }
     case "google": {
       const { createGoogleGenerativeAI } =
         await loadProvider<typeof GoogleModule>("google");
-      return createGoogleGenerativeAI(settings).textEmbeddingModel(
+      return createGoogleGenerativeAI(settings).embeddingModel(
         resolved.modelId
       );
     }
@@ -340,16 +340,16 @@ export const createCaptureImageModel = async (
     case "openai": {
       const { createOpenAI } =
         await loadProvider<typeof OpenAIModule>("openai");
-      return createOpenAI(settings).imageModel(resolved.modelId);
+      return createOpenAI(settings).image(resolved.modelId);
     }
     case "google": {
       const { createGoogleGenerativeAI } =
         await loadProvider<typeof GoogleModule>("google");
-      return createGoogleGenerativeAI(settings).imageModel(resolved.modelId);
+      return createGoogleGenerativeAI(settings).image(resolved.modelId);
     }
     case "xai": {
       const { createXai } = await loadProvider<typeof XaiModule>("xai");
-      return createXai(settings).imageModel(resolved.modelId);
+      return createXai(settings).image(resolved.modelId);
     }
     default: {
       throw unsupportedImageProvider(resolved.provider);

@@ -11,7 +11,7 @@ const hasKey = Boolean(process.env.MISTRAL_API_KEY);
 describe.skipIf(!hasKey)("mistral live embeddings batch", () => {
   it(
     `round-trips 20 records through ${MODEL_ID}`,
-    () => runLiveEmbeddings("mistral", mistral.textEmbeddingModel(MODEL_ID)),
+    () => runLiveEmbeddings("mistral", mistral.embeddingModel(MODEL_ID)),
     LIVE_TEST_TIMEOUT_MS
   );
 });

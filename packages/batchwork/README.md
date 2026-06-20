@@ -46,11 +46,11 @@ Author requests in the same `generateText` shape you already use, pass the AI SD
 Batch embeddings work the same way — pass a text embedding model and `value`s, and get one vector per request back on `result.embedding`:
 
 ```ts
-import { batchEmbeddings } from "batchwork";
+import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
-const job = await batchEmbeddings({
-  model: openai.textEmbeddingModel("text-embedding-3-small"),
+const job = await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
   requests: [
     { customId: "a", value: "The quick brown fox." },
     { customId: "b", value: "A lazy dog sleeps." },
@@ -70,11 +70,11 @@ Batch embeddings are available for **OpenAI, Mistral, and Google Gemini** — th
 Generate images in bulk — pass an image model and `prompt`s, and get base64 images back on `result.images`:
 
 ```ts
-import { batchImages } from "batchwork";
+import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
-const job = await batchImages({
-  model: openai.imageModel("gpt-image-1"),
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
   requests: [
     { customId: "a", prompt: "A red bicycle against a brick wall." },
     { customId: "b", prompt: "A watercolor painting of a sleeping cat." },
@@ -91,13 +91,13 @@ for (const r of results) {
 }
 ```
 
-Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-1`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing, video, and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-2`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing, video, and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
 
 ## Features
 
 - **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
-- **Chat, embeddings & images** — `batch()` for completions, `batchEmbeddings()` for vectors, `batchImages()` for image generation.
+- **Chat, embeddings & images** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.

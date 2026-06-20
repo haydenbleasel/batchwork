@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, mock } from "bun:test";
 import {
   batch,
   batchEmbeddings,
+  batchImages,
   cancelBatch,
   getBatch,
   getBatchResults,
@@ -71,7 +72,7 @@ describe("batch (end-to-end, mocked transport)", () => {
       },
     ]);
 
-    const job = await batch({
+    const job = await batch.text({
       apiKey: "test-key",
       model: "openai/gpt-4o-mini",
       requests: [{ customId: "a", prompt: "Say hi" }],
@@ -102,7 +103,7 @@ describe("batch (end-to-end, mocked transport)", () => {
   });
 });
 
-describe("batchEmbeddings (end-to-end, mocked transport)", () => {
+describe("batch.embeddings (end-to-end, mocked transport)", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
@@ -137,7 +138,7 @@ describe("batchEmbeddings (end-to-end, mocked transport)", () => {
       },
     ]);
 
-    const job = await batchEmbeddings({
+    const job = await batch.embeddings({
       apiKey: "test-key",
       model: "openai/text-embedding-3-small",
       requests: [{ customId: "a", value: "hello world" }],
@@ -163,7 +164,7 @@ describe("batchEmbeddings (end-to-end, mocked transport)", () => {
 
   it("throws for a provider without an embedding model", async () => {
     await expect(
-      batchEmbeddings({
+      batch.embeddings({
         apiKey: "k",
         model: "anthropic/claude-haiku-4-5",
         requests: [{ value: "hi" }],
@@ -173,12 +174,26 @@ describe("batchEmbeddings (end-to-end, mocked transport)", () => {
 
   it("rejects an empty embeddings request list", async () => {
     await expect(
-      batchEmbeddings({
+      batch.embeddings({
         apiKey: "k",
         model: "openai/text-embedding-3-small",
         requests: [],
       })
     ).rejects.toThrow("must not be empty");
+  });
+});
+
+describe("batch namespace", () => {
+  it("is callable as a text shorthand and exposes a method per modality", () => {
+    expect(typeof batch).toBe("function");
+    expect(batch.text).toBe(batch);
+    expect(typeof batch.embeddings).toBe("function");
+    expect(typeof batch.images).toBe("function");
+  });
+
+  it("keeps the deprecated standalone aliases wired to the namespace", () => {
+    expect(batchEmbeddings).toBe(batch.embeddings);
+    expect(batchImages).toBe(batch.images);
   });
 });
 

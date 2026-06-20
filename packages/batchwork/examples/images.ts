@@ -7,7 +7,7 @@
  */
 import { openai } from "@ai-sdk/openai";
 
-import { batchImages } from "../src/index";
+import { batch } from "../src/index";
 
 if (!process.env.OPENAI_API_KEY) {
   console.error("Set OPENAI_API_KEY to run this example.");
@@ -16,8 +16,8 @@ if (!process.env.OPENAI_API_KEY) {
 
 console.log("Submitting an image batch to OpenAI…");
 
-const job = await batchImages({
-  model: openai.imageModel("gpt-image-1"),
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
   requests: [
     { customId: "bike", prompt: "A red bicycle leaning against a brick wall." },
     { customId: "cat", prompt: "A watercolor painting of a sleeping cat." },

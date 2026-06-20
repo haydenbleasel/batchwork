@@ -13,7 +13,7 @@ const hasKey = Boolean(
 describe.skipIf(!hasKey)("google live embeddings batch", () => {
   it(
     `round-trips 20 records through ${MODEL_ID}`,
-    () => runLiveEmbeddings("google", google.textEmbeddingModel(MODEL_ID)),
+    () => runLiveEmbeddings("google", google.embeddingModel(MODEL_ID)),
     LIVE_TEST_TIMEOUT_MS
   );
 });

@@ -45,7 +45,7 @@ Each result line carries a `result.type` of `succeeded`, `errored`, `canceled`, 
 
 ## Images and embeddings
 
-Anthropic exposes no image or embedding model, so [`batchImages()`](/images) and [`batchEmbeddings()`](/embeddings) throw `UnsupportedProviderError` before any network request. Batch chat completions are fully supported.
+Anthropic exposes no image or embedding model, so [`batch.images()`](/images) and [`batch.embeddings()`](/embeddings) throw `UnsupportedProviderError` before any network request. Batch chat completions are fully supported.
 
 ## Webhooks
 

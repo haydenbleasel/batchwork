@@ -11,7 +11,7 @@ const hasKey = Boolean(process.env.XAI_API_KEY);
 describe.skipIf(!hasKey)("xai live image batch", () => {
   it(
     `round-trips image records through ${MODEL_ID}`,
-    () => runLiveImages("xai", xai.imageModel(MODEL_ID)),
+    () => runLiveImages("xai", xai.image(MODEL_ID)),
     LIVE_TEST_TIMEOUT_MS
   );
 });

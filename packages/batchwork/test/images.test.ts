@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
-import { batchImages } from "../src/batch";
+import { batch } from "../src/batch";
 
 interface Route {
   body: unknown;
@@ -29,7 +29,7 @@ const install = (routes: Route[]) => {
   return fetchMock;
 };
 
-describe("batchImages (end-to-end, mocked transport)", () => {
+describe("batch.images (end-to-end, mocked transport)", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
@@ -64,9 +64,9 @@ describe("batchImages (end-to-end, mocked transport)", () => {
       },
     ]);
 
-    const job = await batchImages({
+    const job = await batch.images({
       apiKey: "test-key",
-      model: "openai/gpt-image-1",
+      model: "openai/gpt-image-2",
       requests: [{ customId: "a", prompt: "a red bicycle" }],
     });
     expect(job).toMatchObject({ id: "batch_1", provider: "openai" });
@@ -138,7 +138,7 @@ describe("batchImages (end-to-end, mocked transport)", () => {
       },
     ]);
 
-    const job = await batchImages({
+    const job = await batch.images({
       apiKey: "test-key",
       model: "google/gemini-2.5-flash-image",
       requests: [{ customId: "a", prompt: "a red bicycle" }],
@@ -197,7 +197,7 @@ describe("batchImages (end-to-end, mocked transport)", () => {
       },
     ]);
 
-    const job = await batchImages({
+    const job = await batch.images({
       apiKey: "test-key",
       model: "xai/grok-imagine-image-quality",
       requests: [{ customId: "a", prompt: "a red bicycle" }],
@@ -222,7 +222,7 @@ describe("batchImages (end-to-end, mocked transport)", () => {
 
   it("throws for a provider without batch image support", async () => {
     await expect(
-      batchImages({
+      batch.images({
         apiKey: "k",
         model: "anthropic/claude-haiku-4-5",
         requests: [{ prompt: "hi" }],
@@ -232,7 +232,7 @@ describe("batchImages (end-to-end, mocked transport)", () => {
 
   it("rejects an empty image request list", async () => {
     await expect(
-      batchImages({ apiKey: "k", model: "openai/gpt-image-1", requests: [] })
+      batch.images({ apiKey: "k", model: "openai/gpt-image-2", requests: [] })
     ).rejects.toThrow("must not be empty");
   });
 });

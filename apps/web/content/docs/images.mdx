@@ -1,18 +1,18 @@
 ---
 title: Images
-description: Generate thousands of images in one batch with batchImages — the same job handle, base64 or hosted images per request.
+description: Generate thousands of images in one batch with batch.images — the same job handle, base64 or hosted images per request.
 ---
 
 ## Submit an image batch
 
-`batchImages()` mirrors [`batch()`](/usage): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`.
+`batch.images()` mirrors [`batch()`](/usage): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`.
 
 ```ts
-import { batchImages } from "batchwork";
+import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
-const job = await batchImages({
-  model: openai.imageModel("gpt-image-1"),
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
   requests: [
     { customId: "a", prompt: "A red bicycle against a brick wall." },
     { customId: "b", prompt: "A watercolor painting of a sleeping cat." },
@@ -31,7 +31,7 @@ for (const r of results) {
 
 Everything on the [job handle](/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`.
 
-You can also pass a `"provider/model"` string (e.g. `"openai/gpt-image-1"`), though the model object is recommended.
+You can also pass a `"provider/model"` string (e.g. `"openai/gpt-image-2"`), though the model object is recommended.
 
 ## Supported providers
 
@@ -39,14 +39,14 @@ Batch image generation is available for the providers whose batch API accepts an
 
 | Provider      | Example model                | Notes                                                           |
 | ------------- | ---------------------------- | --------------------------------------------------------------- |
-| OpenAI        | `gpt-image-1`                | `/v1/images/generations` batch endpoint. Inline base64.         |
+| OpenAI        | `gpt-image-2`                | `/v1/images/generations` batch endpoint. Inline base64.         |
 | Google Gemini | `gemini-2.5-flash-image`     | Gemini image models via `:batchGenerateContent`. Inline base64. |
 | xAI           | `grok-imagine-image-quality` | `/v1/images/generations`. Signed URLs that **expire ~1h**.      |
 
 <Callout type="warn">
   Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch
   API is chat/audio only; and Google's Imagen models (`:predict`) aren't
-  batch-supported. Calling `batchImages()` with any of them throws
+  batch-supported. Calling `batch.images()` with any of them throws
   `UnsupportedProviderError` before any network request.
 </Callout>
 
@@ -74,8 +74,8 @@ Each request is a text `prompt` plus an optional `customId` and a few generation
 
 ```ts
 // OpenAI — square 1024px, two variations, high quality
-await batchImages({
-  model: openai.imageModel("gpt-image-1"),
+await batch.images({
+  model: openai.image("gpt-image-2"),
   requests: [
     {
       customId: "a",
@@ -88,8 +88,8 @@ await batchImages({
 });
 
 // Google Gemini — widescreen aspect ratio
-await batchImages({
-  model: google.imageModel("gemini-2.5-flash-image"),
+await batch.images({
+  model: google.image("gemini-2.5-flash-image"),
   requests: [
     { customId: "a", prompt: "A sunlit forest path.", aspectRatio: "16:9" },
   ],
@@ -131,4 +131,4 @@ OpenAI and Google return inline base64 on `image.data` (with `image.mediaType`, 
 
 ## How it's built
 
-Like [`batch()`](/models#how-the-body-is-built), `batchImages()` derives each provider request body by running the AI SDK's `generateImage()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request maps to a single image-generation call, correlated by `customId`.
+Like [`batch()`](/models#how-the-body-is-built), `batch.images()` derives each provider request body by running the AI SDK's `generateImage()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request maps to a single image-generation call, correlated by `customId`.
