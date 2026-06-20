@@ -11,8 +11,10 @@
     "studio": "remotion studio",
     "render": "remotion render BatchworkLaunch out/batchwork-launch.mp4",
     "render:embeddings": "remotion render BatchworkEmbeddings out/batchwork-embeddings.mp4",
+    "render:images": "remotion render BatchworkImages out/batchwork-images.mp4",
     "still": "remotion still BatchworkLaunch out/still.png",
     "still:embeddings": "remotion still BatchworkEmbeddings out/embeddings-still.png",
+    "still:images": "remotion still BatchworkImages out/images-still.png",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

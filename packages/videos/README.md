@@ -7,9 +7,11 @@ titles. Built with Geist + Geist Mono to match [batchwork.dev](https://batchwork
 
 ## Compositions
 
-| id                | description                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| `BatchworkLaunch` | ~25s launch video: intro → unified API → AI SDK models → server polling → Next.js → outro |
+| id                    | description                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `BatchworkLaunch`     | ~25s launch video: intro → unified API → AI SDK models → server polling → Next.js → outro    |
+| `BatchworkEmbeddings` | ~21.5s light-mode feature video for `batch.embeddings`: intro → code + terminal demo → outro |
+| `BatchworkImages`     | ~21.5s light-mode feature video for `batch.images`: intro → code + terminal demo → outro     |
 
 ## Develop
 
@@ -20,8 +22,10 @@ bun run dev      # open Remotion Studio
 ## Render
 
 ```bash
-bun run render   # → out/batchwork-launch.mp4
-bun run still    # → out/still.png (first frame)
+bun run render             # → out/batchwork-launch.mp4
+bun run render:embeddings  # → out/batchwork-embeddings.mp4
+bun run render:images      # → out/batchwork-images.mp4
+bun run still              # → out/still.png (first frame)
 ```
 
 ## Structure

@@ -5,20 +5,22 @@ import { CodeTerminal } from "../../components/code-terminal";
 const CODE = `import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
-const job = await batch.embeddings({
-  model: openai.embeddingModel("text-embedding-3-small"),
-  requests: docs.map((doc) => ({ customId: doc.id, value: doc.text })),
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
+  requests: prompts.map((p) => ({ customId: p.id, prompt: p.text })),
 });
 
 const results = await job.wait().then(() => job.collect());
 
 for (const r of results) {
-  await index.upsert(r.customId, r.embedding);
+  for (const img of r.images ?? []) {
+    await save(r.customId, img.data ?? img.url);
+  }
 }`;
 
-const OUTPUT = ["Submitted batch_8a1c (openai) · 12,480 texts"];
+const OUTPUT = ["Submitted batch_7f3d (openai) · 2,000 prompts"];
 
-export const EmbeddingsDemo = () => (
+export const ImagesDemo = () => (
   <AbsoluteFill
     style={{
       alignItems: "center",
@@ -28,14 +30,14 @@ export const EmbeddingsDemo = () => (
   >
     <CodeTerminal
       code={CODE}
-      command="bun run embed.ts"
+      command="bun run images.ts"
       delay={8}
-      fileName="embed.ts"
+      fileName="images.ts"
       fontSize={24}
       output={OUTPUT}
-      result="✓ completed · 1536-dim vectors · 16 hours elapsed · ~50% cheaper"
-      spinnerLabel="embedding 12,480 texts…"
-      terminalPath="~/embeddings-demo"
+      result="✓ completed · 2,000 images · base64 + hosted · ~50% cheaper"
+      spinnerLabel="generating 2,000 images…"
+      terminalPath="~/images-demo"
       typeFrames={150}
       width={1340}
     />
