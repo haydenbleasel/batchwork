@@ -57,6 +57,22 @@ A `"openai/…"` string defaults to chat completions — see [Models](/models). 
 last two rows are submitted via [`batchEmbeddings()`](/embeddings) and
 [`batchImages()`](/images) rather than `batch()`.
 
+## Embeddings
+
+OpenAI text-embedding models (e.g. `text-embedding-3-small`) batch through `/v1/embeddings` — the same upload → create → poll → read flow as chat. Use [`batchEmbeddings()`](/embeddings):
+
+```ts
+import { batchEmbeddings } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batchEmbeddings({
+  model: openai.textEmbeddingModel("text-embedding-3-small"),
+  requests: [{ customId: "a", value: "The quick brown fox." }],
+});
+```
+
+Each request embeds one `value`, and the vector lands on `result.embedding`. Shorten it with `providerOptions.openai.dimensions` per request — see [Embeddings](/embeddings).
+
 ## Images
 
 OpenAI image models (e.g. `gpt-image-1`) batch through `/v1/images/generations` — same upload → create → poll → read flow as chat, just a different per-line endpoint. Use [`batchImages()`](/images):

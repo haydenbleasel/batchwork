@@ -68,6 +68,8 @@ Image results come back under the `image_response` op in the paginated `/results
 
 xAI has no native batch webhook, so it is poll-only. Use the [server layer](/server) for unified completion events.
 
+xAI exposes no embedding model, so [`batchEmbeddings()`](/embeddings) throws `UnsupportedProviderError`.
+
 ## Credentials
 
 Set `XAI_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:
