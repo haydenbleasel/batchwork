@@ -1,5 +1,12 @@
 # batchwork
 
+## 1.2.0
+
+### Minor Changes
+
+- fd40b65: Add `batchImages()` for batch image-generation requests. It returns the same `BatchJob` handle as `batch()`, with each `prompt` producing one or more images correlated by `customId`, and exposes them on a new `BatchResult.images` field (inline base64 `data`/`mediaType`, or a hosted `url`). Supported on OpenAI (`/v1/images/generations`), Google Gemini image models (`:batchGenerateContent`), and xAI (`/v1/images/generations`); other providers throw `UnsupportedProviderError`. Generation only — image editing and Imagen models aren't batch-supported.
+- c073c1a: Add a unified `batch.*` namespace: `batch.text()`, `batch.embeddings()`, and `batch.images()`. `batch()` remains a callable shorthand for `batch.text()`. The standalone `batchEmbeddings()` and `batchImages()` exports are now deprecated aliases for `batch.embeddings()` and `batch.images()` respectively, and will be removed in a future major.
+
 ## 1.1.0
 
 ### Minor Changes
