@@ -17,19 +17,7 @@ batch({ model: anthropic("claude-opus-4-8"), requests }); // Anthropic Messages
 batch({ model: "openai/gpt-5.5", requests }); // provider/model string
 ```
 
-Batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint. All requests in a single batch use one model.
-
-## OpenAI request shapes
-
-OpenAI exposes several request shapes, and Batchwork mirrors whichever the model implies:
-
-| Model                                   | Batch endpoint         |
-| --------------------------------------- | ---------------------- |
-| `openai.chat("…")`                      | `/v1/chat/completions` |
-| `openai("…")` / `openai.responses("…")` | `/v1/responses`        |
-| `openai.completion("…")`                | `/v1/completions`      |
-
-A `"openai/…"` string defaults to **chat completions** — the most widely supported batch endpoint.
+Batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint. All requests in a single batch use one model. Which OpenAI endpoint a model maps to — chat completions, responses, or completions — is covered on the [Text](/text#openai-request-shapes) page.
 
 ## Gateway string caveat
 

@@ -5,7 +5,7 @@ description: Batch thousands of texts into vectors with batch.embeddings — the
 
 ## Submit an embedding batch
 
-`batch.embeddings()` mirrors [`batch()`](/usage): pass a text embedding model and a list of `value`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one vector, correlated by `customId`.
+`batch.embeddings()` mirrors [`batch()`](/text): pass a text embedding model and a list of `value`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one vector, correlated by `customId`.
 
 ```ts
 import { batch } from "batchwork";
@@ -55,7 +55,7 @@ Each request is a single text to embed plus an optional `customId`. There are no
 | `customId`        | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
 | `providerOptions` | Provider-specific options (e.g. output dimensions, task type). See below.                             |
 
-`limits` and `metadata` work exactly as in [`batch()`](/requests#limits).
+`limits` and `metadata` work exactly as in [`batch()`](/limits).
 
 ## Output dimensions and task type
 

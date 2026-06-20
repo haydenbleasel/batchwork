@@ -5,7 +5,7 @@ description: Generate thousands of images in one batch with batch.images — the
 
 ## Submit an image batch
 
-`batch.images()` mirrors [`batch()`](/usage): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`.
+`batch.images()` mirrors [`batch()`](/text): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`.
 
 ```ts
 import { batch } from "batchwork";
@@ -66,7 +66,7 @@ Each request is a text `prompt` plus an optional `customId` and a few generation
 | `providerOptions` | Provider-specific options (e.g. `{ openai: { quality: "high" } }`). See below.                        |
 | `seed`            | Seed for deterministic generation, where the provider supports it.                                    |
 
-`limits` and `metadata` work exactly as in [`batch()`](/requests#limits).
+`limits` and `metadata` work exactly as in [`batch()`](/limits).
 
 ## Sizing, count, and provider options
 
@@ -96,7 +96,7 @@ await batch.images({
 });
 ```
 
-`defaults` are merged into every request (request-level values win), exactly as in [`batch()`](/requests#batch-wide-defaults) — handy for applying one `size` or `providerOptions` across the whole batch.
+`defaults` are merged into every request (request-level values win), exactly as in [`batch()`](/limits#defaults) — handy for applying one `size` or `providerOptions` across the whole batch.
 
 ## Results
 

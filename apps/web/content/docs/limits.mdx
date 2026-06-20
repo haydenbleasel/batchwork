@@ -1,46 +1,11 @@
 ---
-title: Requests
-description: Each batch request mirrors the AI SDK generateText input, plus a customId to correlate its result.
+title: Limits & defaults
+description: Batch-level options shared by every batch function — defaults merged into requests, batch metadata, and request/size limits with per-provider caps.
 ---
 
-## Request shape
+These options sit on the batch call alongside `model` and `requests`, and apply to **every** batch function — [`batch()`](/text), [`batch.images()`](/images), and [`batch.embeddings()`](/embeddings) — regardless of the per-request fields documented on each API page.
 
-Each request mirrors `generateText` (minus `model`), plus a `customId` used to correlate its result. Provide `prompt` **or** `messages`.
-
-```ts
-await batch({
-  model: anthropic("claude-opus-4-8"),
-  requests: [
-    {
-      customId: "doc-1",
-      prompt: "Summarize…",
-      temperature: 0,
-    },
-    {
-      customId: "doc-2",
-      system: "You are terse.",
-      messages: [{ role: "user", content: "Translate…" }],
-      maxOutputTokens: 256,
-    },
-  ],
-});
-```
-
-## Supported fields
-
-| Field                                 | Notes                                                                                                 |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `customId`                            | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
-| `prompt` / `messages`                 | Provide one. `messages` is the AI SDK `ModelMessage[]`.                                               |
-| `system`                              | System prompt.                                                                                        |
-| `tools` / `toolChoice`                | Tool definitions, exactly as in `generateText`.                                                       |
-| `maxOutputTokens`                     | Maximum tokens to generate. Required by Anthropic.                                                    |
-| `temperature`, `topP`, `topK`         | Sampling controls.                                                                                    |
-| `presencePenalty`, `frequencyPenalty` | Penalties.                                                                                            |
-| `stopSequences`, `seed`               | Stop sequences and seed.                                                                              |
-| `providerOptions`                     | Provider-specific options (e.g. reasoning / thinking config).                                         |
-
-## Batch-wide defaults
+## Defaults
 
 `defaults` are merged into every request; request-level values win:
 

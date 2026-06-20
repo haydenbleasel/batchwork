@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
       permanent: true,
       source: "/docs",
     },
+    {
+      destination: "/text",
+      permanent: true,
+      source: "/requests",
+    },
   ],
   rewrites: () => [
     {
