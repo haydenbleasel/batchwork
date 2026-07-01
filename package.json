@@ -24,7 +24,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "husky": "^9.1.7",
-    "oxfmt": "^0.54.0",
+    "oxfmt": "^0.57.0",
     "oxlint": "^1.69.0",
     "turbo": "^2.9.18",
     "typescript": "^6.0.3",
