@@ -42,7 +42,9 @@ Batchwork validates Gemini operation ids before using them in API paths.
 
 ## Notes
 
-:::warning Batchwork reads Gemini's **inline** response mode. If a batch returns file-mode results (which Gemini may use for very large batches), Batchwork throws rather than silently dropping results. :::
+:::warning
+Batchwork reads Gemini's **inline** response mode. If a batch returns file-mode results (which Gemini may use for very large batches), Batchwork throws rather than silently dropping results.
+:::
 
 This is the Gemini **Developer API**, not **Vertex AI** — Vertex's batch API requires GCS staging and cloud IAM auth, which aren't supported yet. Gemini has no native batch webhook, so it is poll-only; use the [server layer](/docs/server) for unified completion events.
 

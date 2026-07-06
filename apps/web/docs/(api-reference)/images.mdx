@@ -43,7 +43,9 @@ Batch image generation is available for the providers whose batch API accepts an
 | Google Gemini | `gemini-2.5-flash-image` | Gemini image models via `:batchGenerateContent`. Inline base64. |
 | xAI | `grok-imagine-image-quality` | `/v1/images/generations`. Signed URLs that **expire ~1h**. |
 
-:::warning Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch API is chat/audio only; and Google's Imagen models (`:predict`) aren't batch-supported. Calling `batch.images()` with any of them throws `UnsupportedProviderError` before any network request. :::
+:::warning
+Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch API is chat/audio only; and Google's Imagen models (`:predict`) aren't batch-supported. Calling `batch.images()` with any of them throws `UnsupportedProviderError` before any network request.
+:::
 
 This is **generation only** — image editing (input images, masks) and video aren't supported by the batch APIs.
 
