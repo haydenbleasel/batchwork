@@ -1,6 +1,6 @@
 {
   "name": "batchwork",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Unified batch API for AI providers — low-cost LLM batch processing at scale.",
   "keywords": [
     "ai",
