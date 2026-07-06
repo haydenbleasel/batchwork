@@ -1,0 +1,69 @@
+---
+title: Mistral
+description: Run batches on Mistral's Batch API — a JSONL upload followed by a job that carries the model.
+---
+
+Mistral's Batch API uploads a JSONL file and then creates a **job** that references it. The defining difference from OpenAI: the model and endpoint live on the job, not on each request line — so Batchwork strips `model` out of every line and sets it once on the job.
+
+| Property     | Value                             |
+| ------------ | --------------------------------- |
+| **Shape**    | JSONL file upload → create job    |
+| **Endpoint** | `/v1/batch/jobs`                  |
+| **Results**  | Output + error files (JSONL)      |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env var**  | `MISTRAL_API_KEY`                 |
+| **Package**  | `@ai-sdk/mistral`                 |
+| **Base URL** | `https://api.mistral.ai/v1`       |
+
+## Example
+
+```ts
+import { batch } from "batchwork";
+import { mistral } from "@ai-sdk/mistral";
+
+const job = await batch({
+  model: mistral("mistral-large-latest"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+```
+
+## How it works
+
+1. **Build** — each request becomes a `{ custom_id, body }` JSONL line, with `model` removed.
+2. **Upload** — the JSONL is uploaded via the Files API (`purpose=batch`).
+3. **Create** — `POST /v1/batch/jobs` sets the `model`, `endpoint`, and `input_files` on the job.
+4. **Poll** — Mistral's job `status` (`QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `TIMEOUT_EXCEEDED`, …) maps onto the normalized status.
+5. **Read** — the OpenAI-shaped `output_file` and `error_file` are streamed and parsed into [`BatchResult`](/docs/results)s.
+
+Batchwork validates Mistral job and file ids before using them in API paths.
+
+## Embeddings
+
+Mistral's `mistral-embed` model batches through the same job flow — the model is set on the job, and each request embeds one `value`. Submit with [`batch.embeddings()`](/docs/embeddings):
+
+```ts
+import { batch } from "batchwork";
+import { mistral } from "@ai-sdk/mistral";
+
+const job = await batch.embeddings({
+  model: mistral.embeddingModel("mistral-embed"),
+  requests: [{ customId: "a", value: "The quick brown fox." }],
+});
+```
+
+The vector lands on `result.embedding`. Mistral has no image model, so [`batch.images()`](/docs/images) throws `UnsupportedProviderError`.
+
+## Notes
+
+Mistral has no native batch webhook, so it is poll-only. Use the [server layer](/docs/server) for unified completion events.
+
+## Credentials
+
+Set `MISTRAL_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()`. Install the peer dependency:
+
+```bash
+bun add @ai-sdk/mistral
+```

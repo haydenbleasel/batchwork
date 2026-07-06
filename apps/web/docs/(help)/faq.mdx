@@ -1,0 +1,36 @@
+---
+title: FAQ
+description: Common questions about Batchwork.
+---
+
+## How long does a batch take?
+
+Up to 24 hours, per the providers' SLAs — but small batches typically finish in seconds to minutes. Results stay available well after completion — Anthropic keeps them for ~29 days, and OpenAI retains the batch output file until you delete it — but retention varies by provider, so fetch and persist results once a batch finishes.
+
+## Does `batch()` block until the batch is done?
+
+No. `batch()` submits and returns a `BatchJob` handle immediately. Use `job.wait()` for scripts, or the [server layer](/docs/server) for production so you never hold a process open.
+
+## Do I need the official OpenAI / Anthropic SDKs?
+
+No. Batchwork talks to the batch endpoints with plain `fetch`. You only need `ai` plus the `@ai-sdk/*` provider package(s) for the providers you use — and those are optional peer dependencies.
+
+## Can I use a Vercel AI Gateway model string?
+
+You can pass a `"provider/model"` string for ergonomics, but batch traffic resolves to the provider's **native** batch API and needs the provider key. The Gateway has no batch endpoint, so Batchwork does not route through it.
+
+## Are tools, vision, and structured output supported?
+
+Yes, as **request inputs**. Batchwork derives each request body through the AI SDK itself (see [Models](/docs/models)), so messages, tools, multimodal content, and `providerOptions` all carry through. It serializes the request only — it does not execute tool calls or parse `generateObject`-style structured output for you, so read the raw payload (tool calls, structured output, finish reasons) from `result.response` and parse it yourself.
+
+## What happens to failed requests?
+
+Each request succeeds or fails independently. Failed requests come back with `status: "errored"` and a normalized `error`; expired or cancelled ones use `"expired"` / `"canceled"`. One bad request never fails the whole batch.
+
+## How is the cost discount applied?
+
+The providers bill batch requests at roughly half their synchronous rate. Batchwork doesn't change pricing — it just makes the batch APIs usable. The `usage` on each result reflects tokens billed at the batch rate.
+
+## Which providers are supported?
+
+OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI today. Beyond chat completions, [embeddings](/docs/embeddings) batches run on OpenAI, Mistral, and Google, and [image generation](/docs/images) batches run on OpenAI, Google, and xAI. Amazon Bedrock and Vertex AI are on the roadmap (they need object-storage staging and cloud IAM auth).

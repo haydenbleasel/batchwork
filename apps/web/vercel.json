@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/providers/:path*",
+      "destination": "/docs/providers/:path*",
+      "permanent": true
+    },
+    { "source": "/overview", "destination": "/docs", "permanent": true },
+    {
+      "source": "/:page(installation|usage|models|limits|job|results|server|text|images|embeddings|next|faq)",
+      "destination": "/docs/:page",
+      "permanent": true
+    },
+    { "source": "/requests", "destination": "/docs/text", "permanent": true },
+    {
+      "source": "/docs/providers",
+      "destination": "/docs/providers/openai",
+      "permanent": false
+    },
+    { "source": "/docs/overview", "destination": "/docs", "permanent": true }
+  ]
+}

@@ -1,0 +1,36 @@
+---
+title: Models
+description: Batchwork accepts any AI SDK model — a provider model object or a provider/model string.
+---
+
+## Model forms
+
+`model` accepts anything the AI SDK does:
+
+```ts
+import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+
+batch({ model: openai.chat("gpt-5.5"), requests }); // OpenAI Chat Completions
+batch({ model: openai("gpt-5.5"), requests }); // OpenAI Responses API
+batch({ model: anthropic("claude-opus-4-8"), requests }); // Anthropic Messages
+batch({ model: "openai/gpt-5.5", requests }); // provider/model string
+```
+
+Batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint. All requests in a single batch use one model. Which OpenAI endpoint a model maps to — chat completions, responses, or completions — is covered on the [Text](/docs/text#openai-request-shapes) page.
+
+## Gateway string caveat
+
+A `"provider/model"` string is supported for ergonomics and resolves to the provider's **native** batch API using your provider credentials.
+
+:::warning
+Batch traffic does **not** route through the Vercel AI Gateway (which has no
+batch endpoint). You need the provider key (e.g. `OPENAI_API_KEY`), not just a
+gateway key.
+:::
+
+## How the body is built
+
+To produce each provider's exact request body — with full AI SDK fidelity for messages, tools, multimodal content, and `providerOptions` — Batchwork runs each request through the AI SDK with a **capturing `fetch`** that records the serialized body and aborts before any network call. That body is exactly what `generateText` would have sent; it becomes the OpenAI JSONL line `body` or the Anthropic `params`.
+
+The upshot: every **request** field `generateText` accepts — `system`, `messages`, `tools`, multimodal content, `providerOptions` — carries through to a batch request unchanged. Batchwork serializes the request only; it does **not** run `generateText`'s response side, so there is no automatic multi-step tool execution and no `generateObject`-style parsing. You get the raw model output back — read tool calls or structured output from [`result.response`](/docs/results) yourself.

@@ -1,0 +1,12 @@
+/* Site-wide token/style tweaks. Homepage-only presentational CSS lives in
+   styles/home.css (imported by pages/index.astro). */
+
+/* Turn off code-font ligatures so operators read literally, everywhere code
+   is rendered (docs + landing). */
+code,
+.font-mono {
+  font-feature-settings:
+    "liga" 0,
+    "calt" 0;
+  font-variant-ligatures: none;
+}

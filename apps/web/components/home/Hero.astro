@@ -1,0 +1,113 @@
+---
+import CodeWindow from "./code-window.astro";
+import Icon from "./icon.astro";
+import InstallCommand from "./install-command.astro";
+
+interface Props {
+  version: string;
+  releaseUrl: string;
+}
+
+const { version, releaseUrl } = Astro.props;
+
+const LOGOS = [
+  { file: "openai", name: "OpenAI" },
+  { file: "anthropic", name: "Anthropic" },
+  { file: "gemini", name: "Google Gemini" },
+  { file: "mistral", name: "Mistral AI" },
+  { file: "xai", name: "X.ai" },
+  { file: "groq", name: "Groq" },
+  { file: "together", name: "Together AI" },
+];
+
+const CODE = `import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch({
+  model: openai.chat("gpt-5.5"),
+  requests: docs.map((doc) => ({
+    customId: doc.id,
+    prompt: \`Summarize: \${doc.text}\`,
+  })),
+});
+
+for await (const result of job.results()) {
+  await saveSummary(result.customId, result.text);
+}`;
+---
+
+<section class="relative">
+  <div
+    class="mx-auto flex max-w-5xl flex-col items-center px-6 pt-24 pb-16 text-center sm:pt-32 lg:pt-40"
+  >
+    <a
+      class="fade-up group inline-flex items-center gap-2 font-mono text-muted-foreground text-xs transition-colors hover:text-foreground"
+      href={releaseUrl}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <span class="inline-block size-1.5 rounded-full bg-emerald-500"></span>
+      Latest update — v{version} released
+      <Icon
+        name="arrow-right"
+        class="size-3 transition-transform group-hover:translate-x-0.5"
+      />
+    </a>
+
+    <h1
+      class="fade-up mt-8 max-w-[14ch] text-balance font-display font-medium text-[2.5rem]/[1.05] text-foreground tracking-tighter sm:text-7xl"
+      style="animation-delay: 80ms"
+    >
+      Save up to 50% on <span class="sr-only">LLM</span>
+      <span
+        class="inline-flex translate-y-3 -space-x-2 items-center justify-center"
+      >
+        {
+          LOGOS.map((logo) => (
+            <img
+              src={`/logos/${logo.file}.svg`}
+              alt={logo.name}
+              width="64"
+              height="64"
+              class="size-12 rounded-full ring-4 ring-background sm:size-16"
+            />
+          ))
+        }
+      </span>{" "}
+      costs
+    </h1>
+
+    <p
+      class="fade-up mt-8 max-w-xl text-pretty text-base text-muted-foreground leading-relaxed sm:text-xl"
+      style="animation-delay: 160ms"
+    >
+      Unified batch API for AI providers. Process LLM requests in bulk with a
+      single call for lower costs. Processing, uploading, polling, and result
+      parsing handled for you.
+    </p>
+
+    <div
+      class="fade-up mt-10 flex flex-wrap items-center justify-center gap-3"
+      style="animation-delay: 220ms"
+    >
+      <InstallCommand />
+      <a
+        class="group inline-flex h-11 items-center gap-2 rounded-full px-5 font-medium text-foreground text-sm transition-colors hover:bg-muted/60"
+        href="/docs"
+      >
+        Read the docs
+        <Icon
+          name="arrow-right"
+          class="size-4 transition-transform group-hover:translate-x-0.5"
+        />
+      </a>
+    </div>
+  </div>
+
+  <div
+    class="fade-up mx-auto max-w-3xl px-6 pb-24"
+    style="animation-delay: 320ms"
+  >
+    <CodeWindow code={CODE} name="summarize.ts" />
+  </div>
+</section>

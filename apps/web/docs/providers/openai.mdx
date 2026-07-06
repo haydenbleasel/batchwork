@@ -1,0 +1,102 @@
+---
+title: OpenAI
+description: Run batches on OpenAI's Batch API — JSONL upload, file-based results, and native webhooks.
+---
+
+OpenAI's Batch API is the reference "shape" Batchwork is built around: requests are serialized to a JSONL file, uploaded via the Files API, and referenced by a batch you poll until it finishes — then the output and error files are downloaded and parsed. Batchwork does all of that for you.
+
+| Property      | Value                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| **Shape**     | JSONL file upload → create batch                                                                       |
+| **Endpoints** | `/v1/chat/completions`, `/v1/responses`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations` |
+| **Results**   | Output + error files (JSONL)                                                                           |
+| **Webhooks**  | Native (`batch.completed`, `batch.failed`, …)                                                          |
+| **Env var**   | `OPENAI_API_KEY`                                                                                       |
+| **Package**   | `@ai-sdk/openai`                                                                                       |
+| **Base URL**  | `https://api.openai.com/v1`                                                                            |
+
+## Example
+
+```ts
+import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch({
+  model: openai.chat("gpt-5.5"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+```
+
+## How it works
+
+1. **Build** — each request becomes a JSONL line: `{ custom_id, method: "POST", url, body }`.
+2. **Upload** — the JSONL is uploaded to the Files API with `purpose=batch`.
+3. **Create** — `POST /v1/batches` references the uploaded file with a 24h `completion_window`.
+4. **Poll** — Batchwork reads the `status` field until the batch reaches a terminal state.
+5. **Read** — the `output_file_id` and `error_file_id` are streamed and parsed into [`BatchResult`](/docs/results)s.
+
+Batchwork validates provider-returned batch and file ids before using them in
+OpenAI-compatible API paths.
+
+## Request shapes
+
+OpenAI exposes several endpoints, and Batchwork mirrors whichever your model implies:
+
+| Model                                   | Batch endpoint           |
+| --------------------------------------- | ------------------------ |
+| `openai.chat("…")`                      | `/v1/chat/completions`   |
+| `openai("…")` / `openai.responses("…")` | `/v1/responses`          |
+| `openai.completion("…")`                | `/v1/completions`        |
+| `openai.embeddingModel("…")`            | `/v1/embeddings`         |
+| `openai.image("…")`                     | `/v1/images/generations` |
+
+A `"openai/…"` string defaults to chat completions — see [Models](/docs/models). The
+last two rows are submitted via [`batch.embeddings()`](/docs/embeddings) and
+[`batch.images()`](/docs/images) rather than `batch()`.
+
+## Embeddings
+
+OpenAI text-embedding models (e.g. `text-embedding-3-small`) batch through `/v1/embeddings` — the same upload → create → poll → read flow as chat. Use [`batch.embeddings()`](/docs/embeddings):
+
+```ts
+import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
+  requests: [{ customId: "a", value: "The quick brown fox." }],
+});
+```
+
+Each request embeds one `value`, and the vector lands on `result.embedding`. Shorten it with `providerOptions.openai.dimensions` per request — see [Embeddings](/docs/embeddings).
+
+## Images
+
+OpenAI image models (e.g. `gpt-image-2`) batch through `/v1/images/generations` — same upload → create → poll → read flow as chat, just a different per-line endpoint. Use [`batch.images()`](/docs/images):
+
+```ts
+import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
+  requests: [{ customId: "a", prompt: "A red bicycle against a brick wall." }],
+});
+```
+
+Results come back as inline base64 on `result.images[].data` (with `mediaType`). Pass `size`, `n`, or `providerOptions.openai` (e.g. `quality`) per request — see [Images](/docs/images).
+
+## Webhooks
+
+OpenAI is the only provider with **native** batch webhooks. Mount the handler from the [server layer](/docs/server) to deliver the instant a batch completes — no `tick()` polling needed for OpenAI batches.
+
+## Credentials
+
+Set `OPENAI_API_KEY`, or pass `apiKey` / `baseURL` / `headers` to `batch()` to override per call. Install the peer dependency:
+
+```bash
+bun add @ai-sdk/openai
+```
