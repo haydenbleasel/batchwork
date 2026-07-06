@@ -1,7 +1,6 @@
 import { defineConfig } from "blume";
 
 export default defineConfig({
-  ai: { llmsTxt: true },
   analytics: { vercel: true },
   content: {
     sources: [
@@ -30,28 +29,14 @@ export default defineConfig({
     repo: "batchwork",
   },
   logo: { image: "/logo.svg", text: "Batchwork" },
-  markdown: {
-    codeBlocks: {
-      theme: { dark: "catppuccin-mocha", light: "catppuccin-latte" },
-    },
-  },
   navigation: {
-    sidebar: {
-      display: "group",
-    },
     tabs: [
       { label: "Docs", path: "/docs" },
       { label: "Changelog", path: "/changelog" },
     ],
   },
-  // Redirects (old root URLs → /docs/*, and the index-less /docs/providers tab
-  // target) live in vercel.json — one source of truth Vercel reads at the app
-  // root. Blume leaves it untouched.
   theme: {
-    // The brand is monochrome — keep accents neutral (near-black / near-white)
-    // rather than Blume's default blue.
-    accent: { dark: "#fafafa", light: "#0a0a0a" },
-    fonts: { body: "geist", display: "geist", mono: "geist-mono" },
+    accent: "orange",
   },
   title: "Batchwork",
 });
