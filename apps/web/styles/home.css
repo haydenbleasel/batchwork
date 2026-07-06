@@ -1,0 +1,45 @@
+/* Homepage-only presentational CSS (imported by pages/index.astro). Plain CSS
+   only — no @theme/@apply here; site-wide token tweaks live in ../theme.css. */
+
+/* Tailwind v4 makes the bare `border`/`border-dotted`/`divide-*` utilities fall
+   back to currentColor (near-white in dark mode). Restore a token default —
+   inside @layer base so Tailwind's own utilities layer still wins. Scoped to
+   the homepage (this file only loads there). */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+}
+
+/* Entrance animations — respect reduced-motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .fade-up {
+    animation: bw-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes bw-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(12px);
+    transition:
+      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+}

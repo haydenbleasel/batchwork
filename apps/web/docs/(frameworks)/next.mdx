@@ -1,0 +1,111 @@
+---
+title: Next.js
+description: App Router route handlers that poll your batches on a cron tick and call you back in-process when each finishes — persist results straight to your DB.
+---
+
+In a Next.js app you don't need to POST a webhook back to your own server. `batchwork/next` gives you App Router route handlers that poll your in-flight batches on a cron tick and call `onComplete` **in-process** when each finishes, so you persist results straight to your database — no self-webhook round-trip.
+
+## Mount the routes
+
+`createBatchRoutes` returns `GET`, `track`, and — when `openaiSigningSecret` is set — `POST`. A Next.js `route.ts` may only export HTTP method handlers (plus route config) — exporting `track` from one fails the build's type check — so call `createBatchRoutes` in a regular module and re-export just `GET`/`POST` from the route file. Import `track` from that same module wherever you submit batches.
+
+```ts
+// lib/batches.ts — a normal module, importable from anywhere
+import { createBatchRoutes, createMemoryStore } from "batchwork/next";
+
+const store = createMemoryStore(); // or a Vercel KV / Upstash / Postgres adapter
+
+export const batches = createBatchRoutes({
+  store,
+  // Required for deployed cron routes.
+  cronSecret: process.env.CRON_SECRET,
+  // Optional: mount OpenAI's native webhook on POST (skips polling for OpenAI).
+  openaiSigningSecret: process.env.OPENAI_WEBHOOK_SECRET,
+  onComplete: async (event, results) => {
+    // event.type: batch.completed | batch.failed | batch.expired | batch.cancelled
+    for await (const result of results) {
+      await db.results.upsert({
+        batchId: event.id,
+        customId: result.customId,
+        status: result.status,
+        text: result.text,
+      });
+    }
+  },
+});
+```
+
+```ts
+// app/api/batches/route.ts — re-export only the HTTP handlers
+import { batches } from "@/lib/batches";
+
+export const { GET, POST } = batches;
+```
+
+`store` and `onComplete` are required. Deployed `GET` routes also need `cronSecret`; if it is omitted, the cron handler returns `401`. Use `allowUnauthenticatedCron: true` only for private local routes that cannot be reached by arbitrary callers.
+
+## Register a batch
+
+After submitting, call `track` so the cron polls it. A `BatchJob` works directly (`track` reads its `id` and `provider`).
+
+```ts
+import { batch } from "batchwork";
+import { batches } from "@/lib/batches";
+
+const job = await batch({ model, requests });
+await batches.track(job);
+```
+
+## Run the cron
+
+Point a [Vercel Cron](https://vercel.com/docs/cron-jobs) job (or any scheduler) at the `GET` route — every few minutes is plenty, since batches take minutes to hours. In `vercel.json`:
+
+```json
+{
+  "crons": [{ "path": "/api/batches", "schedule": "*/5 * * * *" }]
+}
+```
+
+Each tick polls every open batch and, when one reaches a terminal status, calls `onComplete` with the unified event and a **streamed** `results` iterable. For failure events (`batch.failed` / `batch.expired` / `batch.cancelled`) the iterable is empty — inspect `event.type`. The `GET` response reports what happened:
+
+```json
+{ "checked": 3, "delivered": ["batch_abc"] }
+```
+
+If a batch throws while processing, it's reported under a `failed` array of `{ id, error }` entries and the tick continues; the key is omitted when nothing failed.
+
+## Delivery is at-least-once
+
+`onComplete` runs **before** the batch is marked delivered. If it throws, the batch stays pending and is retried on the next tick — so a single failing batch is isolated (reported under `failed`) rather than aborting the whole tick. Pass `onError` to observe these.
+
+Because of the retry — and because the cron can race OpenAI's native webhook — `onComplete` may fire **more than once** for the same batch. Make persistence idempotent by upserting keyed on `(provider, batchId, customId)`.
+
+## OpenAI native webhooks
+
+Set `openaiSigningSecret` and `batchwork/next` mounts an OpenAI webhook handler on `POST`, so OpenAI batches resolve the instant they complete instead of waiting for the next tick. It runs the same `onComplete` callback. When omitted, no `POST` is exported.
+
+```ts
+// lib/batches.ts
+export const batches = createBatchRoutes({
+  store,
+  openaiSigningSecret: process.env.OPENAI_WEBHOOK_SECRET,
+  onComplete: persistResults,
+});
+```
+
+## Bring your own store
+
+`createMemoryStore()` is for development. In production, implement `BatchStore` over any KV/DB. Make sure `list({ delivered: false })` actually filters on the delivery flag — the cron relies on it to avoid reprocessing finished batches every tick.
+
+```ts
+import type { BatchStore } from "batchwork/next";
+
+const store: BatchStore = {
+  get: (id) => kv.get(id),
+  set: (record) => kv.set(record.id, record),
+  delete: (id) => kv.del(id),
+  list: ({ delivered } = {}) => kv.query({ delivered }),
+};
+```
+
+See [Server](/docs/server) for the lower-level poller and the webhook-based flow this builds on.

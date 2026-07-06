@@ -1,0 +1,17 @@
+---
+import CodeBlock from "blume/components/content/CodeBlock.astro";
+
+interface Props {
+  code: string;
+  /** Filename shown in the code-block header. */
+  name?: string;
+  lang?: string;
+  class?: string;
+}
+
+const { code, name, lang = "ts", class: className } = Astro.props;
+---
+
+<div class:list={["min-w-0 max-w-full", className]}>
+  <CodeBlock code={code} lang={lang} title={name} />
+</div>

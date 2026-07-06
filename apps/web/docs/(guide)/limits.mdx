@@ -1,0 +1,76 @@
+---
+title: Limits & defaults
+description: Batch-level options shared by every batch function — defaults merged into requests, batch metadata, and request/size limits with per-provider caps.
+---
+
+These options sit on the batch call alongside `model` and `requests`, and apply to **every** batch function — [`batch()`](/docs/text), [`batch.images()`](/docs/images), and [`batch.embeddings()`](/docs/embeddings) — regardless of the per-request fields documented on each API page.
+
+## Defaults
+
+`defaults` are merged into every request; request-level values win:
+
+```ts
+await batch({
+  model: anthropic("claude-opus-4-8"),
+  defaults: {
+    system: "You are terse.",
+    maxOutputTokens: 256,
+  },
+  requests: [
+    { customId: "a", prompt: "…" }, // inherits system + maxOutputTokens
+    { customId: "b", prompt: "…", maxOutputTokens: 1024 }, // overrides maxOutputTokens
+  ],
+});
+```
+
+## Metadata
+
+`metadata` attaches free-form key/value pairs to the batch. It's forwarded to
+OpenAI, Groq, Together AI, and Mistral, and ignored by Anthropic, Google Gemini,
+and xAI (whose batch APIs don't accept batch-level metadata):
+
+```ts
+await batch({ model, requests, metadata: { description: "nightly eval" } });
+```
+
+## Limits
+
+Batchwork validates every batch before it reaches a provider. The default
+guardrails are 50,000 requests per batch, 20 MiB per captured request body, a
+200 MiB provider upload payload, and 16 concurrent request captures:
+
+```ts
+await batch({
+  model,
+  requests,
+  limits: {
+    captureConcurrency: 8,
+    maxRequests: 10_000,
+    maxRequestBytes: 4 * 1024 * 1024,
+    maxUploadBytes: 100 * 1024 * 1024,
+  },
+});
+```
+
+Provider-side caps still apply, so keep custom limits at or below the target
+provider's maximums.
+
+Per-batch limits vary by provider:
+
+| Provider      | Max requests per batch | Max input size           |
+| ------------- | ---------------------- | ------------------------ |
+| OpenAI        | 50,000                 | 200 MB                   |
+| Anthropic     | 100,000                | 256 MB                   |
+| Google Gemini | No fixed count         | 2 GB file · 20 MB inline |
+| Groq          | 50,000                 | 200 MB                   |
+| Mistral       | 100,000                | 512 MB                   |
+| Together AI   | 50,000                 | 100 MB                   |
+| xAI           | 50,000                 | 200 MB                   |
+
+Notes:
+
+- **Google Gemini** doesn't cap request count directly — batches are bounded by the 2 GB input-file size and a per-model enqueued-token quota. Inline requests must stay under 20 MB total.
+- **Together AI** also limits enqueued tokens to 30B per model at any time.
+- **xAI**'s 50,000 cap applies to file-based batches; inline batches are theoretically unbounded but throttled above ~1,000,000 requests.
+
+For very large workloads, split into multiple batches.

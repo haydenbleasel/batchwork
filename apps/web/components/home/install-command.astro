@@ -1,0 +1,51 @@
+---
+import Icon from "./icon.astro";
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+const command = "npm install batchwork";
+---
+
+<button
+  type="button"
+  data-copy={command}
+  aria-label="Copy install command"
+  class:list={[
+    "bw-copy group inline-flex h-10 items-center gap-3 rounded-full border border-border px-4 font-mono text-sm text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent/50",
+    className,
+  ]}
+>
+  <span aria-hidden="true" class="text-muted-foreground/60">$</span>
+  <span>{command}</span>
+  <span
+    aria-hidden="true"
+    class="ml-2 text-muted-foreground transition-colors group-hover:text-foreground"
+  >
+    <Icon name="copy" class="bw-copy-icon size-4" />
+    <Icon name="check" class="bw-check-icon hidden size-4" />
+  </span>
+</button>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>(".bw-copy")) {
+    btn.addEventListener("click", async () => {
+      const text = btn.dataset.copy ?? "";
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        return;
+      }
+      const copy = btn.querySelector(".bw-copy-icon");
+      const check = btn.querySelector(".bw-check-icon");
+      copy?.classList.add("hidden");
+      check?.classList.remove("hidden");
+      window.setTimeout(() => {
+        check?.classList.add("hidden");
+        copy?.classList.remove("hidden");
+      }, 1800);
+    });
+  }
+</script>

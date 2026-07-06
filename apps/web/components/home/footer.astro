@@ -1,0 +1,82 @@
+---
+const PROJECT_LINKS = [
+  { href: "/docs", label: "Docs" },
+  { href: "/docs/usage", label: "Usage" },
+  { href: "/docs/server", label: "Server" },
+  { href: "/docs/providers/openai", label: "Providers" },
+];
+
+const RESOURCE_LINKS = [
+  { href: "https://github.com/haydenbleasel/batchwork", label: "GitHub" },
+  { href: "https://www.npmjs.com/package/batchwork", label: "npm" },
+  { href: "https://github.com/haydenbleasel/batchwork/issues", label: "Issues" },
+];
+
+const year = new Date().getFullYear();
+const linkClass =
+  "font-normal text-base text-muted-foreground transition-colors hover:text-foreground sm:text-sm";
+---
+
+<footer class="border-t border-dotted">
+  <div class="mx-auto max-w-6xl px-4 py-14 sm:py-16">
+    <div class="flex flex-col gap-10 sm:flex-row sm:justify-between sm:gap-16">
+      <div class="flex max-w-[40ch] flex-col gap-2">
+        <p class="font-semibold text-base text-foreground">Batchwork</p>
+        <p
+          class="text-pretty text-base text-muted-foreground leading-relaxed sm:text-sm"
+        >
+          Unified batch API for AI providers. Open source, MIT licensed.
+        </p>
+      </div>
+      <div class="grid grid-cols-2 gap-x-12 gap-y-8 sm:gap-x-16">
+        <div class="flex flex-col gap-3">
+          <p
+            class="font-mono text-muted-foreground text-xs uppercase tracking-wide"
+          >
+            Project
+          </p>
+          <ul class="flex flex-col gap-2">
+            {
+              PROJECT_LINKS.map((link) => (
+                <li>
+                  <a class={linkClass} href={link.href}>
+                    {link.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <div class="flex flex-col gap-3">
+          <p
+            class="font-mono text-muted-foreground text-xs uppercase tracking-wide"
+          >
+            Resources
+          </p>
+          <ul class="flex flex-col gap-2">
+            {
+              RESOURCE_LINKS.map((link) => (
+                <li>
+                  <a
+                    class={linkClass}
+                    href={link.href}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div
+      class="mt-12 flex flex-col gap-3 border-t border-dotted pt-6 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p class="text-muted-foreground text-xs">&copy; {year} Hayden Bleasel</p>
+      <p class="font-mono text-muted-foreground text-xs">MIT License</p>
+    </div>
+  </div>
+</footer>

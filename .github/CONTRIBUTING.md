@@ -28,7 +28,7 @@ The repo is a [Turborepo](https://turbo.build) + [Bun](https://bun.sh) monorepo:
   - provider implementations, grouped by the three batch shapes (JSONL upload, inline array, inline Gemini)
   - `test/` — Bun tests that mock at the `fetch` boundary
   - `live/` — opt-in live tests that hit real provider batch endpoints (need credentials)
-- `apps/web` — the Next.js docs/marketing site
+- `apps/web` — the Blume docs/marketing site
 
 ## Getting Started
 

@@ -1,9 +1,9 @@
 import { defineConfig } from "oxlint";
+import astro from "ultracite/oxlint/astro";
 import core from "ultracite/oxlint/core";
-import next from "ultracite/oxlint/next";
 import react from "ultracite/oxlint/react";
 
 export default defineConfig({
-  extends: [core, react, next],
+  extends: [core, react, astro],
   ignorePatterns: core.ignorePatterns,
 });
