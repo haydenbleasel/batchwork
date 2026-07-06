@@ -10,6 +10,7 @@ import type {
   WaitOptions,
 } from "./types";
 
+const WAIT_ABORTED_MESSAGE = "batchwork: wait aborted.";
 const DEFAULT_POLL_INTERVAL_MS = 15_000;
 
 const TERMINAL_STATUSES: ReadonlySet<BatchStatus> = new Set<BatchStatus>([
@@ -27,14 +28,14 @@ const delay = (ms: number, signal?: AbortSignal): Promise<void> =>
   // oxlint-disable-next-line promise/avoid-new -- wrapping the callback-based setTimeout.
   new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(new BatchworkError("batchwork: wait aborted."));
+      reject(new BatchworkError(WAIT_ABORTED_MESSAGE));
       return;
     }
     // oxlint-disable-next-line prefer-const -- assigned below, after `onAbort` closes over it.
     let timer: ReturnType<typeof setTimeout>;
     const onAbort = (): void => {
       clearTimeout(timer);
-      reject(new BatchworkError("batchwork: wait aborted."));
+      reject(new BatchworkError(WAIT_ABORTED_MESSAGE));
     };
     timer = setTimeout(() => {
       // Detach so a reused signal (one per poll across a long wait) doesn't
@@ -102,16 +103,16 @@ export class BatchJob {
 
     while (!isTerminalStatus(snapshot.status)) {
       if (options.signal?.aborted) {
-        throw new BatchworkError("batchwork: wait aborted.");
+        throw new BatchworkError(WAIT_ABORTED_MESSAGE);
       }
       if (deadline !== undefined && Date.now() > deadline) {
         throw new BatchworkError(
           `batchwork: timed out waiting for batch "${this.id}".`
         );
       }
-      // oxlint-disable-next-line no-await-in-loop -- polling is inherently sequential.
+      // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- polling is inherently sequential.
       await delay(interval, options.signal);
-      // oxlint-disable-next-line no-await-in-loop -- polling is inherently sequential.
+      // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- polling is inherently sequential.
       snapshot = await this.poll();
       options.onPoll?.(snapshot);
     }

@@ -31,17 +31,17 @@ Text batches are supported by **every** provider Batchwork supports. Everything 
 
 Each request mirrors `generateText` (minus `model`), plus a `customId` used to correlate its result. Provide `prompt` **or** `messages`.
 
-| Field                                 | Notes                                                                                                 |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `customId`                            | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
-| `prompt` / `messages`                 | Provide one. `messages` is the AI SDK `ModelMessage[]`.                                               |
-| `system`                              | System prompt.                                                                                        |
-| `tools` / `toolChoice`                | Tool definitions, exactly as in `generateText`.                                                       |
-| `maxOutputTokens`                     | Maximum tokens to generate. Required by Anthropic.                                                    |
-| `temperature`, `topP`, `topK`         | Sampling controls.                                                                                    |
-| `presencePenalty`, `frequencyPenalty` | Penalties.                                                                                            |
-| `stopSequences`, `seed`               | Stop sequences and seed.                                                                              |
-| `providerOptions`                     | Provider-specific options (e.g. reasoning / thinking config).                                         |
+| Field | Notes |
+| --- | --- |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `prompt` / `messages` | Provide one. `messages` is the AI SDK `ModelMessage[]`. |
+| `system` | System prompt. |
+| `tools` / `toolChoice` | Tool definitions, exactly as in `generateText`. |
+| `maxOutputTokens` | Maximum tokens to generate. Required by Anthropic. |
+| `temperature`, `topP`, `topK` | Sampling controls. |
+| `presencePenalty`, `frequencyPenalty` | Penalties. |
+| `stopSequences`, `seed` | Stop sequences and seed. |
+| `providerOptions` | Provider-specific options (e.g. reasoning / thinking config). |
 
 Batch-level options — [`defaults`, `metadata`, and `limits`](/docs/limits) — apply to every batch function, including this one.
 

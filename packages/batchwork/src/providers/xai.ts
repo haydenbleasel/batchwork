@@ -19,6 +19,7 @@ import {
 } from "./shared";
 
 const XAI_BASE = "https://api.x.ai/v1";
+const BATCH_ID_LABEL = "xAI batch id";
 const RESULTS_PAGE_SIZE = 100;
 
 const apiKey = (credentials: ProviderCredentials): string =>
@@ -64,7 +65,7 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
     completedAt: toDate(obj.finish_time ?? obj.completed_at),
     createdAt: toDate(obj.create_time),
     expiresAt: toDate(obj.expire_time ?? obj.expires_at),
-    id: id ? assertSimpleProviderId("xAI batch id", id) : "",
+    id: id ? assertSimpleProviderId(BATCH_ID_LABEL, id) : "",
     provider: "xai",
     raw,
     requestCounts: {
@@ -171,7 +172,7 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
-  const batchId = assertSimpleProviderId("xAI batch id", id);
+  const batchId = assertSimpleProviderId(BATCH_ID_LABEL, id);
   const raw = await requestJson(`${baseUrl(credentials)}/batches/${batchId}`, {
     headers: authHeaders(credentials),
   });
@@ -183,7 +184,7 @@ async function* results(
   id: string,
   credentials: ProviderCredentials
 ): AsyncGenerator<BatchResult> {
-  const batchId = assertSimpleProviderId("xAI batch id", id);
+  const batchId = assertSimpleProviderId(BATCH_ID_LABEL, id);
   const headers = authHeaders(credentials);
   let token: string | undefined;
   do {
@@ -191,7 +192,7 @@ async function* results(
     if (token) {
       query.set("pagination_token", token);
     }
-    // oxlint-disable-next-line no-await-in-loop -- pages are read sequentially.
+    // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- pages are read sequentially.
     const raw = await requestJson<Record<string, unknown>>(
       `${baseUrl(credentials)}/batches/${batchId}/results?${query.toString()}`,
       { headers }
@@ -208,7 +209,7 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
-  const batchId = assertSimpleProviderId("xAI batch id", id);
+  const batchId = assertSimpleProviderId(BATCH_ID_LABEL, id);
   await requestJson(`${baseUrl(credentials)}/batches/${batchId}:cancel`, {
     headers: authHeaders(credentials),
     method: "POST",

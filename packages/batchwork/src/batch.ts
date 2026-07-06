@@ -24,6 +24,8 @@ import type {
   ProviderCredentials,
 } from "./types";
 
+const EMPTY_REQUESTS_MESSAGE = "batchwork: `requests` must not be empty.";
+
 const pickCredentials = (source: ProviderCredentials): ProviderCredentials => ({
   apiKey: source.apiKey,
   baseURL: source.baseURL,
@@ -59,7 +61,7 @@ const providerFromRef = (ref: BatchRef): BatchProvider => {
  */
 const submitText = async (options: BatchOptions): Promise<BatchJob> => {
   if (options.requests.length === 0) {
-    throw new BatchworkError("batchwork: `requests` must not be empty.");
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
   }
 
   const resolved = resolveModel(options.model);
@@ -106,7 +108,7 @@ const submitEmbeddings = async (
   options: BatchEmbeddingsOptions
 ): Promise<BatchJob> => {
   if (options.requests.length === 0) {
-    throw new BatchworkError("batchwork: `requests` must not be empty.");
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
   }
 
   const resolved = resolveModel(options.model);
@@ -153,7 +155,7 @@ const submitEmbeddings = async (
  */
 const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
   if (options.requests.length === 0) {
-    throw new BatchworkError("batchwork: `requests` must not be empty.");
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
   }
 
   const resolved = resolveModel(options.model);

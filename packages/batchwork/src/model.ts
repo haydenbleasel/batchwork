@@ -1,14 +1,37 @@
-import type * as AnthropicModule from "@ai-sdk/anthropic";
-import type * as GoogleModule from "@ai-sdk/google";
-import type * as GroqModule from "@ai-sdk/groq";
-import type * as MistralModule from "@ai-sdk/mistral";
-import type * as OpenAIModule from "@ai-sdk/openai";
-import type * as TogetherModule from "@ai-sdk/togetherai";
-import type * as XaiModule from "@ai-sdk/xai";
+import type { createAnthropic } from "@ai-sdk/anthropic";
+import type { createGoogleGenerativeAI } from "@ai-sdk/google";
+import type { createGroq } from "@ai-sdk/groq";
+import type { createMistral } from "@ai-sdk/mistral";
+import type { createOpenAI } from "@ai-sdk/openai";
+import type { createTogetherAI } from "@ai-sdk/togetherai";
+import type { createXai } from "@ai-sdk/xai";
 import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials } from "./types";
+
+/** The shape `loadProvider` expects from each optional `@ai-sdk/*` package. */
+interface AnthropicModule {
+  createAnthropic: typeof createAnthropic;
+}
+interface GoogleModule {
+  createGoogleGenerativeAI: typeof createGoogleGenerativeAI;
+}
+interface GroqModule {
+  createGroq: typeof createGroq;
+}
+interface MistralModule {
+  createMistral: typeof createMistral;
+}
+interface OpenAIModule {
+  createOpenAI: typeof createOpenAI;
+}
+interface TogetherModule {
+  createTogetherAI: typeof createTogetherAI;
+}
+interface XaiModule {
+  createXai: typeof createXai;
+}
 
 /** A fetch implementation compatible with the AI SDK provider `fetch` option. */
 export type CapturingFetch = typeof globalThis.fetch;
@@ -193,8 +216,7 @@ export const createCaptureModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } =
-        await loadProvider<typeof OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
       const provider = createOpenAI(settings);
       if (resolved.kind === "responses") {
         return provider.responses(resolved.modelId);
@@ -206,30 +228,29 @@ export const createCaptureModel = async (
     }
     case "anthropic": {
       const { createAnthropic } =
-        await loadProvider<typeof AnthropicModule>("anthropic");
+        await loadProvider<AnthropicModule>("anthropic");
       return createAnthropic(settings).messages(resolved.modelId);
     }
     case "groq": {
-      const { createGroq } = await loadProvider<typeof GroqModule>("groq");
+      const { createGroq } = await loadProvider<GroqModule>("groq");
       return createGroq(settings).languageModel(resolved.modelId);
     }
     case "mistral": {
-      const { createMistral } =
-        await loadProvider<typeof MistralModule>("mistral");
+      const { createMistral } = await loadProvider<MistralModule>("mistral");
       return createMistral(settings).languageModel(resolved.modelId);
     }
     case "google": {
       const { createGoogleGenerativeAI } =
-        await loadProvider<typeof GoogleModule>("google");
+        await loadProvider<GoogleModule>("google");
       return createGoogleGenerativeAI(settings).languageModel(resolved.modelId);
     }
     case "xai": {
-      const { createXai } = await loadProvider<typeof XaiModule>("xai");
+      const { createXai } = await loadProvider<XaiModule>("xai");
       return createXai(settings).languageModel(resolved.modelId);
     }
     case "together": {
       const { createTogetherAI } =
-        await loadProvider<typeof TogetherModule>("together");
+        await loadProvider<TogetherModule>("together");
       return createTogetherAI(settings).languageModel(resolved.modelId);
     }
     default: {
@@ -276,18 +297,16 @@ export const createCaptureEmbeddingModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } =
-        await loadProvider<typeof OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
       return createOpenAI(settings).embeddingModel(resolved.modelId);
     }
     case "mistral": {
-      const { createMistral } =
-        await loadProvider<typeof MistralModule>("mistral");
+      const { createMistral } = await loadProvider<MistralModule>("mistral");
       return createMistral(settings).embeddingModel(resolved.modelId);
     }
     case "google": {
       const { createGoogleGenerativeAI } =
-        await loadProvider<typeof GoogleModule>("google");
+        await loadProvider<GoogleModule>("google");
       return createGoogleGenerativeAI(settings).embeddingModel(
         resolved.modelId
       );
@@ -338,17 +357,16 @@ export const createCaptureImageModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } =
-        await loadProvider<typeof OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
       return createOpenAI(settings).image(resolved.modelId);
     }
     case "google": {
       const { createGoogleGenerativeAI } =
-        await loadProvider<typeof GoogleModule>("google");
+        await loadProvider<GoogleModule>("google");
       return createGoogleGenerativeAI(settings).image(resolved.modelId);
     }
     case "xai": {
-      const { createXai } = await loadProvider<typeof XaiModule>("xai");
+      const { createXai } = await loadProvider<XaiModule>("xai");
       return createXai(settings).image(resolved.modelId);
     }
     default: {

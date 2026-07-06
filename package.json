@@ -24,9 +24,12 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
+    "eslint-plugin-github": "^6.0.0",
+    "eslint-plugin-sonarjs": "^4.1.0",
     "husky": "^9.1.7",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",
+    "oxlint-plugin-react-doctor": "^0.7.1",
     "turbo": "^2.10.3",
     "typescript": "^6.0.3",
     "ultracite": "7.9.1"

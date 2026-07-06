@@ -11,6 +11,8 @@ import type { BatchResult } from "../src/types";
 
 const credentials = { apiKey: "test-key" };
 
+type FetchInput = string | URL | Request;
+
 interface Route {
   body: unknown;
   headers?: Record<string, string>;
@@ -22,7 +24,7 @@ const originalFetch = globalThis.fetch;
 
 const install = (routes: Route[]) => {
   const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    (input: FetchInput, init?: RequestInit): Promise<Response> => {
       const url = typeof input === "string" ? input : String(input);
       const method = init?.method ?? "GET";
       const route = routes.find((candidate) => candidate.match(url, method));
@@ -271,10 +273,7 @@ describe("openai adapter", () => {
     const redirectedUrl = "https://127.0.0.1/internal-upload";
     const requestedUrls: string[] = [];
     const fetchMock = mock(
-      (
-        input: string | URL | Request,
-        init?: RequestInit
-      ): Promise<Response> => {
+      (input: FetchInput, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         requestedUrls.push(url);
         if (url.endsWith("/files")) {
@@ -589,10 +588,7 @@ describe("together adapter", () => {
     const redirectedUrl = "https://127.0.0.1/internal-upload";
     const requestedUrls: string[] = [];
     const fetchMock = mock(
-      (
-        input: string | URL | Request,
-        init?: RequestInit
-      ): Promise<Response> => {
+      (input: FetchInput, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         requestedUrls.push(url);
         if (url.endsWith("/files") && init?.method === "POST") {

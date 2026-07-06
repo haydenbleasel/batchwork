@@ -13,7 +13,7 @@ import { expect } from "bun:test";
 
 import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
-import { batch } from "../src/index";
+import { batch } from "../src/batch";
 import type {
   BatchEmbeddingRequest,
   BatchImageRequest,

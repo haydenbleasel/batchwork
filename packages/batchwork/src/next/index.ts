@@ -6,7 +6,6 @@ import type {
   CredentialResolver,
   TrackTarget,
 } from "../server/poller";
-import { createMemoryStore } from "../server/store";
 import type {
   BatchStore,
   BatchWebhookEvent,
@@ -14,14 +13,14 @@ import type {
 } from "../server/types";
 import type { BatchProvider, BatchResult, ProviderCredentials } from "../types";
 
-export { createMemoryStore };
+export type { TrackTarget } from "../server/poller";
+export { createMemoryStore } from "../server/store";
 export type {
   BatchStore,
   BatchWebhookEvent,
-  BatchResult,
   TrackedBatch,
-  TrackTarget,
-};
+} from "../server/types";
+export type { BatchResult } from "../types";
 
 /**
  * Invoked once per batch when it reaches a terminal status. Persist the results
@@ -63,12 +62,11 @@ export interface BatchRoutes {
   track: (target: TrackTarget) => Promise<TrackedBatch>;
 }
 
-/** An already-exhausted async iterable, for non-completed events. */
-const EMPTY_RESULTS: AsyncIterable<BatchResult> = {
-  [Symbol.asyncIterator]: () => ({
-    next: () => Promise.resolve({ done: true, value: undefined }),
-  }),
-};
+/** An already-exhausted result stream, for non-completed events. */
+// oxlint-disable-next-line func-style, require-yield -- generators cannot be arrow functions; this one is intentionally empty.
+async function* emptyResults(): AsyncGenerator<BatchResult> {
+  // Failure events carry no results.
+}
 
 /**
  * Build Next.js App Router route handlers that poll your in-flight batches on a
@@ -108,7 +106,7 @@ export const createBatchRoutes = (options: BatchRoutesOptions): BatchRoutes => {
             provider: record.provider,
             ...resolveCredentials(record.provider),
           })
-        : EMPTY_RESULTS;
+        : emptyResults();
     await options.onComplete(event, results);
   };
 
@@ -121,23 +119,23 @@ export const createBatchRoutes = (options: BatchRoutesOptions): BatchRoutes => {
     store: options.store,
   });
 
-  const GET = (request: Request): Promise<Response> => {
+  const handleCronTick = async (request: Request): Promise<Response> => {
     if (!(options.cronSecret || options.allowUnauthenticatedCron)) {
-      return Promise.resolve(new Response("unauthorized", { status: 401 }));
+      return new Response("unauthorized", { status: 401 });
     }
     if (
       options.cronSecret &&
       request.headers.get("authorization") !== `Bearer ${options.cronSecret}`
     ) {
-      return Promise.resolve(new Response("unauthorized", { status: 401 }));
+      return new Response("unauthorized", { status: 401 });
     }
-    return poller.tick().then((result) => Response.json(result));
+    return Response.json(await poller.tick());
   };
 
   const track = (target: TrackTarget): Promise<TrackedBatch> =>
     poller.track(target, {});
 
-  const routes: BatchRoutes = { GET, track };
+  const routes: BatchRoutes = { GET: handleCronTick, track };
   if (options.openaiSigningSecret) {
     routes.POST = poller.openaiWebhookHandler({
       signingSecret: options.openaiSigningSecret,

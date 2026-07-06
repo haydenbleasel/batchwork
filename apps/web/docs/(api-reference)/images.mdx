@@ -37,18 +37,13 @@ You can also pass a `"provider/model"` string (e.g. `"openai/gpt-image-2"`), tho
 
 Batch image generation is available for the providers whose batch API accepts an image-generation endpoint:
 
-| Provider      | Example model                | Notes                                                           |
-| ------------- | ---------------------------- | --------------------------------------------------------------- |
-| OpenAI        | `gpt-image-2`                | `/v1/images/generations` batch endpoint. Inline base64.         |
-| Google Gemini | `gemini-2.5-flash-image`     | Gemini image models via `:batchGenerateContent`. Inline base64. |
-| xAI           | `grok-imagine-image-quality` | `/v1/images/generations`. Signed URLs that **expire ~1h**.      |
+| Provider | Example model | Notes |
+| --- | --- | --- |
+| OpenAI | `gpt-image-2` | `/v1/images/generations` batch endpoint. Inline base64. |
+| Google Gemini | `gemini-2.5-flash-image` | Gemini image models via `:batchGenerateContent`. Inline base64. |
+| xAI | `grok-imagine-image-quality` | `/v1/images/generations`. Signed URLs that **expire ~1h**. |
 
-:::warning
-Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch
-API is chat/audio only; and Google's Imagen models (`:predict`) aren't
-batch-supported. Calling `batch.images()` with any of them throws
-`UnsupportedProviderError` before any network request.
-:::
+:::warning Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch API is chat/audio only; and Google's Imagen models (`:predict`) aren't batch-supported. Calling `batch.images()` with any of them throws `UnsupportedProviderError` before any network request. :::
 
 This is **generation only** — image editing (input images, masks) and video aren't supported by the batch APIs.
 
@@ -56,15 +51,15 @@ This is **generation only** — image editing (input images, masks) and video ar
 
 Each request is a text `prompt` plus an optional `customId` and a few generation knobs:
 
-| Field             | Notes                                                                                                 |
-| ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `prompt`          | The text describing the image to generate.                                                            |
-| `customId`        | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
-| `n`               | Number of images to generate. Defaults to 1.                                                          |
-| `size`            | Image size as `"{width}x{height}"` (e.g. OpenAI image models, `"1024x1024"`).                         |
-| `aspectRatio`     | Aspect ratio as `"{width}:{height}"` (e.g. Gemini image models, `"16:9"`).                            |
-| `providerOptions` | Provider-specific options (e.g. `{ openai: { quality: "high" } }`). See below.                        |
-| `seed`            | Seed for deterministic generation, where the provider supports it.                                    |
+| Field | Notes |
+| --- | --- |
+| `prompt` | The text describing the image to generate. |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `n` | Number of images to generate. Defaults to 1. |
+| `size` | Image size as `"{width}x{height}"` (e.g. OpenAI image models, `"1024x1024"`). |
+| `aspectRatio` | Aspect ratio as `"{width}:{height}"` (e.g. Gemini image models, `"16:9"`). |
+| `providerOptions` | Provider-specific options (e.g. `{ openai: { quality: "high" } }`). See below. |
+| `seed` | Seed for deterministic generation, where the provider supports it. |
 
 `limits` and `metadata` work exactly as in [`batch()`](/docs/limits).
 

@@ -2,10 +2,7 @@
 
 A unified **batch API** for AI providers. Submit thousands of LLM requests at roughly half the cost with a single call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
 
-[![npm version](https://img.shields.io/npm/v/batchwork.svg)](https://www.npmjs.com/package/batchwork)
-[![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork)
-[![license](https://img.shields.io/npm/l/batchwork.svg)](#license)
-[![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork)
+[![npm version](https://img.shields.io/npm/v/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![license](https://img.shields.io/npm/l/batchwork.svg)](#license) [![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork)
 
 📖 **Full documentation: [batchwork.dev](https://batchwork.dev)**
 

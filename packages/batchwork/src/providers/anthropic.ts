@@ -103,11 +103,13 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
 };
 
 const textFromMessage = (message: unknown): string | undefined => {
-  const text = asArray(asRecord(message).content)
-    .map((block) => asRecord(block))
-    .filter((block) => block.type === "text")
-    .map((block) => asString(block.text) ?? "")
-    .join("");
+  let text = "";
+  for (const item of asArray(asRecord(message).content)) {
+    const block = asRecord(item);
+    if (block.type === "text") {
+      text += asString(block.text) ?? "";
+    }
+  }
   return text.length > 0 ? text : undefined;
 };
 

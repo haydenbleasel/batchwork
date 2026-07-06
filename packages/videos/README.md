@@ -1,17 +1,14 @@
 # videos
 
-[Remotion](https://remotion.dev) videos for Batchwork — launch and marketing
-motion. Dark theme over a teal background texture (`public/background.jpg`),
-with frosted-glass code blocks that type themselves out and marker-highlighted
-titles. Built with Geist + Geist Mono to match [batchwork.dev](https://batchwork.dev).
+[Remotion](https://remotion.dev) videos for Batchwork — launch and marketing motion. Dark theme over a teal background texture (`public/background.jpg`), with frosted-glass code blocks that type themselves out and marker-highlighted titles. Built with Geist + Geist Mono to match [batchwork.dev](https://batchwork.dev).
 
 ## Compositions
 
-| id                    | description                                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| `BatchworkLaunch`     | ~25s launch video: intro → unified API → AI SDK models → server polling → Next.js → outro    |
+| id | description |
+| --- | --- |
+| `BatchworkLaunch` | ~25s launch video: intro → unified API → AI SDK models → server polling → Next.js → outro |
 | `BatchworkEmbeddings` | ~21.5s light-mode feature video for `batch.embeddings`: intro → code + terminal demo → outro |
-| `BatchworkImages`     | ~21.5s light-mode feature video for `batch.images`: intro → code + terminal demo → outro     |
+| `BatchworkImages` | ~21.5s light-mode feature video for `batch.images`: intro → code + terminal demo → outro |
 
 ## Develop
 
@@ -43,7 +40,4 @@ src/
   scenes/           Intro, UnifiedApi, AiSdk, Server, NextScene, Outro
 ```
 
-The glass code block and marker highlight are adapted from
-[remocn](https://github.com/kapishdima/remocn). Animations use
-`useCurrentFrame()` + `interpolate()`/`spring()` only — no CSS transitions or
-Tailwind animation classes (they don't render deterministically).
+The glass code block and marker highlight are adapted from [remocn](https://github.com/kapishdima/remocn). Animations use `useCurrentFrame()` + `interpolate()`/`spring()` only — no CSS transitions or Tailwind animation classes (they don't render deterministically).

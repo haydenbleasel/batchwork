@@ -181,7 +181,7 @@ const TerminalPane = ({
           const o = interpolate(frame, [at, at + 10], [0, 1], CLAMP);
           return (
             <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: output lines are static and ordered
+              // oxlint-disable-next-line react-doctor/no-array-index-as-key -- output lines are static and ordered.
               key={i}
               style={{ color: "#475467", opacity: o, whiteSpace: "pre" }}
             >

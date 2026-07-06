@@ -20,6 +20,7 @@ const SCENES = [
   { Component: Outro, durationInFrames: 180 },
 ] as const;
 
+// oxlint-disable-next-line react-doctor/only-export-components -- the Remotion Root reads the duration alongside the composition.
 export const TOTAL_DURATION = SCENES.reduce(
   (sum, scene) => sum + scene.durationInFrames,
   0
@@ -32,7 +33,7 @@ export const BatchworkLaunch = () => (
       {SCENES.map(({ Component, durationInFrames }, i) => (
         <Series.Sequence
           durationInFrames={durationInFrames}
-          // biome-ignore lint/suspicious/noArrayIndexKey: scene order is fixed
+          // oxlint-disable-next-line react-doctor/no-array-index-as-key -- scene order is fixed.
           key={i}
         >
           <Scene durationInFrames={durationInFrames}>

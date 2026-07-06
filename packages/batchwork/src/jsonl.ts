@@ -131,7 +131,7 @@ async function* toByteIterable(
         if (chunk.value) {
           yield chunk.value;
         }
-        // oxlint-disable-next-line no-await-in-loop -- a stream is read sequentially.
+        // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- a stream is read sequentially.
         chunk = await reader.read();
       }
     } finally {

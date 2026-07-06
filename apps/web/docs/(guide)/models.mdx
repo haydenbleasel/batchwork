@@ -23,11 +23,7 @@ Batchwork reads the provider and model id from whatever you pass and routes to t
 
 A `"provider/model"` string is supported for ergonomics and resolves to the provider's **native** batch API using your provider credentials.
 
-:::warning
-Batch traffic does **not** route through the Vercel AI Gateway (which has no
-batch endpoint). You need the provider key (e.g. `OPENAI_API_KEY`), not just a
-gateway key.
-:::
+:::warning Batch traffic does **not** route through the Vercel AI Gateway (which has no batch endpoint). You need the provider key (e.g. `OPENAI_API_KEY`), not just a gateway key. :::
 
 ## How the body is built
 

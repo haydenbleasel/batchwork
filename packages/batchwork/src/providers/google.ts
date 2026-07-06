@@ -22,6 +22,7 @@ import type { BatchAdapter, SubmitInput } from "./adapter";
 import { assertPrefixedProviderId } from "./ids";
 
 const GOOGLE_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const OPERATION_ID_LABEL = "Google operation id";
 const GOOGLE_BATCH_PREFIX = "batches";
 
 const apiKey = (credentials: ProviderCredentials): string => {
@@ -97,7 +98,7 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   const id = asString(obj.name) ?? "";
   return {
     id: id
-      ? assertPrefixedProviderId("Google operation id", id, GOOGLE_BATCH_PREFIX)
+      ? assertPrefixedProviderId(OPERATION_ID_LABEL, id, GOOGLE_BATCH_PREFIX)
       : "",
     provider: "google",
     raw,
@@ -262,7 +263,7 @@ const retrieve = async (
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
   const operationId = assertPrefixedProviderId(
-    "Google operation id",
+    OPERATION_ID_LABEL,
     id,
     GOOGLE_BATCH_PREFIX
   );
@@ -271,6 +272,10 @@ const retrieve = async (
   });
   return normalizeSnapshot(raw);
 };
+
+/** A file reference may be a bare name string or an object with a `name`. */
+const fileNameFrom = (value: unknown): string | undefined =>
+  asString(asRecord(value).name) ?? asString(value);
 
 // oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 async function* results(
@@ -282,10 +287,8 @@ async function* results(
   const response = asRecord(raw.response);
   const dest = asRecord(raw.dest);
   const responsesFile =
-    asString(asRecord(response.responsesFile).name) ??
-    asString(response.responsesFile) ??
-    asString(asRecord(response.responses_file).name) ??
-    asString(response.responses_file) ??
+    fileNameFrom(response.responsesFile) ??
+    fileNameFrom(response.responses_file) ??
     asString(dest.fileName) ??
     asString(dest.file_name);
   if (responsesFile) {
@@ -309,7 +312,7 @@ const cancel = async (
   credentials: ProviderCredentials
 ): Promise<void> => {
   const operationId = assertPrefixedProviderId(
-    "Google operation id",
+    OPERATION_ID_LABEL,
     id,
     GOOGLE_BATCH_PREFIX
   );

@@ -33,27 +33,23 @@ You can also pass a `"provider/model"` string (e.g. `"openai/text-embedding-3-sm
 
 Batch embeddings are available for the providers whose batch API accepts the embeddings endpoint:
 
-| Provider      | Example model            | Notes                                  |
-| ------------- | ------------------------ | -------------------------------------- |
-| OpenAI        | `text-embedding-3-small` | `/v1/embeddings` batch endpoint.       |
-| Mistral       | `mistral-embed`          | Model set on the batch job.            |
-| Google Gemini | `gemini-embedding-001`   | Async `:asyncBatchEmbedContent` batch. |
+| Provider | Example model | Notes |
+| --- | --- | --- |
+| OpenAI | `text-embedding-3-small` | `/v1/embeddings` batch endpoint. |
+| Mistral | `mistral-embed` | Model set on the batch job. |
+| Google Gemini | `gemini-embedding-001` | Async `:asyncBatchEmbedContent` batch. |
 
-:::warning
-Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's
-batch API rejects the embeddings endpoint. Calling `batch.embeddings()` with
-any of them throws `UnsupportedProviderError` before any network request.
-:::
+:::warning Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's batch API rejects the embeddings endpoint. Calling `batch.embeddings()` with any of them throws `UnsupportedProviderError` before any network request. :::
 
 ## Request shape
 
 Each request is a single text to embed plus an optional `customId`. There are no `prompt`, `messages`, or sampling fields — embeddings only need the input.
 
-| Field             | Notes                                                                                                 |
-| ----------------- | ----------------------------------------------------------------------------------------------------- |
-| `value`           | The text to embed. One `value` → one vector.                                                          |
-| `customId`        | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
-| `providerOptions` | Provider-specific options (e.g. output dimensions, task type). See below.                             |
+| Field | Notes |
+| --- | --- |
+| `value` | The text to embed. One `value` → one vector. |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `providerOptions` | Provider-specific options (e.g. output dimensions, task type). See below. |
 
 `limits` and `metadata` work exactly as in [`batch()`](/docs/limits).
 

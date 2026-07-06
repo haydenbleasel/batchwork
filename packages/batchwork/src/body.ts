@@ -105,10 +105,10 @@ const endpointFromUrl = (url: string): string => {
   }
 };
 
-const mergeDefaults = (
-  request: BatchRequest,
-  defaults: BatchDefaults | undefined
-): BatchRequest => {
+const mergeDefaults = <Request extends object>(
+  request: Request,
+  defaults: NoInfer<Partial<Request>> | undefined
+): Request => {
   if (!defaults) {
     return request;
   }
@@ -344,16 +344,6 @@ export const buildEmbeddingBodies = async (
   );
 };
 
-const mergeImageDefaults = (
-  request: BatchImageRequest,
-  defaults: BatchImageDefaults | undefined
-): BatchImageRequest => {
-  if (!defaults) {
-    return request;
-  }
-  return { ...defaults, ...request };
-};
-
 /**
  * Derive provider image-generation request bodies for every batch item by
  * running each through the AI SDK `generateImage` with a capturing `fetch`.
@@ -386,7 +376,7 @@ export const buildImageBodies = async (
     async (item) => {
       const built = await captureImageOne(
         model,
-        mergeImageDefaults(item.request, defaults),
+        mergeDefaults(item.request, defaults),
         item.customId,
         limits.maxRequestBytes
       );

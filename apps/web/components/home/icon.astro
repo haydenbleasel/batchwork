@@ -1,14 +1,22 @@
 ---
 // Inline Lucide icons for the landing page (Blume is Lucide-only; these mirror
 // the exact glyphs the original React page imported from lucide-react).
+type IconName =
+  | "arrow-right"
+  | "route"
+  | "workflow"
+  | "file-check"
+  | "copy"
+  | "check";
+
 interface Props {
-  name: "arrow-right" | "route" | "workflow" | "file-check" | "copy" | "check";
+  name: IconName;
   class?: string;
 }
 
 const { name, class: className } = Astro.props;
 
-const PATHS: Record<Props["name"], string> = {
+const PATHS: Record<IconName, string> = {
   "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   copy:

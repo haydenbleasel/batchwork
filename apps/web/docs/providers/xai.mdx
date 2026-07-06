@@ -58,11 +58,7 @@ const job = await batch.images({
 
 Image results come back under the `image_response` op in the paginated `/results` response.
 
-:::warning
-xAI batch returns **signed image URLs** on `result.images[].url` (and/or
-inline `data`) that **expire ~1h** after the batch completes — fetch and
-persist them promptly. See [Images](/docs/images).
-:::
+:::warning xAI batch returns **signed image URLs** on `result.images[].url` (and/or inline `data`) that **expire ~1h** after the batch completes — fetch and persist them promptly. See [Images](/docs/images). :::
 
 ## Notes
 

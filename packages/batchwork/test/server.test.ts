@@ -9,6 +9,8 @@ import {
 import { createMemoryStore } from "../src/server/store";
 import type { BatchWebhookEvent } from "../src/server/types";
 
+type FetchInput = string | URL | Request;
+
 interface Route {
   body: unknown;
   match: (url: string, method: string) => boolean;
@@ -18,7 +20,7 @@ const originalFetch = globalThis.fetch;
 
 const install = (routes: Route[]) => {
   const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    (input: FetchInput, init?: RequestInit): Promise<Response> => {
       const url = typeof input === "string" ? input : String(input);
       const method = init?.method ?? "GET";
       const route = routes.find((candidate) => candidate.match(url, method));
@@ -254,10 +256,7 @@ describe("createBatchPoller", () => {
     const redirectedUrl = "https://127.0.0.1/internal";
     const requestedUrls: string[] = [];
     const fetchMock = mock(
-      (
-        input: string | URL | Request,
-        init?: RequestInit
-      ): Promise<Response> => {
+      (input: FetchInput, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         requestedUrls.push(url);
 
@@ -516,22 +515,20 @@ describe("createBatchPoller", () => {
       { id: "batch_fail", provider: "openai" },
       { webhookUrl: WEBHOOK_URL }
     );
-    const fetchMock = mock(
-      (input: string | URL | Request): Promise<Response> => {
-        const url = String(input);
-        if (url.includes("/batches/batch_fail")) {
-          return Promise.resolve(
-            Response.json(completedBatch("batch_fail"), {
-              status: 200,
-            })
-          );
-        }
-        if (url === WEBHOOK_URL) {
-          return Promise.resolve(new Response("nope", { status: 500 }));
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+    const fetchMock = mock((input: FetchInput): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/batches/batch_fail")) {
+        return Promise.resolve(
+          Response.json(completedBatch("batch_fail"), {
+            status: 200,
+          })
+        );
       }
-    );
+      if (url === WEBHOOK_URL) {
+        return Promise.resolve(new Response("nope", { status: 500 }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     await expect(poller.tick()).rejects.toThrow("webhook delivery");

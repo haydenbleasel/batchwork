@@ -15,6 +15,8 @@ import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 
 const MISTRAL_BASE = "https://api.mistral.ai/v1";
 
+const JOB_ID_LABEL = "Mistral job id";
+
 const apiKey = (credentials: ProviderCredentials): string =>
   resolveApiKey(credentials, "MISTRAL_API_KEY", "Mistral");
 
@@ -62,7 +64,7 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   return {
     completedAt: toDate(obj.completed_at),
     createdAt: toDate(obj.created_at),
-    id: id ? assertSimpleProviderId("Mistral job id", id) : "",
+    id: id ? assertSimpleProviderId(JOB_ID_LABEL, id) : "",
     provider: "mistral",
     raw,
     requestCounts: {
@@ -109,7 +111,7 @@ const retrieve = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<BatchSnapshot> => {
-  const jobId = assertSimpleProviderId("Mistral job id", id);
+  const jobId = assertSimpleProviderId(JOB_ID_LABEL, id);
   const raw = await requestJson(`${baseUrl(credentials)}/batch/jobs/${jobId}`, {
     headers: authHeaders(credentials),
   });
@@ -151,7 +153,7 @@ const cancel = async (
   id: string,
   credentials: ProviderCredentials
 ): Promise<void> => {
-  const jobId = assertSimpleProviderId("Mistral job id", id);
+  const jobId = assertSimpleProviderId(JOB_ID_LABEL, id);
   await requestJson(`${baseUrl(credentials)}/batch/jobs/${jobId}/cancel`, {
     headers: authHeaders(credentials),
     method: "POST",

@@ -18,6 +18,8 @@ import type { BatchResult, BatchStatus } from "../src/types";
 
 const credentials = { apiKey: "test-key" };
 
+type FetchInput = string | URL | Request;
+
 interface Route {
   body: unknown;
   status?: number;
@@ -28,7 +30,7 @@ const originalFetch = globalThis.fetch;
 
 const install = (routes: Route[]) => {
   const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    (input: FetchInput, init?: RequestInit): Promise<Response> => {
       const url = typeof input === "string" ? input : String(input);
       const method = init?.method ?? "GET";
       const route = routes.find((candidate) => candidate.match(url, method));
@@ -250,10 +252,7 @@ describe("openai-compatible branches", () => {
     const redirectedUrl = "https://127.0.0.1/internal-jsonl";
     const requestedUrls: string[] = [];
     const fetchMock = mock(
-      (
-        input: string | URL | Request,
-        init?: RequestInit
-      ): Promise<Response> => {
+      (input: FetchInput, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         requestedUrls.push(url);
         if (url.endsWith("/batches/batch_1")) {
@@ -568,10 +567,7 @@ describe("anthropic branches", () => {
     const redirectedUrl = "https://127.0.0.1/internal-jsonl";
     const requestedUrls: string[] = [];
     const fetchMock = mock(
-      (
-        input: string | URL | Request,
-        init?: RequestInit
-      ): Promise<Response> => {
+      (input: FetchInput, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         requestedUrls.push(url);
         if (url.endsWith("/v1/messages/batches/b1")) {

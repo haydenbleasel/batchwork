@@ -19,17 +19,29 @@ const parseIpv4 = (host: string): number[] | undefined => {
 
 const isPrivateIpv4 = (parts: number[]): boolean => {
   const [a = 0, b = 0] = parts;
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    a >= 224
-  );
+  if (a === 0 || a === 10 || a === 127 || a >= 224) {
+    return true;
+  }
+  switch (a) {
+    case 100: {
+      return b >= 64 && b <= 127;
+    }
+    case 169: {
+      return b === 254;
+    }
+    case 172: {
+      return b >= 16 && b <= 31;
+    }
+    case 192: {
+      return b === 168;
+    }
+    case 198: {
+      return b === 18 || b === 19;
+    }
+    default: {
+      return false;
+    }
+  }
 };
 
 const isPrivateIpv6 = (host: string): boolean => {
@@ -39,13 +51,27 @@ const isPrivateIpv6 = (host: string): boolean => {
   if (!normalized.includes(":")) {
     return false;
   }
+  if (normalized === "::" || normalized === "::1") {
+    return true;
+  }
   return (
-    normalized === "::" ||
-    normalized === "::1" ||
     normalized.startsWith("fc") ||
     normalized.startsWith("fd") ||
     normalized.startsWith("fe80:")
   );
+};
+
+/** Whether a hostname points at localhost or a private network. */
+const isPrivateHost = (host: string): boolean => {
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local")
+  ) {
+    return true;
+  }
+  const ipv4 = parseIpv4(host);
+  return (ipv4 ? isPrivateIpv4(ipv4) : false) || isPrivateIpv6(host);
 };
 
 const validateUploadLocation = (location: string): string => {
@@ -68,15 +94,7 @@ const validateUploadLocation = (location: string): string => {
       "batchwork: Together upload Location must not include credentials."
     );
   }
-  const host = url.hostname.toLowerCase();
-  const ipv4 = parseIpv4(host);
-  if (
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host.endsWith(".local") ||
-    (ipv4 && isPrivateIpv4(ipv4)) ||
-    isPrivateIpv6(host)
-  ) {
+  if (isPrivateHost(url.hostname.toLowerCase())) {
     throw new BatchworkError(
       "batchwork: Together upload Location must not target localhost or private networks."
     );
