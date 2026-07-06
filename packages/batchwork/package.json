@@ -70,7 +70,7 @@
     "@ai-sdk/google": "^3.0.82",
     "@ai-sdk/groq": "^3.0.41",
     "@ai-sdk/mistral": "^3.0.39",
-    "@ai-sdk/openai": "^3.0.71",
+    "@ai-sdk/openai": "^4.0.8",
     "@ai-sdk/togetherai": "^2.0.55",
     "@ai-sdk/xai": "^3.0.95",
     "@electric-sql/pglite": "^0.5.2",
