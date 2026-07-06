@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "batchwork": "workspace:*",
-    "blume": "^0.6.5"
+    "blume": "^0.6.7"
   }
 }
