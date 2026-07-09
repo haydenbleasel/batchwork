@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 import { watch as fsWatch } from "node:fs";
-// Build the package: JS via Bun's bundler, .d.ts via tsgo. Replaces tsdown.
+// Build the package: JS via Bun's bundler, .d.ts via tsc. Replaces tsdown.
 // Bun bundles the entry into dist/; peer/runtime deps (incl. the providers'
 // dynamically-imported optional @ai-sdk/* packages) stay external so they load
-// lazily at runtime. tsgo emits per-file declarations into the same dist/ tree.
+// lazily at runtime. tsc emits per-file declarations into the same dist/ tree.
 import { rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -67,9 +67,9 @@ const run = async (cmd: string[], label: string) => {
   }
 };
 
-// tsgo (TypeScript native preview) emits one .d.ts (+ map) per source file.
+// tsc (TypeScript 7's native Go compiler) emits one .d.ts (+ map) per source file.
 const buildTypes = () =>
-  run(["bun", "x", "tsgo", "-p", "tsconfig.build.json"], "tsgo");
+  run(["bun", "x", "tsc", "-p", "tsconfig.build.json"], "tsc");
 
 const build = async () => {
   const start = performance.now();

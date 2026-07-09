@@ -57,7 +57,7 @@
   "scripts": {
     "build": "bun run scripts/build.ts",
     "dev": "bun run scripts/build.ts --watch",
-    "typecheck": "tsgo --noEmit && tsgo --noEmit -p tsconfig.bun.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.bun.json",
     "test": "bun test ./test",
     "test:coverage": "bun test ./test --coverage",
     "test:live": "bun test --env-file=.env.local ./live"
@@ -77,10 +77,9 @@
     "@types/bun": "^1.3.14",
     "@types/node": "^26.1.0",
     "@types/pg": "^8.20.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260705.1",
     "@upstash/redis": "^1.38.0",
     "pg": "^8.22.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.0"
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": ">=3",
