@@ -68,7 +68,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
 
     const job = await batch.images.edit({
       apiKey: "test-key",
-      model: "openai/gpt-image-1.5",
+      model: "openai/gpt-image-2",
       requests: [
         {
           customId: "a",
@@ -96,7 +96,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     expect(jsonl).toContain('"url":"/v1/images/edits"');
     expect(jsonl).toContain(`"images":[{"image_url":"${SOURCE_URL}"}]`);
     expect(jsonl).toContain('"mask":{"file_id":"file-mask"}');
-    expect(jsonl).toContain('"model":"gpt-image-1.5"');
+    expect(jsonl).toContain('"model":"gpt-image-2"');
     expect(jsonl).toContain('"size":"1024x1024"');
 
     await job.wait({ pollIntervalMs: 1 });
@@ -194,7 +194,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     await expect(
       batch.images.edit({
         apiKey: "k",
-        model: "openai/gpt-image-1.5",
+        model: "openai/gpt-image-2",
         requests: [{ images: [], prompt: "p" }],
       })
     ).rejects.toThrow("at least one entry in `images`");
@@ -204,7 +204,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     await expect(
       batch.images.edit({
         apiKey: "k",
-        model: "google/gemini-2.5-flash-image",
+        model: "google/gemini-3.1-flash-image",
         requests: [{ images: [{ imageUrl: SOURCE_URL }], prompt: "p" }],
       })
     ).rejects.toThrow("does not offer batch image editing");
@@ -214,7 +214,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     await expect(
       batch.images.edit({
         apiKey: "k",
-        model: "openai/gpt-image-1.5",
+        model: "openai/gpt-image-2",
         requests: [],
       })
     ).rejects.toThrow("must not be empty");

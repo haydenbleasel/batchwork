@@ -8,13 +8,15 @@
   "type": "module",
   "scripts": {
     "dev": "remotion studio",
-    "studio": "remotion studio",
     "render": "remotion render BatchworkLaunch out/batchwork-launch.mp4",
+    "render:13": "remotion render BatchworkRelease13 out/batchwork-1-3.mp4",
     "render:embeddings": "remotion render BatchworkEmbeddings out/batchwork-embeddings.mp4",
     "render:images": "remotion render BatchworkImages out/batchwork-images.mp4",
     "still": "remotion still BatchworkLaunch out/still.png",
+    "still:13": "remotion still BatchworkRelease13 out/1-3-still.png",
     "still:embeddings": "remotion still BatchworkEmbeddings out/embeddings-still.png",
     "still:images": "remotion still BatchworkImages out/images-still.png",
+    "studio": "remotion studio",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

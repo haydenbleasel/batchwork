@@ -91,7 +91,7 @@ OpenAI also batches **image edits** through `/v1/images/edits` — source images
 
 ```ts
 const job = await batch.images.edit({
-  model: openai.image("gpt-image-1.5"),
+  model: openai.image("gpt-image-2"),
   requests: [
     {
       customId: "a",

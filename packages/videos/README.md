@@ -9,6 +9,7 @@
 | `BatchworkLaunch` | ~25s launch video: intro → unified API → AI SDK models → server polling → Next.js → outro |
 | `BatchworkEmbeddings` | ~21.5s light-mode feature video for `batch.embeddings`: intro → code + terminal demo → outro |
 | `BatchworkImages` | ~21.5s light-mode feature video for `batch.images`: intro → code + terminal demo → outro |
+| `BatchworkRelease13` | ~50s light-mode 1.3 release video: intro → code + terminal demo per new modality (audio, moderation, video, image edits) → outro |
 
 ## Develop
 
@@ -22,6 +23,7 @@ bun run dev      # open Remotion Studio
 bun run render             # → out/batchwork-launch.mp4
 bun run render:embeddings  # → out/batchwork-embeddings.mp4
 bun run render:images      # → out/batchwork-images.mp4
+bun run render:13          # → out/batchwork-1-3.mp4
 bun run still              # → out/still.png (first frame)
 ```
 

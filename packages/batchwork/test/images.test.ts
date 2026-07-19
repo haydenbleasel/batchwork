@@ -140,14 +140,14 @@ describe("batch.images (end-to-end, mocked transport)", () => {
 
     const job = await batch.images({
       apiKey: "test-key",
-      model: "google/gemini-2.5-flash-image",
+      model: "google/gemini-3.1-flash-image",
       requests: [{ customId: "a", prompt: "a red bicycle" }],
     });
     expect(job.provider).toBe("google");
     expect(
       fetchMock.mock.calls.some((call) =>
         String(call[0]).includes(
-          "/models/gemini-2.5-flash-image:batchGenerateContent"
+          "/models/gemini-3.1-flash-image:batchGenerateContent"
         )
       )
     ).toBe(true);

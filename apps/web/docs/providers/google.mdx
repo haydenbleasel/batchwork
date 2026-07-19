@@ -21,7 +21,7 @@ import { batch } from "batchwork";
 import { google } from "@ai-sdk/google";
 
 const job = await batch({
-  model: google("gemini-2.5-flash"),
+  model: google("gemini-3.5-flash"),
   requests: [
     { customId: "fr", prompt: "Capital of France? One word." },
     { customId: "jp", prompt: "Capital of Japan? One word." },
@@ -50,14 +50,14 @@ This is the Gemini **Developer API**, not **Vertex AI** — Vertex's batch API r
 
 ## Embeddings
 
-Gemini **embedding** models (e.g. `gemini-embedding-001`) run through the async `:asyncBatchEmbedContent` batch method rather than `:batchGenerateContent`. Submit with [`batch.embeddings()`](/docs/embeddings):
+Gemini **embedding** models (e.g. `gemini-embedding-2`) run through the async `:asyncBatchEmbedContent` batch method rather than `:batchGenerateContent`. Submit with [`batch.embeddings()`](/docs/embeddings):
 
 ```ts
 import { batch } from "batchwork";
 import { google } from "@ai-sdk/google";
 
 const job = await batch.embeddings({
-  model: google.embeddingModel("gemini-embedding-001"),
+  model: google.embeddingModel("gemini-embedding-2"),
   requests: [{ customId: "a", value: "The quick brown fox." }],
 });
 ```
@@ -66,14 +66,14 @@ The vector lands on `result.embedding`. Tune `providerOptions.google.outputDimen
 
 ## Images
 
-Gemini **image** models (e.g. `gemini-2.5-flash-image`) run through the same `:batchGenerateContent` flow — submit with [`batch.images()`](/docs/images):
+Gemini **image** models (e.g. `gemini-3.1-flash-image`) run through the same `:batchGenerateContent` flow — submit with [`batch.images()`](/docs/images):
 
 ```ts
 import { batch } from "batchwork";
 import { google } from "@ai-sdk/google";
 
 const job = await batch.images({
-  model: google.image("gemini-2.5-flash-image"),
+  model: google.image("gemini-3.1-flash-image"),
   requests: [
     { customId: "a", prompt: "A sunlit forest path.", aspectRatio: "16:9" },
   ],

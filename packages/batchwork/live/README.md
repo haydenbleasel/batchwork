@@ -20,7 +20,7 @@ Set the relevant key(s) in your environment (e.g. a local `.env`, which is git-i
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` |
-| Google | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) | `gemini-2.5-flash` |
+| Google | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) | `gemini-3.5-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.1-8b-instant` |
 | Mistral | `MISTRAL_API_KEY` | `mistral-small-latest` |
 | Together | `TOGETHER_API_KEY` | `Qwen/Qwen2.5-7B-Instruct-Turbo` |
@@ -53,7 +53,7 @@ All optional, via environment variables:
 | --- | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `text-embedding-3-small` | `BATCHWORK_LIVE_OPENAI_EMBEDDING_MODEL` |
 | Mistral | `MISTRAL_API_KEY` | `mistral-embed` | `BATCHWORK_LIVE_MISTRAL_EMBEDDING_MODEL` |
-| Google | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-embedding-001` | `BATCHWORK_LIVE_GOOGLE_EMBEDDING_MODEL` |
+| Google | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-embedding-2` | `BATCHWORK_LIVE_GOOGLE_EMBEDDING_MODEL` |
 
 ```sh
 bun test --env-file=.env.local ./live/openai-embeddings.live.test.ts
@@ -66,7 +66,7 @@ bun test --env-file=.env.local ./live/openai-embeddings.live.test.ts
 | Provider | Key (as above) | Default image model | Override env var |
 | --- | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `gpt-image-2` | `BATCHWORK_LIVE_OPENAI_IMAGE_MODEL` |
-| Google | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-2.5-flash-image` | `BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL` |
+| Google | `GOOGLE_GENERATIVE_AI_API_KEY` | `gemini-3.1-flash-image` | `BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL` |
 | xAI | `XAI_API_KEY` | `grok-imagine-image-quality` | `BATCHWORK_LIVE_XAI_IMAGE_MODEL` |
 
 xAI batch returns signed image URLs (`image.url`) that expire ~1h after completion rather than inline base64.
@@ -79,7 +79,7 @@ bun test --env-file=.env.local ./live/openai-images.live.test.ts
 
 | Provider | Key (as above) | Default edit model | Override env var |
 | --- | --- | --- | --- |
-| OpenAI | `OPENAI_API_KEY` | `gpt-image-1.5` | `BATCHWORK_LIVE_OPENAI_IMAGE_EDIT_MODEL` |
+| OpenAI | `OPENAI_API_KEY` | `gpt-image-2` | `BATCHWORK_LIVE_OPENAI_IMAGE_EDIT_MODEL` |
 | xAI | `XAI_API_KEY` | `grok-imagine-image-quality` | `BATCHWORK_LIVE_XAI_IMAGE_EDIT_MODEL` |
 
 ## Videos

@@ -785,12 +785,12 @@ describe("google adapter", () => {
         {
           body: { contents: [{ parts: [{ text: "Hi" }] }] },
           customId: "a",
-          endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+          endpoint: "/v1beta/models/gemini-3.5-flash:generateContent",
         },
       ],
       credentials,
-      endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
-      modelId: "gemini-2.5-flash",
+      endpoint: "/v1beta/models/gemini-3.5-flash:generateContent",
+      modelId: "gemini-3.5-flash",
     });
 
     expect(snapshot.id).toBe("batches/1");
@@ -812,13 +812,13 @@ describe("google adapter", () => {
           {
             body: { contents: [{ parts: [{ text: "too large" }] }] },
             customId: "a",
-            endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+            endpoint: "/v1beta/models/gemini-3.5-flash:generateContent",
           },
         ],
         credentials,
-        endpoint: "/v1beta/models/gemini-2.5-flash:generateContent",
+        endpoint: "/v1beta/models/gemini-3.5-flash:generateContent",
         limits: { maxUploadBytes: 96 },
-        modelId: "gemini-2.5-flash",
+        modelId: "gemini-3.5-flash",
       })
     ).rejects.toThrow("batch upload payload");
     expect(fetchMock.mock.calls).toHaveLength(0);

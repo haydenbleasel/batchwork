@@ -37,7 +37,7 @@ Batch embeddings are available for the providers whose batch API accepts the emb
 | --- | --- | --- |
 | OpenAI | `text-embedding-3-small` | `/v1/embeddings` batch endpoint. |
 | Mistral | `mistral-embed` | Model set on the batch job. |
-| Google Gemini | `gemini-embedding-001` | Async `:asyncBatchEmbedContent` batch. |
+| Google Gemini | `gemini-embedding-2` | Async `:asyncBatchEmbedContent` batch. |
 
 :::warning
 Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's batch API rejects the embeddings endpoint. Calling `batch.embeddings()` with any of them throws `UnsupportedProviderError` before any network request.
@@ -69,7 +69,7 @@ await batch.embeddings({
 
 // Google — output dimensionality + retrieval task type
 await batch.embeddings({
-  model: google.embeddingModel("gemini-embedding-001"),
+  model: google.embeddingModel("gemini-embedding-2"),
   requests: [
     {
       customId: "a",

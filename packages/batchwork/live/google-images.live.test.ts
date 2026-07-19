@@ -5,7 +5,7 @@ import { google } from "@ai-sdk/google";
 import { LIVE_TEST_TIMEOUT_MS, runLiveImages } from "./runner";
 
 const MODEL_ID =
-  process.env.BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL ?? "gemini-2.5-flash-image";
+  process.env.BATCHWORK_LIVE_GOOGLE_IMAGE_MODEL ?? "gemini-3.1-flash-image";
 const hasKey = Boolean(
   process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
 );

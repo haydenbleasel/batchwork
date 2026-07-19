@@ -782,16 +782,16 @@ describe("google branches", () => {
         {
           body: {
             content: { parts: [{ text: "hi" }] },
-            model: "models/gemini-embedding-001",
+            model: "models/gemini-embedding-2",
             outputDimensionality: 256,
           },
           customId: "a",
-          endpoint: "/v1beta/models/gemini-embedding-001:embedContent",
+          endpoint: "/v1beta/models/gemini-embedding-2:embedContent",
         },
       ],
       credentials,
-      endpoint: "/v1beta/models/gemini-embedding-001:embedContent",
-      modelId: "gemini-embedding-001",
+      endpoint: "/v1beta/models/gemini-embedding-2:embedContent",
+      modelId: "gemini-embedding-2",
     });
     expect(snapshot.id).toBe("batches/1");
 

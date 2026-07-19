@@ -215,7 +215,7 @@ const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
  *
  * @example
  * const job = await batch.images.edit({
- *   model: openai.image("gpt-image-1.5"),
+ *   model: openai.image("gpt-image-2"),
  *   requests: [
  *     {
  *       customId: "a",

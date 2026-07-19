@@ -40,7 +40,7 @@ Batch image generation is available for the providers whose batch API accepts an
 | Provider | Example model | Notes |
 | --- | --- | --- |
 | OpenAI | `gpt-image-2` | `/v1/images/generations` batch endpoint. Inline base64. |
-| Google Gemini | `gemini-2.5-flash-image` | Gemini image models via `:batchGenerateContent`. Inline base64. |
+| Google Gemini | `gemini-3.1-flash-image` | Gemini image models via `:batchGenerateContent`. Inline base64. |
 | xAI | `grok-imagine-image-quality` | `/v1/images/generations`. Signed URLs that **expire ~1h**. |
 
 :::warning
@@ -55,7 +55,7 @@ For video generation, see [`batch.videos()`](/docs/videos).
 
 ```ts
 const job = await batch.images.edit({
-  model: openai.image("gpt-image-1.5"),
+  model: openai.image("gpt-image-2"),
   requests: [
     {
       customId: "a",
@@ -115,7 +115,7 @@ await batch.images({
 
 // Google Gemini — widescreen aspect ratio
 await batch.images({
-  model: google.image("gemini-2.5-flash-image"),
+  model: google.image("gemini-3.1-flash-image"),
   requests: [
     { customId: "a", prompt: "A sunlit forest path.", aspectRatio: "16:9" },
   ],

@@ -5,7 +5,7 @@ import { google } from "@ai-sdk/google";
 import { LIVE_TEST_TIMEOUT_MS, runLiveEmbeddings } from "./runner";
 
 const MODEL_ID =
-  process.env.BATCHWORK_LIVE_GOOGLE_EMBEDDING_MODEL ?? "gemini-embedding-001";
+  process.env.BATCHWORK_LIVE_GOOGLE_EMBEDDING_MODEL ?? "gemini-embedding-2";
 const hasKey = Boolean(
   process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
 );
