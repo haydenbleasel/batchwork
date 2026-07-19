@@ -1,4 +1,9 @@
-import { embed, generateImage, generateText } from "ai";
+import {
+  embed,
+  experimental_generateVideo,
+  generateImage,
+  generateText,
+} from "ai";
 import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 
 import { BatchworkError } from "./errors";
@@ -12,6 +17,7 @@ import {
   createCaptureEmbeddingModel,
   createCaptureImageModel,
   createCaptureModel,
+  createCaptureVideoModel,
   unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
 } from "./model";
@@ -26,7 +32,10 @@ import type {
   BatchRequest,
   BatchTranscriptionDefaults,
   BatchTranscriptionRequest,
+  BatchVideoDefaults,
+  BatchVideoRequest,
   ProviderCredentials,
+  VideoModel,
 } from "./types";
 
 type GenerateTextInput = Parameters<typeof generateText>[0];
@@ -537,6 +546,83 @@ export const buildImageBodies = async (
     limits.captureConcurrency,
     async (item) => {
       const built = await captureImageOne(
+        model,
+        mergeDefaults(item.request, defaults),
+        item.customId,
+        limits.maxRequestBytes
+      );
+      assertByteLength(
+        `request "${item.customId}"`,
+        JSON.stringify(built.body),
+        limits.maxRequestBytes
+      );
+      return built;
+    }
+  );
+};
+
+const captureVideoOne = async (
+  model: VideoModel,
+  request: BatchVideoRequest,
+  customId: string,
+  maxRequestBytes: number
+): Promise<BuiltRequest> => {
+  try {
+    // The provider's first network call is the JSON job-creation POST (polling
+    // only starts afterwards), so the capturing `fetch` intercepts the exact
+    // body a batch line needs. Edit/extend modes (via `providerOptions`) are
+    // captured against their own endpoints, which xAI batch also accepts.
+    await experimental_generateVideo({
+      aspectRatio: request.aspectRatio,
+      duration: request.duration,
+      // `maxRetries: 0` is load-bearing: with retries enabled the capture error
+      // is wrapped in a `RetryError` (under `.errors`, not `.cause`) and
+      // `findCapture`'s cause walk would miss it.
+      maxRetries: 0,
+      model,
+      prompt: request.prompt,
+      providerOptions: request.providerOptions,
+      resolution: request.resolution,
+    });
+  } catch (error) {
+    return bodyFromCapture(error, customId, maxRequestBytes);
+  }
+  throw new BatchworkError(
+    "batchwork: the request was not intercepted while building the video body."
+  );
+};
+
+/**
+ * Derive provider video-generation request bodies for every batch item by
+ * running each through the AI SDK `generateVideo` with a capturing `fetch`.
+ * Mirrors {@link buildRequestBodies} for the video endpoints; each item maps to
+ * a single video job, correlated by `customId`.
+ */
+export const buildVideoBodies = async (
+  resolved: ResolvedModel,
+  requests: readonly BatchVideoRequest[],
+  defaults: BatchVideoDefaults | undefined,
+  credentials: ProviderCredentials,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): Promise<BuiltRequest[]> => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  const model = await createCaptureVideoModel(
+    resolved,
+    credentials,
+    captureFetch
+  );
+  const items = assignCustomIds(requests);
+
+  return await mapWithConcurrency(
+    items,
+    limits.captureConcurrency,
+    async (item) => {
+      const built = await captureVideoOne(
         model,
         mergeDefaults(item.request, defaults),
         item.customId,

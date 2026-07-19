@@ -26,6 +26,8 @@ import type {
   BatchRequest,
   BatchResult,
   BatchTranscriptionRequest,
+  BatchVideoRequest,
+  VideoModel,
 } from "../src/types";
 
 /** Number of records submitted per live batch. */
@@ -244,6 +246,68 @@ export const runLiveImages = async (
   expect(image?.data ?? image?.url).toBeTruthy();
   log(
     `[${label}] sample ${sample?.customId}: ${sample?.images?.length} image(s), ${image?.mediaType ?? image?.url ?? "?"}`
+  );
+};
+
+/** Video generation is the priciest modality; submit the bare minimum. */
+export const LIVE_VIDEO_RECORD_COUNT = 2;
+
+const buildVideoRequests = (ids: string[]): BatchVideoRequest[] =>
+  ids.map((customId, index) => ({
+    customId,
+    duration: 5,
+    prompt: `A minimalist animation of the number ${index} spinning slowly.`,
+  }));
+
+/**
+ * Submit a tiny video batch to a live provider, wait for it to finish, and
+ * assert every record round-trips with a signed video URL.
+ */
+export const runLiveVideos = async (
+  label: string,
+  model: VideoModel
+): Promise<void> => {
+  const ids = Array.from(
+    { length: LIVE_VIDEO_RECORD_COUNT },
+    (_, index) => `live-${index}`
+  );
+  const requests = buildVideoRequests(ids);
+
+  log(`[${label}] submitting ${requests.length} video records…`);
+  const job = await batch.videos({ model, requests });
+  log(`[${label}] submitted ${job.id} (${job.provider})`);
+  expect(job.id).toBeTruthy();
+
+  const snapshot = await job.wait({
+    onPoll: (poll) =>
+      log(`[${label}] ${poll.status} ${JSON.stringify(poll.requestCounts)}`),
+    pollIntervalMs: POLL_INTERVAL_MS,
+    timeoutMs: LIVE_WAIT_TIMEOUT_MS,
+  });
+  expect(snapshot.status).toBe("completed");
+
+  const results = await job.collect();
+  log(`[${label}] results: ${summarize(results)}`);
+
+  const errored = results.filter((result) => result.status === "errored");
+  for (const result of errored) {
+    log(
+      `[${label}] ${result.customId} errored: ${JSON.stringify(result.error)}`
+    );
+  }
+
+  const seen = new Set(results.map((result) => result.customId));
+  expect(seen.size).toBe(LIVE_VIDEO_RECORD_COUNT);
+  for (const id of ids) {
+    expect(seen.has(id)).toBe(true);
+  }
+
+  expect(errored).toHaveLength(0);
+  const sample = results.find((result) => result.status === "succeeded");
+  // xAI batch returns signed URLs that expire ~1h after completion.
+  expect(sample?.videos?.[0]?.url).toBeTruthy();
+  log(
+    `[${label}] sample ${sample?.customId}: ${sample?.videos?.[0]?.durationSeconds ?? "?"}s ${sample?.videos?.[0]?.url}`
   );
 };
 

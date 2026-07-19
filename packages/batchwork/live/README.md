@@ -75,6 +75,18 @@ xAI batch returns signed image URLs (`image.url`) that expire ~1h after completi
 bun test --env-file=.env.local ./live/openai-images.live.test.ts
 ```
 
+## Videos
+
+`xai-videos.live.test.ts` round-trips a **2-record video** batch (`batch.videos()` → `wait()` → `collect()`) and asserts every record returns a signed video URL. Video generation is the priciest modality, so the record count is minimal. xAI (Grok Imagine) is the only batch-video provider:
+
+| Provider | Key (as above) | Default video model | Override env var |
+| --- | --- | --- | --- |
+| xAI | `XAI_API_KEY` | `grok-imagine-video` | `BATCHWORK_LIVE_XAI_VIDEO_MODEL` |
+
+```sh
+bun test --env-file=.env.local ./live/xai-videos.live.test.ts
+```
+
 ## Transcriptions
 
 `*-transcriptions.live.test.ts` round-trip a small **audio-transcription** batch (`batch.transcriptions()` → `wait()` → `collect()`) and assert every record returns a non-empty transcript. Batch audio endpoints fetch a hosted URL (no file uploads); the tests reuse one public sample file, overridable via `BATCHWORK_LIVE_AUDIO_URL`. Only Groq and Mistral accept an audio endpoint in batch:

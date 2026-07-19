@@ -88,7 +88,30 @@ for (const r of results) {
 }
 ```
 
-Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-2`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing, video, and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-2`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+
+## Videos
+
+Generate videos in bulk — pass a video model and `prompt`s, and get signed video URLs back on `result.videos`:
+
+```ts
+import { batch } from "batchwork";
+import { xai } from "@ai-sdk/xai";
+
+const job = await batch.videos({
+  model: xai.video("grok-imagine-video"),
+  requests: [
+    { customId: "a", prompt: "A red bicycle rolling downhill.", duration: 5 },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.videos?.[0]?.url);
+}
+```
+
+Batch video generation is available for **xAI** (Grok Imagine via `/v1/videos/generations`, plus editing and extension through `providerOptions.xai`); other providers throw a clear error — OpenAI's Videos API (Sora) is deprecated (shutting down September 2026) and Google's Veo models aren't batch-supported. Results are signed URLs that **expire ~1h** after completion, so download them promptly.
 
 ## Transcriptions
 
@@ -141,7 +164,7 @@ Batch moderation is available for **OpenAI** (`omni-moderation-latest`, text + i
 
 - **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
-- **Chat, embeddings, images, audio & moderation** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation, `batch.transcriptions()` for audio transcription, `batch.moderations()` for content moderation.
+- **Chat, embeddings, images, video, audio & moderation** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation, `batch.videos()` for video generation, `batch.transcriptions()` for audio transcription, `batch.moderations()` for content moderation.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.

@@ -6,6 +6,7 @@ import type {
   BatchResult,
   BatchSnapshot,
   BatchStatus,
+  BatchVideo,
   ProviderCredentials,
 } from "../types";
 import { asArray, asNumber, asRecord, asString, omit, toDate } from "../util";
@@ -106,6 +107,34 @@ const imagesFromXaiCompletion = (
   return images.length > 0 ? images : undefined;
 };
 
+/**
+ * Read videos from an xAI batch video result. The completion carries either
+ * the status-response shape (`{ video: { url, duration } }`) or a flat
+ * `{ url, duration }`; either way the signed `url` expires ~1h after
+ * completion. Only called for video ops, so image/chat results are unaffected.
+ */
+const videosFromXaiCompletion = (
+  completion: unknown
+): BatchVideo[] | undefined => {
+  const obj = asRecord(completion);
+  const entries = asArray(obj.data);
+  const sources = entries.length > 0 ? entries : [obj];
+  const videos: BatchVideo[] = [];
+  for (const source of sources) {
+    const record = asRecord(source);
+    const video = asRecord(record.video);
+    const url = asString(video.url) ?? asString(record.url);
+    if (url) {
+      const duration = asNumber(video.duration) ?? asNumber(record.duration);
+      videos.push({
+        ...(duration === undefined ? {} : { durationSeconds: duration }),
+        url,
+      });
+    }
+  }
+  return videos.length > 0 ? videos : undefined;
+};
+
 const normalizeResult = (item: unknown): BatchResult => {
   const obj = asRecord(item);
   const customId = asString(obj.batch_request_id) ?? "";
@@ -127,12 +156,21 @@ const normalizeResult = (item: unknown): BatchResult => {
     };
   }
   // `batch_result.response` is keyed by operation type; chat lives under
-  // `chat_get_completion`. Fall back to the first value for other op types.
+  // `chat_get_completion`. Fall back to the first value for other op types,
+  // using the key to tell video ops apart from image ops (a video completion's
+  // `{ url }` would otherwise read as a hosted image).
   const response = asRecord(batchResult.response);
+  const [opKey] = Object.keys(response);
   const completion = response.chat_get_completion ?? Object.values(response)[0];
+  const isVideo =
+    response.chat_get_completion === undefined &&
+    opKey !== undefined &&
+    opKey.includes("video");
   return {
     customId,
-    images: imagesFromXaiCompletion(completion),
+    ...(isVideo
+      ? { videos: videosFromXaiCompletion(completion) }
+      : { images: imagesFromXaiCompletion(completion) }),
     response: completion,
     status: "succeeded",
     text: textFromBody(completion),
@@ -146,8 +184,10 @@ const submit = async (input: SubmitInput): Promise<BatchSnapshot> => {
     input.built.map((item) => ({
       body: omit(item.body, "stream"),
       custom_id: item.customId,
+      // Per-line endpoint: xAI sets no endpoint on the batch itself, and video
+      // batches can mix generate/edit/extend lines with different URLs.
       method: "POST",
-      url: input.endpoint,
+      url: item.endpoint || input.endpoint,
     })),
     { label: "batch upload JSONL", maxBytes: limits.maxUploadBytes }
   );

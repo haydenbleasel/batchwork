@@ -4,6 +4,7 @@ import {
   buildModerationBodies,
   buildRequestBodies,
   buildTranscriptionBodies,
+  buildVideoBodies,
 } from "./body";
 import { BatchworkError } from "./errors";
 import { BatchJob } from "./job";
@@ -18,6 +19,8 @@ import {
   unsupportedImageProvider,
   unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
+  unsupportedVideoProvider,
+  VIDEO_PROVIDERS,
 } from "./model";
 import { getAdapter } from "./providers";
 import type {
@@ -29,6 +32,7 @@ import type {
   BatchRef,
   BatchResult,
   BatchTranscriptionOptions,
+  BatchVideoOptions,
   ProviderCredentials,
 } from "./types";
 
@@ -290,6 +294,58 @@ const submitTranscriptions = async (
 };
 
 /**
+ * Submit a batch of video-generation requests to the model's provider and
+ * return a handle. Each request's `prompt` produces one video, correlated by
+ * `customId` via {@link BatchJob.results}. Supported for xAI (Grok Imagine);
+ * other providers throw {@link UnsupportedProviderError} — OpenAI's Videos API
+ * (Sora) is deprecated and Google's Veo models are not batch-compatible.
+ *
+ * Results come back as signed URLs on `result.videos` that **expire ~1h**
+ * after completion — download promptly.
+ *
+ * @example
+ * const job = await batch.videos({
+ *   model: xai.video("grok-imagine-video"),
+ *   requests: [{ customId: "a", prompt: "A red bicycle rolling downhill." }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ * for (const r of results) {
+ *   console.log(r.customId, r.videos?.[0]?.url);
+ * }
+ */
+const submitVideos = async (options: BatchVideoOptions): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!VIDEO_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedVideoProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = await buildVideoBodies(
+    resolved,
+    options.requests,
+    options.defaults,
+    credentials,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
  * Submit a batch of requests and return a {@link BatchJob} handle.
  *
  * Callable directly as a shorthand for text/chat batches, with one method per
@@ -300,6 +356,7 @@ const submitTranscriptions = async (
  * - {@link batch.images} — image generation
  * - {@link batch.transcriptions} — audio transcription
  * - {@link batch.moderations} — content moderation
+ * - {@link batch.videos} — video generation
  *
  * @example
  * const job = await batch({
@@ -318,6 +375,8 @@ export const batch = Object.assign(submitText, {
   text: submitText,
   /** Submit a batch of audio-transcription requests. */
   transcriptions: submitTranscriptions,
+  /** Submit a batch of video-generation requests. */
+  videos: submitVideos,
 });
 
 /**

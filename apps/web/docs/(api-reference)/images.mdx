@@ -47,7 +47,7 @@ Batch image generation is available for the providers whose batch API accepts an
 Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch API is chat/audio only; and Google's Imagen models (`:predict`) aren't batch-supported. Calling `batch.images()` with any of them throws `UnsupportedProviderError` before any network request.
 :::
 
-This is **generation only** — image editing (input images, masks) and video aren't supported by the batch APIs.
+This is **generation only** — image editing (input images, masks) isn't supported by the batch APIs. For video generation, see [`batch.videos()`](/docs/videos).
 
 ## Request shape
 

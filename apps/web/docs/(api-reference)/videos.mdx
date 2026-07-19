@@ -1,0 +1,117 @@
+---
+title: Videos
+description: Generate videos in bulk with batch.videos — Grok Imagine prompts in, signed video URLs out, with editing and extension through provider options.
+---
+
+## Submit a video batch
+
+`batch.videos()` mirrors [`batch()`](/docs/text): pass a video model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one video, correlated by `customId`.
+
+```ts
+import { batch } from "batchwork";
+import { xai } from "@ai-sdk/xai";
+
+const job = await batch.videos({
+  model: xai.video("grok-imagine-video"),
+  requests: [
+    { customId: "a", prompt: "A red bicycle rolling downhill.", duration: 5 },
+    {
+      customId: "b",
+      prompt: "A paper boat drifting down a stream.",
+      duration: 5,
+    },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.videos?.[0]?.url);
+}
+```
+
+Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/docs/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`. You can also pass the `"xai/grok-imagine-video"` string form.
+
+:::warning
+Results are **signed URLs that expire ~1 hour** after the batch completes (the same window as xAI batch images). Download promptly — there is no re-fetch.
+:::
+
+## Supported providers
+
+| Provider | Example model | Notes |
+| --- | --- | --- |
+| xAI | `grok-imagine-video` | `/v1/videos/generations`, plus `/edits` and `/extensions`. Signed URLs, ~1h expiry. |
+
+xAI is currently the only provider whose batch API accepts video generation. OpenAI's Videos API (Sora) is **deprecated** (shutting down September 24, 2026), so Batchwork deliberately doesn't support it; Google's Veo models aren't batch-compatible. Other providers throw `UnsupportedProviderError` before any network request.
+
+## Request shape
+
+Each request is a text `prompt` plus an optional `customId` and a few generation knobs:
+
+| Field | Notes |
+| --- | --- |
+| `prompt` | The text describing the video to generate. |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `duration` | Clip length in seconds. |
+| `aspectRatio` | Aspect ratio as `"{width}:{height}"` (e.g. `"16:9"`). |
+| `resolution` | Resolution as `"{width}x{height}"` (e.g. `"1280x720"`, mapped to xAI's `720p`/`480p`). |
+| `providerOptions` | Provider-specific options — including edit/extend modes, below. |
+
+`limits` and `metadata` work exactly as in [`batch()`](/docs/limits), and `defaults` merge into every request (request-level values win).
+
+## Editing and extending videos
+
+xAI's batch API also accepts video **edits** and **extensions**, and Batchwork routes each request line to the right endpoint automatically. The options mirror the AI SDK's `generateVideo` provider options: pass a source `videoUrl` for an edit, or `mode: "extend-video"` to continue a clip. A single batch can mix generate, edit, and extend lines:
+
+```ts
+await batch.videos({
+  model: xai.video("grok-imagine-video"),
+  requests: [
+    { customId: "gen", prompt: "A red bicycle rolling downhill." },
+    {
+      customId: "edit",
+      prompt: "Make the bicycle blue.",
+      providerOptions: { xai: { videoUrl: "https://example.com/source.mp4" } },
+    },
+    {
+      customId: "extend",
+      prompt: "The bicycle reaches the bottom of the hill.",
+      providerOptions: {
+        xai: {
+          mode: "extend-video",
+          videoUrl: "https://example.com/source.mp4",
+        },
+      },
+    },
+  ],
+});
+```
+
+Reference-image guidance works the same way (`providerOptions.xai.referenceImageUrls`). Source URLs must be reachable by xAI while the batch processes.
+
+## Results
+
+Videos reuse the normalized [`BatchResult`](/docs/results). Generated videos land on `result.videos`, an array of `{ url?, durationSeconds? }`:
+
+```ts
+import { writeFile } from "node:fs/promises";
+
+for await (const result of job.results()) {
+  const video = result.videos?.[0];
+  if (result.status === "succeeded" && video?.url) {
+    // Signed URL — expires ~1h after completion.
+    const response = await fetch(video.url);
+    await writeFile(
+      `${result.customId}.mp4`,
+      Buffer.from(await response.arrayBuffer())
+    );
+  } else if (result.status === "errored") {
+    console.error(result.customId, result.error?.message);
+  }
+}
+```
+
+`text`, `embedding`, and `images` are `undefined` for video batches; the raw provider payload is on `result.response`.
+
+## How it's built
+
+Like [`batch()`](/docs/models#how-the-body-is-built), `batch.videos()` derives each provider request body by running the AI SDK's `experimental_generateVideo()` through a **capturing `fetch`** — the provider's first network call is the JSON job-creation POST (polling only starts afterwards), so the captured body is exactly what a batch line needs. Edit and extend requests capture against their own endpoints (`/v1/videos/edits`, `/v1/videos/extensions`), which Batchwork writes per line.

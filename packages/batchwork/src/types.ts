@@ -1,5 +1,6 @@
 import type {
   EmbeddingModel,
+  experimental_generateVideo,
   ImageModel,
   JSONValue,
   LanguageModel,
@@ -8,6 +9,15 @@ import type {
   ToolSet,
   TranscriptionModel,
 } from "ai";
+
+/**
+ * The `model` argument of the AI SDK's `experimental_generateVideo` — a video
+ * model object or a `"provider/model"` string. Derived from the function
+ * signature because the AI SDK does not export a video model type yet.
+ */
+export type VideoModel = Parameters<
+  typeof experimental_generateVideo
+>[0]["model"];
 
 /** Providers with a batch adapter. */
 export type BatchProvider =
@@ -145,6 +155,44 @@ export interface BatchTranscriptionSegment {
 }
 
 /**
+ * A single video-generation request within a batch. One `prompt` produces one
+ * video, correlated to its result by `customId`. Editing and extending an
+ * existing video route through `providerOptions` (e.g. xAI's
+ * `{ xai: { videoUrl } }` for edits, `{ xai: { mode: "extend-video", videoUrl } }`
+ * to extend), mirroring the AI SDK's `generateVideo`.
+ */
+export interface BatchVideoRequest {
+  /** Aspect ratio, `"{width}:{height}"` (e.g. `"16:9"`). */
+  aspectRatio?: `${number}:${number}`;
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /** Clip length in seconds, where the model supports it. */
+  duration?: number;
+  /** The text prompt describing the video to generate. */
+  prompt: string;
+  /** Forwarded to the provider video call (e.g. `{ xai: { videoUrl } }`). */
+  providerOptions?: ProviderOptions;
+  /** Resolution, `"{width}x{height}"` (e.g. `"1280x720"`). */
+  resolution?: `${number}x${number}`;
+}
+
+/** Defaults merged into every video request; request-level values take precedence. */
+export type BatchVideoDefaults = Partial<
+  Omit<BatchVideoRequest, "customId" | "prompt">
+>;
+
+/**
+ * A generated video. Returned as a hosted `url` — xAI batch signs URLs that
+ * expire ~1h after completion, so download promptly.
+ */
+export interface BatchVideo {
+  /** Video length in seconds, when the provider reports it. */
+  durationSeconds?: number;
+  /** Hosted video URL. */
+  url?: string;
+}
+
+/**
  * A single moderation request within a batch. Provide `value` (text),
  * `imageUrls` (OpenAI omni moderation only), or both; each request produces
  * one verdict, correlated by `customId`.
@@ -238,6 +286,8 @@ export interface BatchResult {
   /** Normalized text output, when the request produced a message or transcript. */
   text?: string;
   usage?: BatchUsage;
+  /** Generated videos, when the request produced videos. */
+  videos?: BatchVideo[];
 }
 
 /** A point-in-time, normalized view of a batch's status. */
@@ -305,6 +355,19 @@ export interface BatchModerationOptions extends ProviderCredentials {
    */
   model: string;
   requests: BatchModerationRequest[];
+}
+
+/** Input to `batch.videos()`. */
+export interface BatchVideoOptions extends ProviderCredentials {
+  defaults?: BatchVideoDefaults;
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  /**
+   * A video model object (e.g. `xai.video("grok-imagine-video")`) or a
+   * `"provider/model"` string.
+   */
+  model: VideoModel;
+  requests: BatchVideoRequest[];
 }
 
 /** Input to `batch.transcriptions()`. */

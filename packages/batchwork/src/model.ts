@@ -13,7 +13,7 @@ import type {
 } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
-import type { BatchProvider, ProviderCredentials } from "./types";
+import type { BatchProvider, ProviderCredentials, VideoModel } from "./types";
 
 /** The shape `loadProvider` expects from each optional `@ai-sdk/*` package. */
 interface AnthropicModule {
@@ -132,7 +132,12 @@ const resolveModelString = (value: string): ResolvedModel => {
  * `"provider/model"` are also handled.
  */
 export const resolveModel = (
-  model: LanguageModel | EmbeddingModel | ImageModel | TranscriptionModel
+  model:
+    | LanguageModel
+    | EmbeddingModel
+    | ImageModel
+    | TranscriptionModel
+    | VideoModel
 ): ResolvedModel => {
   if (typeof model === "string") {
     return resolveModelString(model);
@@ -320,6 +325,45 @@ export const createCaptureEmbeddingModel = async (
       throw unsupportedEmbeddingProvider(resolved.provider);
     }
   }
+};
+
+/**
+ * Providers whose batch API accepts video generation. xAI exposes
+ * `/v1/videos/generations` (plus `/edits` and `/extensions`) as batch
+ * endpoints for Grok Imagine. OpenAI's Videos API (Sora) is deprecated and
+ * shuts down 2026-09-24, so it is deliberately not supported; Google's Veo
+ * models are not batch-compatible.
+ */
+export const VIDEO_PROVIDERS = new Set<BatchProvider>(["xai"]);
+
+export const unsupportedVideoProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch video generation. Videos are supported for: xai.`
+  );
+
+/**
+ * Construct an AI SDK video model wired to a capturing `fetch`, used to derive
+ * the provider video request body for each batch item without making a network
+ * call. Throws for providers without batch video support.
+ */
+export const createCaptureVideoModel = async (
+  resolved: ResolvedModel,
+  credentials: ProviderCredentials,
+  fetchImpl: CapturingFetch
+): Promise<VideoModel> => {
+  if (resolved.provider !== "xai") {
+    throw unsupportedVideoProvider(resolved.provider);
+  }
+  const { createXai } = await loadProvider<XaiModule>("xai");
+  return createXai({
+    apiKey: credentials.apiKey ?? CAPTURE_API_KEY,
+    baseURL: credentials.baseURL,
+    fetch: fetchImpl,
+    headers: credentials.headers,
+  }).video(resolved.modelId);
 };
 
 /**

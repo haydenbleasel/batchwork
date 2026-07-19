@@ -5,15 +5,15 @@ description: Run batches on xAI's Grok Batch API — an OpenAI-compatible file u
 
 xAI's Batch API uses an OpenAI-compatible Files API to upload the input and create the batch, but its status, results, and cancel shapes are proprietary — results come back from a paginated `/results` endpoint rather than a downloadable file. Batchwork bridges the two.
 
-| Property     | Value                                            |
-| ------------ | ------------------------------------------------ |
-| **Shape**    | JSONL file upload (OpenAI-compat)                |
-| **Endpoint** | `/v1/chat/completions`, `/v1/images/generations` |
-| **Results**  | Paginated `/results` JSON                        |
-| **Webhooks** | Poll-only (managed by the server)                |
-| **Env var**  | `XAI_API_KEY`                                    |
-| **Package**  | `@ai-sdk/xai`                                    |
-| **Base URL** | `https://api.x.ai/v1`                            |
+| Property | Value |
+| --- | --- |
+| **Shape** | JSONL file upload (OpenAI-compat) |
+| **Endpoint** | `/v1/chat/completions`, `/v1/images/generations`, `/v1/videos/*` |
+| **Results** | Paginated `/results` JSON |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env var** | `XAI_API_KEY` |
+| **Package** | `@ai-sdk/xai` |
+| **Base URL** | `https://api.x.ai/v1` |
 
 ## Example
 
@@ -61,6 +61,24 @@ Image results come back under the `image_response` op in the paginated `/results
 :::warning
 xAI batch returns **signed image URLs** on `result.images[].url` (and/or inline `data`) that **expire ~1h** after the batch completes — fetch and persist them promptly. See [Images](/docs/images).
 :::
+
+## Videos
+
+xAI is the only provider whose batch API accepts **video generation**. Grok Imagine video models batch through `/v1/videos/generations` — plus `/v1/videos/edits` and `/v1/videos/extensions` for editing and extending, selected per request line via `providerOptions`. Submit with [`batch.videos()`](/docs/videos):
+
+```ts
+import { batch } from "batchwork";
+import { xai } from "@ai-sdk/xai";
+
+const job = await batch.videos({
+  model: xai.video("grok-imagine-video"),
+  requests: [
+    { customId: "a", prompt: "A red bicycle rolling downhill.", duration: 5 },
+  ],
+});
+```
+
+Video results come back under the video op in the paginated `/results` response, normalized to `result.videos[].url` — signed URLs with the same **~1h expiry** as batch images. See [Videos](/docs/videos) for edit/extend modes.
 
 ## Notes
 

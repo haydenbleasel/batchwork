@@ -41,7 +41,12 @@ export type {
   BatchTranscriptionRequest,
   BatchTranscriptionSegment,
   BatchUsage,
+  BatchVideo,
+  BatchVideoDefaults,
+  BatchVideoOptions,
+  BatchVideoRequest,
   ProviderCredentials,
   ProviderOptions,
+  VideoModel,
   WaitOptions,
 } from "./types";
