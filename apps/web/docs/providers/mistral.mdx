@@ -1,6 +1,6 @@
 ---
 title: Mistral
-description: Run batches on Mistral's Batch API — a JSONL upload followed by a job that carries the model.
+description: Run batches on Mistral's Batch API — a JSONL file upload followed by a job that carries the model and endpoint for every request line.
 ---
 
 Mistral's Batch API uploads a JSONL file and then creates a **job** that references it. The defining difference from OpenAI: the model and endpoint live on the job, not on each request line — so Batchwork strips `model` out of every line and sets it once on the job.

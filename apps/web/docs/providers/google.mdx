@@ -1,6 +1,6 @@
 ---
 title: Google Gemini
-description: Run batches on the Gemini Developer API — inline :batchGenerateContent with results keyed by request.
+description: Run batches on the Gemini Developer API — inline :batchGenerateContent requests behind a long-running operation, with results keyed per request.
 ---
 
 Google's Gemini **Developer API** runs batches inline: requests are submitted to `:batchGenerateContent`, which returns a long-running operation you poll, then reads the responses back inline — each correlated by a key you set per request. Batchwork wraps that in the standard `batch()` call.

@@ -1,6 +1,6 @@
 ---
 title: Anthropic
-description: Run batches on Anthropic's Message Batches API — an inline request array, no file uploads.
+description: Run batches on Anthropic's Message Batches API — requests sent as an inline JSON array with no file uploads, results streamed from a results_url.
 ---
 
 Anthropic's Message Batches API takes a different shape from OpenAI's: instead of uploading a file, you send all requests **inline** as a JSON array, then stream results from a `results_url` once the batch ends. Batchwork normalizes that into the same `batch()` call you use everywhere else.

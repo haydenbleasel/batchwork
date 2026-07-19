@@ -1,6 +1,6 @@
 ---
 title: OpenAI
-description: Run batches on OpenAI's Batch API — JSONL upload, file-based results, and native webhooks.
+description: Run batches on OpenAI's Batch API — JSONL upload via the Files API, polled batches, file-based results, and native webhook support.
 ---
 
 OpenAI's Batch API is the reference "shape" Batchwork is built around: requests are serialized to a JSONL file, uploaded via the Files API, and referenced by a batch you poll until it finishes — then the output and error files are downloaded and parsed. Batchwork does all of that for you.

@@ -21,7 +21,7 @@ export default defineConfig({
     adapter: "vercel",
   },
   description:
-    "Unified batch API for AI providers — one call to run thousands of LLM requests at ~50% cost across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI.",
+    "Unified batch API for AI providers — run thousands of LLM requests at ~50% cost across OpenAI, Anthropic, Gemini, Groq, Mistral, Together AI, and xAI.",
   github: {
     branch: "main",
     dir: "apps/web/docs",

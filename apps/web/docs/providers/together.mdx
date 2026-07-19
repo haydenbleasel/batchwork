@@ -1,6 +1,6 @@
 ---
 title: Together AI
-description: Run batches on Together AI's Batch API — a leaner line shape and a presigned-URL upload.
+description: Run batches on Together AI's Batch API — a leaner request line shape, the endpoint set on the batch, and a presigned-URL file upload.
 ---
 
 Together AI's Batch API mirrors OpenAI's (Files API + `/batches`) with two twists: a leaner `{ custom_id, body }` line shape with the endpoint declared on the batch, and a presigned-URL file upload in place of OpenAI's direct multipart POST. Batchwork handles both.

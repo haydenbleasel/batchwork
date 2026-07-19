@@ -1,6 +1,6 @@
 ---
 title: Models
-description: Batchwork accepts any AI SDK model — a provider model object or a provider/model string.
+description: Batchwork accepts any AI SDK model — a provider model object or a provider/model string — and routes each batch to that provider's native batch endpoint.
 ---
 
 ## Model forms
@@ -17,7 +17,7 @@ batch({ model: anthropic("claude-opus-4-8"), requests }); // Anthropic Messages
 batch({ model: "openai/gpt-5.5", requests }); // provider/model string
 ```
 
-Batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint. All requests in a single batch use one model. Which OpenAI endpoint a model maps to — chat completions, responses, or completions — is covered on the [Text](/docs/text#openai-request-shapes) page.
+Batchwork reads the provider and model id from whatever you pass and routes to that provider's native batch endpoint — each one is covered on its own page: [OpenAI](/docs/providers/openai), [Anthropic](/docs/providers/anthropic), [Google Gemini](/docs/providers/google), [Groq](/docs/providers/groq), [Mistral](/docs/providers/mistral), [Together AI](/docs/providers/together), and [xAI](/docs/providers/xai). All requests in a single batch use one model. Which OpenAI endpoint a model maps to — chat completions, responses, or completions — is covered on the [Text](/docs/text#openai-request-shapes) page.
 
 ## Gateway string caveat
 
