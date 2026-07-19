@@ -12,6 +12,7 @@ import type {
   BatchImage,
   BatchResult,
   BatchResultError,
+  BatchTranscriptionSegment,
   BatchUsage,
   ProviderCredentials,
 } from "../types";
@@ -44,7 +45,36 @@ export const textFromBody = (body: unknown): string | undefined => {
       return content;
     }
   }
-  return asString(obj.output_text);
+  // `text` is the top-level field of transcription responses.
+  return asString(obj.output_text) ?? asString(obj.text);
+};
+
+/**
+ * Read timestamped segments from a transcription-shaped response body
+ * (`{ text, segments: [{ text, start, end }] }`, Groq `verbose_json` and
+ * Mistral alike). Returns undefined when the body carries no segments, so
+ * chat/embedding/image results are unaffected.
+ */
+export const segmentsFromBody = (
+  body: unknown
+): BatchTranscriptionSegment[] | undefined => {
+  const obj = asRecord(body);
+  if (asString(obj.text) === undefined) {
+    return;
+  }
+  const segments: BatchTranscriptionSegment[] = [];
+  for (const item of asArray(obj.segments)) {
+    const segment = asRecord(item);
+    const text = asString(segment.text);
+    if (text !== undefined) {
+      segments.push({
+        endSecond: asNumber(segment.end),
+        startSecond: asNumber(segment.start),
+        text,
+      });
+    }
+  }
+  return segments.length > 0 ? segments : undefined;
 };
 
 /** Read the embedding vector from an OpenAI-shaped embeddings response body. */
@@ -128,6 +158,7 @@ export const normalizeOpenAIResult = (line: unknown): BatchResult => {
       embedding: embeddingFromBody(response.body),
       images: imagesFromBody(response.body),
       response: response.body,
+      segments: segmentsFromBody(response.body),
       status: "succeeded",
       text: textFromBody(response.body),
       usage: usageFromBody(response.body),

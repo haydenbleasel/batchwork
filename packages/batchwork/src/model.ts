@@ -5,7 +5,12 @@ import type { createMistral } from "@ai-sdk/mistral";
 import type { createOpenAI } from "@ai-sdk/openai";
 import type { createTogetherAI } from "@ai-sdk/togetherai";
 import type { createXai } from "@ai-sdk/xai";
-import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
+import type {
+  EmbeddingModel,
+  ImageModel,
+  LanguageModel,
+  TranscriptionModel,
+} from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials } from "./types";
@@ -127,7 +132,7 @@ const resolveModelString = (value: string): ResolvedModel => {
  * `"provider/model"` are also handled.
  */
 export const resolveModel = (
-  model: LanguageModel | EmbeddingModel | ImageModel
+  model: LanguageModel | EmbeddingModel | ImageModel | TranscriptionModel
 ): ResolvedModel => {
   if (typeof model === "string") {
     return resolveModelString(model);
@@ -316,6 +321,25 @@ export const createCaptureEmbeddingModel = async (
     }
   }
 };
+
+/**
+ * Providers whose batch API accepts audio transcription. Groq and Mistral
+ * expose `/v1/audio/transcriptions` as a batch endpoint; OpenAI's batch API
+ * does not accept audio endpoints, and the remaining providers have no
+ * standalone transcription API.
+ */
+export const TRANSCRIPTION_PROVIDERS = new Set<BatchProvider>([
+  "groq",
+  "mistral",
+]);
+
+export const unsupportedTranscriptionProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch transcription. Transcriptions are supported for: groq, mistral.`
+  );
 
 /**
  * Providers whose batch API accepts image generation. OpenAI and xAI expose

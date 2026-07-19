@@ -75,6 +75,19 @@ xAI batch returns signed image URLs (`image.url`) that expire ~1h after completi
 bun test --env-file=.env.local ./live/openai-images.live.test.ts
 ```
 
+## Transcriptions
+
+`*-transcriptions.live.test.ts` round-trip a small **audio-transcription** batch (`batch.transcriptions()` → `wait()` → `collect()`) and assert every record returns a non-empty transcript. Batch audio endpoints fetch a hosted URL (no file uploads); the tests reuse one public sample file, overridable via `BATCHWORK_LIVE_AUDIO_URL`. Only Groq and Mistral accept an audio endpoint in batch:
+
+| Provider | Key (as above) | Default transcription model | Override env var |
+| --- | --- | --- | --- |
+| Groq | `GROQ_API_KEY` | `whisper-large-v3` | `BATCHWORK_LIVE_GROQ_TRANSCRIPTION_MODEL` |
+| Mistral | `MISTRAL_API_KEY` | `voxtral-mini-latest` | `BATCHWORK_LIVE_MISTRAL_TRANSCRIPTION_MODEL` |
+
+```sh
+bun test --env-file=.env.local ./live/groq-transcriptions.live.test.ts
+```
+
 ## Store adapters
 
 `postgres.live.test.ts` and `redis.live.test.ts` run the `BatchStore` contract against a **real** Postgres and Upstash Redis, driven by the actual clients the unit suite stubs out. Each is skipped unless its credentials are present:

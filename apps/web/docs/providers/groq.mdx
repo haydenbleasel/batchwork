@@ -5,15 +5,15 @@ description: Run batches on Groq's OpenAI-compatible Batch API — the same File
 
 Groq's Batch API is OpenAI-compatible — same Files API upload, same `/batches` lifecycle, same JSONL result files — so Batchwork reuses its OpenAI flow almost verbatim. The one wrinkle is the base path.
 
-| Property     | Value                             |
-| ------------ | --------------------------------- |
-| **Shape**    | JSONL file upload (OpenAI-compat) |
-| **Endpoint** | `/v1/chat/completions`            |
-| **Results**  | Output + error files (JSONL)      |
-| **Webhooks** | Poll-only (managed by the server) |
-| **Env var**  | `GROQ_API_KEY`                    |
-| **Package**  | `@ai-sdk/groq`                    |
-| **Base URL** | `https://api.groq.com/openai/v1`  |
+| Property     | Value                                              |
+| ------------ | -------------------------------------------------- |
+| **Shape**    | JSONL file upload (OpenAI-compat)                  |
+| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions` |
+| **Results**  | Output + error files (JSONL)                       |
+| **Webhooks** | Poll-only (managed by the server)                  |
+| **Env var**  | `GROQ_API_KEY`                                     |
+| **Package**  | `@ai-sdk/groq`                                     |
+| **Base URL** | `https://api.groq.com/openai/v1`                   |
 
 ## Example
 
@@ -35,6 +35,22 @@ const job = await batch({
 It follows the [OpenAI](/docs/providers/openai) lifecycle exactly: build `{ custom_id, method, url, body }` JSONL lines, upload via the Files API (`purpose=batch`), create the batch, poll `status`, then download the output/error files.
 
 Groq is served under `/openai/v1`, but its batch `url` must be `/v1/chat/completions`, so Batchwork strips the `/openai` prefix from the captured endpoint when creating the batch.
+
+## Transcriptions
+
+Groq's batch API also accepts `/v1/audio/transcriptions` — audio is passed as a hosted `url` (file uploads aren't supported in batch). Submit with [`batch.transcriptions()`](/docs/transcriptions):
+
+```ts
+import { batch } from "batchwork";
+import { groq } from "@ai-sdk/groq";
+
+const job = await batch.transcriptions({
+  model: groq.transcription("whisper-large-v3"),
+  requests: [{ customId: "a", audioUrl: "https://example.com/interview.wav" }],
+});
+```
+
+The transcript lands on `result.text` (and `result.segments` when you request `timestampGranularities`).
 
 ## Notes
 

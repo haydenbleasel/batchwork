@@ -2,6 +2,7 @@ import {
   buildEmbeddingBodies,
   buildImageBodies,
   buildRequestBodies,
+  buildTranscriptionBodies,
 } from "./body";
 import { BatchworkError } from "./errors";
 import { BatchJob } from "./job";
@@ -10,8 +11,10 @@ import {
   EMBEDDING_PROVIDERS,
   IMAGE_PROVIDERS,
   resolveModel,
+  TRANSCRIPTION_PROVIDERS,
   unsupportedEmbeddingProvider,
   unsupportedImageProvider,
+  unsupportedTranscriptionProvider,
 } from "./model";
 import { getAdapter } from "./providers";
 import type {
@@ -21,6 +24,7 @@ import type {
   BatchProvider,
   BatchRef,
   BatchResult,
+  BatchTranscriptionOptions,
   ProviderCredentials,
 } from "./types";
 
@@ -186,6 +190,56 @@ const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
 };
 
 /**
+ * Submit a batch of audio-transcription requests to the model's provider and
+ * return a handle. Each request's `audioUrl` (a hosted audio file — batch
+ * audio endpoints accept URLs, not file uploads) produces one transcript,
+ * correlated by `customId` via {@link BatchJob.results}. Supported for Groq
+ * and Mistral; other providers throw {@link UnsupportedProviderError}.
+ *
+ * @example
+ * const job = await batch.transcriptions({
+ *   model: groq.transcription("whisper-large-v3"),
+ *   requests: [{ customId: "a", audioUrl: "https://example.com/call.wav" }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ * for (const r of results) {
+ *   console.log(r.customId, r.text);
+ * }
+ */
+const submitTranscriptions = async (
+  options: BatchTranscriptionOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!TRANSCRIPTION_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedTranscriptionProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = buildTranscriptionBodies(
+    resolved,
+    options.requests,
+    options.defaults,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
  * Submit a batch of requests and return a {@link BatchJob} handle.
  *
  * Callable directly as a shorthand for text/chat batches, with one method per
@@ -194,6 +248,7 @@ const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
  * - `batch()` / {@link batch.text} — text & chat completions
  * - {@link batch.embeddings} — embedding vectors
  * - {@link batch.images} — image generation
+ * - {@link batch.transcriptions} — audio transcription
  *
  * @example
  * const job = await batch({
@@ -208,6 +263,8 @@ export const batch = Object.assign(submitText, {
   images: submitImages,
   /** Submit a batch of text/chat requests. Equivalent to calling `batch()`. */
   text: submitText,
+  /** Submit a batch of audio-transcription requests. */
+  transcriptions: submitTranscriptions,
 });
 
 /**

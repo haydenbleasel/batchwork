@@ -2,6 +2,6 @@ import { defineMeta } from "blume";
 
 export default defineMeta({
   order: 3,
-  pages: ["text", "images", "embeddings"],
+  pages: ["text", "images", "embeddings", "transcriptions"],
   title: "API Reference",
 });

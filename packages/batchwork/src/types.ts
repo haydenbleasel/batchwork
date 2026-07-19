@@ -6,6 +6,7 @@ import type {
   ModelMessage,
   ToolChoice,
   ToolSet,
+  TranscriptionModel,
 } from "ai";
 
 /** Providers with a batch adapter. */
@@ -113,6 +114,36 @@ export type BatchImageDefaults = Partial<
   Omit<BatchImageRequest, "customId" | "prompt">
 >;
 
+/**
+ * A single audio-transcription request within a batch. Batch audio endpoints
+ * accept hosted audio only (no file uploads): the provider fetches `audioUrl`
+ * while processing, so the URL must stay reachable until the batch completes.
+ */
+export interface BatchTranscriptionRequest {
+  /** Publicly reachable URL of the audio file to transcribe. */
+  audioUrl: string;
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /** Language of the audio, as an ISO-639-1 code (e.g. `"en"`). */
+  language?: string;
+  /** Merged into the provider request body (e.g. `{ groq: { prompt } }`). */
+  providerOptions?: ProviderOptions;
+  /** Timestamp detail to request; populates `segments` on the result. */
+  timestampGranularities?: ("segment" | "word")[];
+}
+
+/** Defaults merged into every transcription request; request-level values win. */
+export type BatchTranscriptionDefaults = Partial<
+  Omit<BatchTranscriptionRequest, "customId" | "audioUrl">
+>;
+
+/** A timestamped span of a transcript. */
+export interface BatchTranscriptionSegment {
+  endSecond?: number;
+  startSecond?: number;
+  text: string;
+}
+
 /** Normalized batch lifecycle status, unified across providers. */
 export type BatchStatus =
   | "validating"
@@ -164,8 +195,10 @@ export interface BatchResult {
   images?: BatchImage[];
   /** Raw provider response body (OpenAI `response.body` / Anthropic message). */
   response?: unknown;
+  /** Timestamped transcript segments, when requested via `timestampGranularities`. */
+  segments?: BatchTranscriptionSegment[];
   status: BatchResultStatus;
-  /** Normalized text output, when the request produced a message. */
+  /** Normalized text output, when the request produced a message or transcript. */
   text?: string;
   usage?: BatchUsage;
 }
@@ -222,6 +255,19 @@ export interface BatchImageOptions extends ProviderCredentials {
   metadata?: Record<string, string>;
   model: ImageModel;
   requests: BatchImageRequest[];
+}
+
+/** Input to `batch.transcriptions()`. */
+export interface BatchTranscriptionOptions extends ProviderCredentials {
+  defaults?: BatchTranscriptionDefaults;
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  /**
+   * A transcription model object (e.g. `groq.transcription("whisper-large-v3")`)
+   * or a `"provider/model"` string (e.g. `"mistral/voxtral-mini-latest"`).
+   */
+  model: TranscriptionModel;
+  requests: BatchTranscriptionRequest[];
 }
 
 /**

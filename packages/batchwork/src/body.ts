@@ -12,6 +12,7 @@ import {
   createCaptureEmbeddingModel,
   createCaptureImageModel,
   createCaptureModel,
+  unsupportedTranscriptionProvider,
 } from "./model";
 import type { CapturingFetch, ResolvedModel } from "./model";
 import type {
@@ -21,6 +22,8 @@ import type {
   BatchImageRequest,
   BatchLimits,
   BatchRequest,
+  BatchTranscriptionDefaults,
+  BatchTranscriptionRequest,
   ProviderCredentials,
 } from "./types";
 
@@ -342,6 +345,82 @@ export const buildEmbeddingBodies = async (
       return built;
     }
   );
+};
+
+const TRANSCRIPTION_ENDPOINT = "/v1/audio/transcriptions";
+
+/**
+ * Build the provider transcription body directly. Batch audio endpoints take
+ * JSON with a hosted audio URL — unlike the synchronous transcription APIs
+ * (and the AI SDK's `transcribe`), which upload the file as multipart form
+ * data — so there is no SDK call to capture.
+ */
+const transcriptionBody = (
+  resolved: ResolvedModel,
+  request: BatchTranscriptionRequest
+): Record<string, unknown> => {
+  const options = request.providerOptions?.[resolved.provider];
+  if (resolved.provider === "groq") {
+    return {
+      model: resolved.modelId,
+      url: request.audioUrl,
+      ...(request.language ? { language: request.language } : {}),
+      // Timestamps require the verbose response shape; providerOptions can
+      // still override `response_format` since it spreads last.
+      ...(request.timestampGranularities
+        ? {
+            response_format: "verbose_json",
+            timestamp_granularities: request.timestampGranularities,
+          }
+        : {}),
+      ...options,
+    };
+  }
+  if (resolved.provider === "mistral") {
+    // `model` is included for uniformity; the Mistral adapter strips it from
+    // each line and sets it on the job instead.
+    return {
+      file_url: request.audioUrl,
+      model: resolved.modelId,
+      ...(request.language ? { language: request.language } : {}),
+      ...(request.timestampGranularities
+        ? { timestamp_granularities: request.timestampGranularities }
+        : {}),
+      ...options,
+    };
+  }
+  throw unsupportedTranscriptionProvider(resolved.provider);
+};
+
+/**
+ * Build provider transcription request bodies for every batch item. Each item
+ * maps to a single transcription of a hosted audio URL, correlated by
+ * `customId`.
+ */
+export const buildTranscriptionBodies = (
+  resolved: ResolvedModel,
+  requests: readonly BatchTranscriptionRequest[],
+  defaults: BatchTranscriptionDefaults | undefined,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): BuiltRequest[] => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  return assignCustomIds(requests).map((item) => {
+    const body = transcriptionBody(
+      resolved,
+      mergeDefaults(item.request, defaults)
+    );
+    assertByteLength(
+      `request "${item.customId}"`,
+      JSON.stringify(body),
+      limits.maxRequestBytes
+    );
+    return { body, customId: item.customId, endpoint: TRANSCRIPTION_ENDPOINT };
+  });
 };
 
 /**

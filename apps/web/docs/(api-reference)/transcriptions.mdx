@@ -1,0 +1,92 @@
+---
+title: Transcriptions
+description: Transcribe thousands of audio files in one batch with batch.transcriptions — hosted audio URLs in, normalized transcripts and timestamped segments out.
+---
+
+## Submit a transcription batch
+
+`batch.transcriptions()` mirrors [`batch()`](/docs/text): pass a transcription model and a list of hosted audio URLs, and it returns the same `BatchJob` handle **immediately**. Each request produces one transcript, correlated by `customId`.
+
+```ts
+import { batch } from "batchwork";
+import { groq } from "@ai-sdk/groq";
+
+const job = await batch.transcriptions({
+  model: groq.transcription("whisper-large-v3"),
+  requests: [
+    { customId: "a", audioUrl: "https://example.com/interview.wav" },
+    { customId: "b", audioUrl: "https://example.com/standup.mp3" },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.text);
+}
+```
+
+Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/docs/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`.
+
+You can also pass a `"provider/model"` string (e.g. `"mistral/voxtral-mini-latest"`) — the only form for Mistral, whose AI SDK package has no transcription model yet.
+
+:::warning
+Batch audio endpoints accept **hosted URLs only** — there is no file upload. The provider fetches each `audioUrl` while the batch processes, so the URL must be publicly reachable (or a signed link that outlives the batch window, typically 24h).
+:::
+
+## Supported providers
+
+Batch transcription is available for the providers whose batch API accepts an audio-transcription endpoint:
+
+| Provider | Example model | Notes |
+| --- | --- | --- |
+| Groq | `whisper-large-v3` | `/v1/audio/transcriptions`, audio by `url`. Translations via `providerOptions`. |
+| Mistral | `voxtral-mini-latest` | `/v1/audio/transcriptions`, audio by `file_url`, model set on the job. |
+
+OpenAI's Batch API does not accept its audio endpoints, and the remaining providers have no standalone transcription API. Calling `batch.transcriptions()` with any of them throws `UnsupportedProviderError` before any network request. (Gemini models can still transcribe audio through [`batch()`](/docs/text) by passing audio file parts in `messages`.)
+
+## Request shape
+
+Each request is a hosted `audioUrl` plus an optional `customId` and a few knobs:
+
+| Field | Notes |
+| --- | --- |
+| `audioUrl` | Publicly reachable URL of the audio file to transcribe. |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `language` | Language of the audio as an ISO-639-1 code (e.g. `"en"`). Improves accuracy and latency. |
+| `timestampGranularities` | `["segment"]` and/or `["word"]`. Populates `result.segments` and switches Groq to `verbose_json`. |
+| `providerOptions` | Provider-specific fields merged into the request body (e.g. `{ groq: { prompt, temperature } }`). |
+
+`limits` and `metadata` work exactly as in [`batch()`](/docs/limits), and `defaults` are merged into every request (request-level values win) — handy for applying one `language` across the whole batch.
+
+## Results
+
+Transcriptions reuse the normalized [`BatchResult`](/docs/results). The transcript lands on `result.text`; when timestamps were requested, `result.segments` holds `{ text, startSecond?, endSecond? }` spans:
+
+```ts
+const job = await batch.transcriptions({
+  model: groq.transcription("whisper-large-v3"),
+  requests: [
+    {
+      customId: "a",
+      audioUrl: "https://example.com/interview.wav",
+      timestampGranularities: ["segment"],
+    },
+  ],
+});
+
+for await (const result of job.results()) {
+  if (result.status === "succeeded") {
+    for (const segment of result.segments ?? []) {
+      console.log(`[${segment.startSecond}s] ${segment.text}`);
+    }
+  } else if (result.status === "errored") {
+    console.error(result.customId, result.error?.message);
+  }
+}
+```
+
+The raw provider payload — detected language, duration, word-level timestamps — is on `result.response`. `embedding` and `images` are `undefined` for transcription batches, and `usage` is normalized where the provider reports it, billed at the batch rate (~50% off).
+
+## How it's built
+
+Unlike the other modalities, transcription bodies are **not** derived through the AI SDK's capturing `fetch` — the synchronous transcription APIs (and the AI SDK's `transcribe`) upload audio as multipart form data, while the batch endpoints take JSON with a hosted URL instead. Batchwork builds each provider body directly: `{ model, url, … }` for Groq, `{ file_url, … }` for Mistral (model on the job). Everything downstream — JSONL upload, job lifecycle, result parsing — reuses each provider's standard batch flow.

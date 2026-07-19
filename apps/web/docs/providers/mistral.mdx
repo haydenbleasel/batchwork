@@ -56,6 +56,21 @@ const job = await batch.embeddings({
 
 The vector lands on `result.embedding`. Mistral has no image model, so [`batch.images()`](/docs/images) throws `UnsupportedProviderError`.
 
+## Transcriptions
+
+Mistral's batch API also accepts `/v1/audio/transcriptions` for the Voxtral models — audio is passed as a hosted `file_url`, with the model set on the job like every Mistral batch. The AI SDK's Mistral package has no transcription model yet, so pass the `"provider/model"` string form to [`batch.transcriptions()`](/docs/transcriptions):
+
+```ts
+import { batch } from "batchwork";
+
+const job = await batch.transcriptions({
+  model: "mistral/voxtral-mini-latest",
+  requests: [{ customId: "a", audioUrl: "https://example.com/interview.wav" }],
+});
+```
+
+The transcript lands on `result.text` (and `result.segments` when you request `timestampGranularities`).
+
 ## Notes
 
 Mistral has no native batch webhook, so it is poll-only. Use the [server layer](/docs/server) for unified completion events.
