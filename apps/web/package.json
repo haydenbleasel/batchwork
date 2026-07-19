@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "blume dev",
     "build": "blume build",
+    "audit": "blume audit",
     "preview": "blume preview",
     "test": "echo 'no tests'"
   },
   "dependencies": {
     "batchwork": "workspace:*",
-    "blume": "^0.7.0"
+    "blume": "1.1.0"
   }
 }
