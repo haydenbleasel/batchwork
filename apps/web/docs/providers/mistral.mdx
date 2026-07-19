@@ -71,6 +71,21 @@ const job = await batch.transcriptions({
 
 The transcript lands on `result.text` (and `result.segments` when you request `timestampGranularities`).
 
+## Moderations
+
+Mistral's moderation models (e.g. `mistral-moderation-latest`) batch through `/v1/moderations`, model on the job as usual. Text-only — requests with `imageUrls` throw before submitting. Pass the `"provider/model"` string form to [`batch.moderations()`](/docs/moderations):
+
+```ts
+import { batch } from "batchwork";
+
+const job = await batch.moderations({
+  model: "mistral/mistral-moderation-latest",
+  requests: [{ customId: "a", value: "…user-generated content…" }],
+});
+```
+
+The verdict lands on `result.moderation`. Mistral reports no top-level `flagged` flag, so Batchwork computes it as "any category flagged".
+
 ## Notes
 
 Mistral has no native batch webhook, so it is poll-only. Use the [server layer](/docs/server) for unified completion events.

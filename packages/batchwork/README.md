@@ -114,11 +114,34 @@ for (const r of results) {
 
 Batch transcription is available for **Groq** (`whisper-large-v3`, audio by `url`) and **Mistral** (Voxtral models, e.g. `"mistral/voxtral-mini-latest"`, audio by `file_url`); other providers throw a clear error — OpenAI's batch API doesn't accept its audio endpoints. Batch audio endpoints take **hosted URLs only** (no file uploads), so each `audioUrl` must stay reachable while the batch processes. Request `timestampGranularities: ["segment"]` to also get timestamped spans on `result.segments`.
 
+## Moderations
+
+Moderate content in bulk — pass a moderation model and texts (or image URLs, OpenAI omni moderation only), and get verdicts back on `result.moderation`:
+
+```ts
+import { batch } from "batchwork";
+
+const job = await batch.moderations({
+  model: "openai/omni-moderation-latest",
+  requests: [
+    { customId: "a", value: "What a lovely day for a picnic." },
+    { customId: "b", value: "…user-generated content…" },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.moderation?.flagged, r.moderation?.categories);
+}
+```
+
+Batch moderation is available for **OpenAI** (`omni-moderation-latest`, text + images) and **Mistral** (`mistral-moderation-latest`, text-only); other providers throw a clear error. Models are passed as `"provider/model"` strings (the AI SDK has no moderation model type). Category names are provider-native; `flagged` is the provider's own flag (OpenAI) or "any category flagged" (Mistral).
+
 ## Features
 
 - **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
-- **Chat, embeddings, images & audio** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation, `batch.transcriptions()` for audio transcription.
+- **Chat, embeddings, images, audio & moderation** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation, `batch.transcriptions()` for audio transcription, `batch.moderations()` for content moderation.
 - **~50% cheaper** — every request runs against the provider's batch window.
 - **Normalized results** — unified status, text, usage, and error types regardless of provider.
 - **Server-ready** — optional layers for managed polling, unified webhooks, and Next.js route handlers.

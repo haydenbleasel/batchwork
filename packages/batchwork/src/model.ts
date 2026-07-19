@@ -323,6 +323,25 @@ export const createCaptureEmbeddingModel = async (
 };
 
 /**
+ * Providers whose batch API accepts moderation. OpenAI exposes
+ * `/v1/moderations` as a batch endpoint (omni moderation, text + images);
+ * Mistral runs its moderation models through the same batch job flow
+ * (text-only). No other provider has a standalone moderation API.
+ */
+export const MODERATION_PROVIDERS = new Set<BatchProvider>([
+  "mistral",
+  "openai",
+]);
+
+export const unsupportedModerationProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch moderation. Moderations are supported for: openai, mistral.`
+  );
+
+/**
  * Providers whose batch API accepts audio transcription. Groq and Mistral
  * expose `/v1/audio/transcriptions` as a batch endpoint; OpenAI's batch API
  * does not accept audio endpoints, and the remaining providers have no

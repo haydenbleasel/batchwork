@@ -22,6 +22,7 @@ import { batch } from "../src/batch";
 import type {
   BatchEmbeddingRequest,
   BatchImageRequest,
+  BatchModerationRequest,
   BatchRequest,
   BatchResult,
   BatchTranscriptionRequest,
@@ -243,6 +244,62 @@ export const runLiveImages = async (
   expect(image?.data ?? image?.url).toBeTruthy();
   log(
     `[${label}] sample ${sample?.customId}: ${sample?.images?.length} image(s), ${image?.mediaType ?? image?.url ?? "?"}`
+  );
+};
+
+const buildModerationRequests = (ids: string[]): BatchModerationRequest[] =>
+  ids.map((customId, index) => ({
+    customId,
+    value: `Benign sentence number ${index} about the weather being pleasant.`,
+  }));
+
+/**
+ * Submit a 20-record moderation batch to a live provider, wait for it to
+ * finish, and assert every record round-trips with a verdict.
+ */
+export const runLiveModerations = async (
+  label: string,
+  model: string
+): Promise<void> => {
+  const ids = customIds();
+  const requests = buildModerationRequests(ids);
+
+  log(`[${label}] submitting ${requests.length} moderation records…`);
+  const job = await batch.moderations({ model, requests });
+  log(`[${label}] submitted ${job.id} (${job.provider})`);
+  expect(job.id).toBeTruthy();
+
+  const snapshot = await job.wait({
+    onPoll: (poll) =>
+      log(`[${label}] ${poll.status} ${JSON.stringify(poll.requestCounts)}`),
+    pollIntervalMs: POLL_INTERVAL_MS,
+    timeoutMs: LIVE_WAIT_TIMEOUT_MS,
+  });
+  expect(snapshot.status).toBe("completed");
+
+  const results = await job.collect();
+  log(`[${label}] results: ${summarize(results)}`);
+
+  const errored = results.filter((result) => result.status === "errored");
+  for (const result of errored) {
+    log(
+      `[${label}] ${result.customId} errored: ${JSON.stringify(result.error)}`
+    );
+  }
+
+  const seen = new Set(results.map((result) => result.customId));
+  expect(seen.size).toBe(LIVE_RECORD_COUNT);
+  for (const id of ids) {
+    expect(seen.has(id)).toBe(true);
+  }
+
+  expect(errored).toHaveLength(0);
+  const sample = results.find((result) => result.status === "succeeded");
+  // Benign inputs: a verdict must exist and should not be flagged.
+  expect(sample?.moderation).toBeDefined();
+  expect(sample?.moderation?.flagged).toBe(false);
+  log(
+    `[${label}] sample ${sample?.customId}: flagged=${sample?.moderation?.flagged}, ${Object.keys(sample?.moderation?.categories ?? {}).length} categories`
   );
 };
 

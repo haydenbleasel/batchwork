@@ -1,6 +1,7 @@
 import {
   buildEmbeddingBodies,
   buildImageBodies,
+  buildModerationBodies,
   buildRequestBodies,
   buildTranscriptionBodies,
 } from "./body";
@@ -10,16 +11,19 @@ import { resolveBatchLimits } from "./limits";
 import {
   EMBEDDING_PROVIDERS,
   IMAGE_PROVIDERS,
+  MODERATION_PROVIDERS,
   resolveModel,
   TRANSCRIPTION_PROVIDERS,
   unsupportedEmbeddingProvider,
   unsupportedImageProvider,
+  unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
 } from "./model";
 import { getAdapter } from "./providers";
 import type {
   BatchEmbeddingsOptions,
   BatchImageOptions,
+  BatchModerationOptions,
   BatchOptions,
   BatchProvider,
   BatchRef,
@@ -190,6 +194,52 @@ const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
 };
 
 /**
+ * Submit a batch of moderation requests to the model's provider and return a
+ * handle. Each request's `value` (and/or `imageUrls`, OpenAI omni moderation
+ * only) produces one verdict on `result.moderation`, correlated by `customId`
+ * via {@link BatchJob.results}. Supported for OpenAI and Mistral; other
+ * providers throw {@link UnsupportedProviderError}. Pass the model as a
+ * `"provider/model"` string — the AI SDK has no moderation model type.
+ *
+ * @example
+ * const job = await batch.moderations({
+ *   model: "openai/omni-moderation-latest",
+ *   requests: [{ customId: "a", value: "…user-generated content…" }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ * for (const r of results) {
+ *   console.log(r.customId, r.moderation?.flagged);
+ * }
+ */
+const submitModerations = async (
+  options: BatchModerationOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!MODERATION_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedModerationProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = buildModerationBodies(resolved, options.requests, limits);
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
  * Submit a batch of audio-transcription requests to the model's provider and
  * return a handle. Each request's `audioUrl` (a hosted audio file — batch
  * audio endpoints accept URLs, not file uploads) produces one transcript,
@@ -249,6 +299,7 @@ const submitTranscriptions = async (
  * - {@link batch.embeddings} — embedding vectors
  * - {@link batch.images} — image generation
  * - {@link batch.transcriptions} — audio transcription
+ * - {@link batch.moderations} — content moderation
  *
  * @example
  * const job = await batch({
@@ -261,6 +312,8 @@ export const batch = Object.assign(submitText, {
   embeddings: submitEmbeddings,
   /** Submit a batch of image-generation requests. */
   images: submitImages,
+  /** Submit a batch of moderation requests. */
+  moderations: submitModerations,
   /** Submit a batch of text/chat requests. Equivalent to calling `batch()`. */
   text: submitText,
   /** Submit a batch of audio-transcription requests. */

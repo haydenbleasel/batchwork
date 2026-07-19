@@ -144,6 +144,41 @@ export interface BatchTranscriptionSegment {
   text: string;
 }
 
+/**
+ * A single moderation request within a batch. Provide `value` (text),
+ * `imageUrls` (OpenAI omni moderation only), or both; each request produces
+ * one verdict, correlated by `customId`.
+ */
+export interface BatchModerationRequest {
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /**
+   * Image URLs to moderate alongside (or instead of) `value`. Supported by
+   * OpenAI omni moderation models only; Mistral moderation is text-only.
+   */
+  imageUrls?: string[];
+  /** Merged into the provider request body. */
+  providerOptions?: ProviderOptions;
+  /** The text to moderate. */
+  value?: string;
+}
+
+/**
+ * A normalized moderation verdict. Category names are provider-native (e.g.
+ * OpenAI `"hate/threatening"`, Mistral `"hate_and_discrimination"`).
+ */
+export interface BatchModeration {
+  /** Per-category boolean flags. */
+  categories: Record<string, boolean>;
+  /** Per-category confidence scores. */
+  categoryScores: Record<string, number>;
+  /**
+   * True when the input was flagged: the provider's own flag (OpenAI), or any
+   * category flag when the provider reports none (Mistral).
+   */
+  flagged: boolean;
+}
+
 /** Normalized batch lifecycle status, unified across providers. */
 export type BatchStatus =
   | "validating"
@@ -193,6 +228,8 @@ export interface BatchResult {
   error?: BatchResultError;
   /** Generated images, when the request produced images. */
   images?: BatchImage[];
+  /** Normalized moderation verdict, when the request produced one. */
+  moderation?: BatchModeration;
   /** Raw provider response body (OpenAI `response.body` / Anthropic message). */
   response?: unknown;
   /** Timestamped transcript segments, when requested via `timestampGranularities`. */
@@ -255,6 +292,19 @@ export interface BatchImageOptions extends ProviderCredentials {
   metadata?: Record<string, string>;
   model: ImageModel;
   requests: BatchImageRequest[];
+}
+
+/** Input to `batch.moderations()`. */
+export interface BatchModerationOptions extends ProviderCredentials {
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  /**
+   * A `"provider/model"` string (e.g. `"openai/omni-moderation-latest"` or
+   * `"mistral/mistral-moderation-latest"`) — the AI SDK has no moderation
+   * model type.
+   */
+  model: string;
+  requests: BatchModerationRequest[];
 }
 
 /** Input to `batch.transcriptions()`. */

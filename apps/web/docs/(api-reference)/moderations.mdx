@@ -1,0 +1,105 @@
+---
+title: Moderations
+description: Moderate thousands of texts or images in one batch with batch.moderations — normalized flagged verdicts, category flags, and confidence scores per request.
+---
+
+## Submit a moderation batch
+
+`batch.moderations()` mirrors [`batch()`](/docs/text): pass a moderation model and a list of inputs, and it returns the same `BatchJob` handle **immediately**. Each request produces one verdict on `result.moderation`, correlated by `customId`. Moderation is the most batch-shaped workload there is — huge volumes, latency-insensitive, per-item results — and the batch rate makes an already-cheap endpoint cheaper still.
+
+```ts
+import { batch } from "batchwork";
+
+const job = await batch.moderations({
+  model: "openai/omni-moderation-latest",
+  requests: [
+    { customId: "a", value: "What a lovely day for a picnic." },
+    { customId: "b", value: "…user-generated content…" },
+  ],
+});
+
+const results = await job.wait().then(() => job.collect());
+for (const r of results) {
+  console.log(r.customId, r.moderation?.flagged);
+}
+```
+
+Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/docs/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`.
+
+:::note
+Models are passed as `"provider/model"` strings only — the AI SDK has no moderation model type to hand over.
+:::
+
+## Supported providers
+
+Batch moderation is available for the providers whose batch API accepts a moderation endpoint:
+
+| Provider | Example model | Notes |
+| --- | --- | --- |
+| OpenAI | `omni-moderation-latest` | `/v1/moderations`. Text and/or images per request. |
+| Mistral | `mistral-moderation-latest` | `/v1/moderations`, model set on the job. Text-only. |
+
+No other provider has a standalone moderation API; calling `batch.moderations()` with any of them throws `UnsupportedProviderError` before any network request. (Guard models like Llama Guard are chat models — run those through [`batch()`](/docs/text).)
+
+## Request shape
+
+Each request is a `value` (text), `imageUrls` (OpenAI omni moderation only), or both:
+
+| Field | Notes |
+| --- | --- |
+| `value` | The text to moderate. |
+| `imageUrls` | Image URLs moderated alongside (or instead of) `value`. OpenAI only — Mistral throws before submitting. |
+| `customId` | Correlates the result. Auto-generated as `request-<index>` if omitted; must be unique within a batch. |
+| `providerOptions` | Provider-specific fields merged into the request body. |
+
+`limits` and `metadata` work exactly as in [`batch()`](/docs/limits).
+
+## Results
+
+Moderations reuse the normalized [`BatchResult`](/docs/results). The verdict lands on `result.moderation`:
+
+```ts
+interface BatchModeration {
+  flagged: boolean; // provider's flag (OpenAI), or any category flag (Mistral)
+  categories: Record<string, boolean>; // provider-native category names
+  categoryScores: Record<string, number>;
+}
+```
+
+Category names are **provider-native** — OpenAI reports `sexual`, `hate`, `violence`, `self-harm/intent`, …; Mistral reports `sexual`, `hate_and_discrimination`, `violence_and_threats`, `pii`, `financial`, `law`, … — so thresholding logic is per-provider by design. OpenAI includes its own top-level `flagged` boolean; Mistral doesn't, so Batchwork computes it as "any category flagged".
+
+```ts
+for await (const result of job.results()) {
+  if (result.status === "succeeded" && result.moderation?.flagged) {
+    const hits = Object.entries(result.moderation.categories)
+      .filter(([, flagged]) => flagged)
+      .map(([category]) => category);
+    quarantine(result.customId, hits);
+  }
+}
+```
+
+`text`, `embedding`, and `images` are `undefined` for moderation batches; the full provider payload (e.g. OpenAI's `category_applied_input_types`) is on `result.response`.
+
+## Images (OpenAI omni moderation)
+
+OpenAI's omni moderation models accept images. Pass `imageUrls` — with or without accompanying text — and Batchwork builds the content-part input for you:
+
+```ts
+await batch.moderations({
+  model: "openai/omni-moderation-latest",
+  requests: [
+    {
+      customId: "upload-42",
+      value: "profile photo caption",
+      imageUrls: ["https://example.com/uploads/42.png"],
+    },
+  ],
+});
+```
+
+The URLs must be reachable by OpenAI while the batch processes. Mistral moderation is text-only; requests with `imageUrls` throw before any network call.
+
+## How it's built
+
+Like [transcriptions](/docs/transcriptions), moderation bodies are built directly rather than captured from an AI SDK call (there is none to capture). Both providers take `{ input }` — a bare string, or OpenAI's content-part array when images are involved; OpenAI carries the model on each line while Mistral sets it on the job. Everything downstream — JSONL upload, job lifecycle, result parsing — reuses each provider's standard batch flow.

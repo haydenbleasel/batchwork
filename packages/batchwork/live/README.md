@@ -88,6 +88,19 @@ bun test --env-file=.env.local ./live/openai-images.live.test.ts
 bun test --env-file=.env.local ./live/groq-transcriptions.live.test.ts
 ```
 
+## Moderations
+
+`*-moderations.live.test.ts` round-trip a 20-record **moderation** batch (`batch.moderations()` → `wait()` → `collect()`) of benign sentences and assert every record returns an unflagged verdict. Only OpenAI and Mistral accept a moderation endpoint in batch:
+
+| Provider | Key (as above) | Default moderation model | Override env var |
+| --- | --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `omni-moderation-latest` | `BATCHWORK_LIVE_OPENAI_MODERATION_MODEL` |
+| Mistral | `MISTRAL_API_KEY` | `mistral-moderation-latest` | `BATCHWORK_LIVE_MISTRAL_MODERATION_MODEL` |
+
+```sh
+bun test --env-file=.env.local ./live/openai-moderations.live.test.ts
+```
+
 ## Store adapters
 
 `postgres.live.test.ts` and `redis.live.test.ts` run the `BatchStore` contract against a **real** Postgres and Upstash Redis, driven by the actual clients the unit suite stubs out. Each is skipped unless its credentials are present:

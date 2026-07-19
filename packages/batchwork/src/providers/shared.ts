@@ -10,6 +10,7 @@ import { requestJson, requestStream } from "../http";
 import { streamJsonl } from "../jsonl";
 import type {
   BatchImage,
+  BatchModeration,
   BatchResult,
   BatchResultError,
   BatchTranscriptionSegment,
@@ -104,6 +105,44 @@ export const imagesFromBody = (body: unknown): BatchImage[] | undefined => {
   return images.length > 0 ? images : undefined;
 };
 
+/**
+ * Read the verdict from a moderation-shaped response body
+ * (`{ results: [{ flagged?, categories, category_scores }] }`, OpenAI and
+ * Mistral alike). Mistral reports no `flagged`, so it falls back to "any
+ * category flagged". Returns undefined when the body carries no categories, so
+ * other result shapes are unaffected.
+ */
+export const moderationFromBody = (
+  body: unknown
+): BatchModeration | undefined => {
+  const results = asArray(asRecord(body).results);
+  if (results.length === 0) {
+    return;
+  }
+  const first = asRecord(results[0]);
+  const categories: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(asRecord(first.categories))) {
+    if (typeof value === "boolean") {
+      categories[key] = value;
+    }
+  }
+  if (Object.keys(categories).length === 0) {
+    return;
+  }
+  const categoryScores: Record<string, number> = {};
+  for (const [key, value] of Object.entries(asRecord(first.category_scores))) {
+    const score = asNumber(value);
+    if (score !== undefined) {
+      categoryScores[key] = score;
+    }
+  }
+  const flagged =
+    typeof first.flagged === "boolean"
+      ? first.flagged
+      : Object.values(categories).some(Boolean);
+  return { categories, categoryScores, flagged };
+};
+
 export const usageFromBody = (body: unknown): BatchUsage | undefined => {
   const usage = asRecord(asRecord(body).usage);
   const inputTokens =
@@ -157,6 +196,7 @@ export const normalizeOpenAIResult = (line: unknown): BatchResult => {
       customId,
       embedding: embeddingFromBody(response.body),
       images: imagesFromBody(response.body),
+      moderation: moderationFromBody(response.body),
       response: response.body,
       segments: segmentsFromBody(response.body),
       status: "succeeded",

@@ -12,6 +12,7 @@ import {
   createCaptureEmbeddingModel,
   createCaptureImageModel,
   createCaptureModel,
+  unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
 } from "./model";
 import type { CapturingFetch, ResolvedModel } from "./model";
@@ -21,6 +22,7 @@ import type {
   BatchImageDefaults,
   BatchImageRequest,
   BatchLimits,
+  BatchModerationRequest,
   BatchRequest,
   BatchTranscriptionDefaults,
   BatchTranscriptionRequest,
@@ -345,6 +347,87 @@ export const buildEmbeddingBodies = async (
       return built;
     }
   );
+};
+
+const MODERATION_ENDPOINT = "/v1/moderations";
+
+/**
+ * Build the moderation `input`: a bare string for text, or the OpenAI omni
+ * moderation content-part array when images are involved.
+ */
+const moderationInput = (request: BatchModerationRequest): unknown => {
+  const imageUrls = request.imageUrls ?? [];
+  if (imageUrls.length === 0) {
+    return request.value;
+  }
+  return [
+    ...(request.value === undefined
+      ? []
+      : [{ text: request.value, type: "text" }]),
+    ...imageUrls.map((url) => ({ image_url: { url }, type: "image_url" })),
+  ];
+};
+
+/**
+ * Build the provider moderation body directly — the AI SDK has no moderation
+ * call to capture. Both providers take `{ input }`; OpenAI carries the model
+ * per line, Mistral on the job.
+ */
+const moderationBody = (
+  resolved: ResolvedModel,
+  request: BatchModerationRequest,
+  customId: string
+): Record<string, unknown> => {
+  if (request.value === undefined && !request.imageUrls?.length) {
+    throw new BatchworkError(
+      `batchwork: moderation request "${customId}" needs \`value\` or \`imageUrls\`.`
+    );
+  }
+  const options = request.providerOptions?.[resolved.provider];
+  if (resolved.provider === "openai") {
+    return {
+      input: moderationInput(request),
+      model: resolved.modelId,
+      ...options,
+    };
+  }
+  if (resolved.provider === "mistral") {
+    if (request.imageUrls?.length) {
+      throw new BatchworkError(
+        `batchwork: moderation request "${customId}" has \`imageUrls\`, but Mistral moderation is text-only.`
+      );
+    }
+    // `model` is included for uniformity; the Mistral adapter strips it from
+    // each line and sets it on the job instead.
+    return { input: request.value, model: resolved.modelId, ...options };
+  }
+  throw unsupportedModerationProvider(resolved.provider);
+};
+
+/**
+ * Build provider moderation request bodies for every batch item. Each item
+ * maps to a single moderation verdict, correlated by `customId`.
+ */
+export const buildModerationBodies = (
+  resolved: ResolvedModel,
+  requests: readonly BatchModerationRequest[],
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): BuiltRequest[] => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  return assignCustomIds(requests).map((item) => {
+    const body = moderationBody(resolved, item.request, item.customId);
+    assertByteLength(
+      `request "${item.customId}"`,
+      JSON.stringify(body),
+      limits.maxRequestBytes
+    );
+    return { body, customId: item.customId, endpoint: MODERATION_ENDPOINT };
+  });
 };
 
 const TRANSCRIPTION_ENDPOINT = "/v1/audio/transcriptions";
