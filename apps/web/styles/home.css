@@ -43,3 +43,14 @@
     transform: none;
   }
 }
+
+/* Blume's header-less CodeBlock inside the hero's Blume Tab: strip its own
+   margin/border/radius so it sits flush in the tab panel. */
+.hero-code :is(.prose, figure, pre) {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+.hero-code pre {
+  background: transparent;
+}

@@ -1,17 +1,33 @@
 ---
 import CodeBlock from "blume/components/content/CodeBlock.astro";
+import Tab from "blume/components/content/Tab.astro";
+import Tabs from "blume/components/content/Tabs.astro";
 
 interface Props {
-  code: string;
-  /** Filename shown in the code-block header. */
+  code?: string;
+  /** Filename shown in the code-block header (single-file mode). */
   name?: string;
+  /** Render a tabbed window instead — one tab per file. */
+  tabs?: { code: string; name: string }[];
   lang?: string;
   class?: string;
 }
 
-const { code, name, lang = "ts", class: className } = Astro.props;
+const { code, name, tabs, lang = "ts", class: className } = Astro.props;
 ---
 
-<div class:list={["min-w-0 max-w-full", className]}>
-  <CodeBlock code={code} lang={lang} title={name} />
+<div class:list={["min-w-0 max-w-full text-left", className]}>
+  {
+    tabs ? (
+      <Tabs hash={false} sync={false}>
+        {tabs.map((tab) => (
+          <Tab class="hero-code p-0!" title={tab.name}>
+            <CodeBlock code={tab.code} icons={false} lang={lang} />
+          </Tab>
+        ))}
+      </Tabs>
+    ) : (
+      <CodeBlock code={code ?? ""} lang={lang} title={name} />
+    )
+  }
 </div>

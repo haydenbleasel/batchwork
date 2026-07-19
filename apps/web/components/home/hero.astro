@@ -20,7 +20,9 @@ const LOGOS = [
   { file: "together", name: "Together AI" },
 ];
 
-const CODE = `import { batch } from "batchwork";
+const TABS = [
+  {
+    code: `import { batch } from "batchwork";
 import { openai } from "@ai-sdk/openai";
 
 const job = await batch({
@@ -33,7 +35,97 @@ const job = await batch({
 
 for await (const result of job.results()) {
   await saveSummary(result.customId, result.text);
-}`;
+}`,
+    name: "text.ts",
+  },
+  {
+    code: `import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch.embeddings({
+  model: openai.embeddingModel("text-embedding-3-small"),
+  requests: chunks.map((chunk) => ({
+    customId: chunk.id,
+    value: chunk.text,
+  })),
+});
+
+for await (const result of job.results()) {
+  await upsertVector(result.customId, result.embedding);
+}`,
+    name: "embeddings.ts",
+  },
+  {
+    code: `import { batch } from "batchwork";
+import { openai } from "@ai-sdk/openai";
+
+const job = await batch.images({
+  model: openai.image("gpt-image-2"),
+  requests: products.map((product) => ({
+    customId: product.id,
+    prompt: \`Studio photo of \${product.name}.\`,
+  })),
+});
+
+for await (const result of job.results()) {
+  await saveImage(result.customId, result.images?.[0]);
+}`,
+    name: "images.ts",
+  },
+  {
+    code: `import { batch } from "batchwork";
+import { xai } from "@ai-sdk/xai";
+
+const job = await batch.videos({
+  model: xai.video("grok-imagine-video"),
+  requests: scenes.map((scene) => ({
+    customId: scene.id,
+    prompt: scene.description,
+    duration: 5,
+  })),
+});
+
+for await (const result of job.results()) {
+  await saveVideo(result.customId, result.videos?.[0]?.url);
+}`,
+    name: "videos.ts",
+  },
+  {
+    code: `import { batch } from "batchwork";
+import { groq } from "@ai-sdk/groq";
+
+const job = await batch.transcriptions({
+  model: groq.transcription("whisper-large-v3"),
+  requests: calls.map((call) => ({
+    customId: call.id,
+    audioUrl: call.recordingUrl,
+  })),
+});
+
+for await (const result of job.results()) {
+  await saveTranscript(result.customId, result.text);
+}`,
+    name: "audio.ts",
+  },
+  {
+    code: `import { batch } from "batchwork";
+
+const job = await batch.moderations({
+  model: "openai/omni-moderation-latest",
+  requests: posts.map((post) => ({
+    customId: post.id,
+    value: post.body,
+  })),
+});
+
+for await (const result of job.results()) {
+  if (result.moderation?.flagged) {
+    await quarantine(result.customId);
+  }
+}`,
+    name: "moderation.ts",
+  },
+];
 ---
 
 <section class="relative">
@@ -108,6 +200,6 @@ for await (const result of job.results()) {
     class="fade-up mx-auto max-w-3xl px-6 pb-24"
     style="animation-delay: 320ms"
   >
-    <CodeWindow code={CODE} name="summarize.ts" />
+    <CodeWindow tabs={TABS} />
   </div>
 </section>
