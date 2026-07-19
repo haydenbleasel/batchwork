@@ -171,6 +171,10 @@ export const togetherAdapter = createOpenAICompatibleAdapter({
   baseUrl: "https://api.together.xyz/v1",
   filePurpose: "batch-api",
   id: "together",
+  // Audio endpoints expect multipart on the sync API; the batch worker uses
+  // `method: "FILE"` to switch its dispatch mode and fetch `body.file`.
+  lineExtras: (endpoint) =>
+    endpoint.startsWith("/v1/audio/") ? { method: "FILE" } : undefined,
   lineFormat: "body-only",
   uploadFile: uploadTogetherFile,
 });

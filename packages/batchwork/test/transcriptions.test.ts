@@ -6,7 +6,9 @@ import { batch } from "../src/batch";
 
 interface Route {
   body: unknown;
+  headers?: Record<string, string>;
   match: (url: string, method: string) => boolean;
+  status?: number;
 }
 
 const originalFetch = globalThis.fetch;
@@ -24,7 +26,12 @@ const install = (routes: Route[]) => {
         typeof route.body === "string"
           ? route.body
           : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
+      return Promise.resolve(
+        new Response(payload, {
+          headers: route.headers,
+          status: route.status ?? 200,
+        })
+      );
     }
   );
   globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
@@ -178,6 +185,81 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
       usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
     });
     expect(results[0]?.segments).toBeUndefined();
+  });
+
+  it("submits a Together transcription batch with FILE-method lines", async () => {
+    const storageUrl = "https://storage.example/presigned-put";
+    const fetchMock = install([
+      {
+        body: "",
+        headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },
+        match: (url, method) => url.endsWith("/files") && method === "POST",
+        status: 302,
+      },
+      {
+        body: "",
+        match: (url, method) => url === storageUrl && method === "PUT",
+      },
+      {
+        body: { id: "file-in" },
+        match: (url, method) =>
+          url.endsWith("/files/file-in/preprocess") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_1",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) => url.endsWith("/batches") && method === "POST",
+      },
+      {
+        body: {
+          id: "batch_1",
+          output_file_id: "file-out",
+          request_counts: { completed: 1, failed: 0, total: 1 },
+          status: "completed",
+        },
+        match: (url, method) =>
+          url.includes("/batches/batch_1") && method === "GET",
+      },
+      {
+        body: '{"custom_id":"a","response":{"status_code":200,"body":{"duration":4.8,"language":"en","text":"Hello world."}}}',
+        match: (url) => url.includes("/files/file-out/content"),
+      },
+    ]);
+
+    const job = await batch.transcriptions({
+      apiKey: "test-key",
+      model: "together/openai/whisper-large-v3",
+      requests: [{ audioUrl: AUDIO_URL, customId: "a", language: "en" }],
+    });
+    expect(job.provider).toBe("together");
+
+    const createCall = fetchMock.mock.calls.find(
+      (call) =>
+        String(call[0]).endsWith("/batches") && call[1]?.method === "POST"
+    );
+    expect(String(createCall?.[1]?.body)).toContain(
+      '"endpoint":"/v1/audio/transcriptions"'
+    );
+    // The JSONL rides in the presigned PUT; audio lines dispatch via FILE.
+    const putCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]) === storageUrl && call[1]?.method === "PUT"
+    );
+    const jsonl = String(putCall?.[1]?.body);
+    expect(jsonl).toContain('"method":"FILE"');
+    expect(jsonl).toContain(`"file":"${AUDIO_URL}"`);
+    expect(jsonl).toContain('"model":"openai/whisper-large-v3"');
+    expect(jsonl).toContain('"language":"en"');
+
+    await job.wait({ pollIntervalMs: 1 });
+    const results = await job.collect();
+    expect(results[0]).toMatchObject({
+      customId: "a",
+      status: "succeeded",
+      text: "Hello world.",
+    });
   });
 
   it("merges defaults and provider options into the request body", async () => {

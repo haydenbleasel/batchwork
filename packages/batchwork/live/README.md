@@ -95,6 +95,7 @@ bun test --env-file=.env.local ./live/xai-videos.live.test.ts
 | --- | --- | --- | --- |
 | Groq | `GROQ_API_KEY` | `whisper-large-v3` | `BATCHWORK_LIVE_GROQ_TRANSCRIPTION_MODEL` |
 | Mistral | `MISTRAL_API_KEY` | `voxtral-mini-latest` | `BATCHWORK_LIVE_MISTRAL_TRANSCRIPTION_MODEL` |
+| Together | `TOGETHER_API_KEY` | `openai/whisper-large-v3` | `BATCHWORK_LIVE_TOGETHER_TRANSCRIPTION_MODEL` |
 
 ```sh
 bun test --env-file=.env.local ./live/groq-transcriptions.live.test.ts

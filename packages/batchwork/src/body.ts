@@ -481,6 +481,22 @@ const transcriptionBody = (
       ...options,
     };
   }
+  if (resolved.provider === "together") {
+    // Together's audio batch lines carry the hosted URL in `file`; extra
+    // fields pass through to the underlying transcription API.
+    return {
+      file: request.audioUrl,
+      model: resolved.modelId,
+      ...(request.language ? { language: request.language } : {}),
+      ...(request.timestampGranularities
+        ? {
+            response_format: "verbose_json",
+            timestamp_granularities: request.timestampGranularities,
+          }
+        : {}),
+      ...options,
+    };
+  }
   throw unsupportedTranscriptionProvider(resolved.provider);
 };
 

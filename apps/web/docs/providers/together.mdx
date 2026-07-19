@@ -5,15 +5,15 @@ description: Run batches on Together AI's Batch API — a leaner request line sh
 
 Together AI's Batch API mirrors OpenAI's (Files API + `/batches`) with two twists: a leaner `{ custom_id, body }` line shape with the endpoint declared on the batch, and a presigned-URL file upload in place of OpenAI's direct multipart POST. Batchwork handles both.
 
-| Property     | Value                             |
-| ------------ | --------------------------------- |
-| **Shape**    | JSONL file upload (`body`-only)   |
-| **Endpoint** | `/v1/chat/completions`            |
-| **Results**  | Output + error files (JSONL)      |
-| **Webhooks** | Poll-only (managed by the server) |
-| **Env var**  | `TOGETHER_API_KEY`                |
-| **Package**  | `@ai-sdk/togetherai`              |
-| **Base URL** | `https://api.together.xyz/v1`     |
+| Property     | Value                                              |
+| ------------ | -------------------------------------------------- |
+| **Shape**    | JSONL file upload (`body`-only)                    |
+| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions` |
+| **Results**  | Output + error files (JSONL)                       |
+| **Webhooks** | Poll-only (managed by the server)                  |
+| **Env var**  | `TOGETHER_API_KEY`                                 |
+| **Package**  | `@ai-sdk/togetherai`                               |
+| **Base URL** | `https://api.together.xyz/v1`                      |
 
 ## Example
 
@@ -41,11 +41,26 @@ The `"together/…"` and `"togetherai/…"` string forms both resolve here — s
 
 Presigned upload `Location` values must be HTTPS and cannot target localhost or private-network URL literals.
 
+## Transcriptions
+
+Together's batch API also accepts `/v1/audio/transcriptions` for its Whisper models. Audio batch lines are special: they carry `method: "FILE"` (the batch worker's dispatch mode for endpoints that are multipart on the sync API) with the hosted audio URL in `body.file` — Batchwork writes both for you. The AI SDK's Together package has no transcription model, so pass the `"provider/model"` string form to [`batch.transcriptions()`](/docs/transcriptions):
+
+```ts
+import { batch } from "batchwork";
+
+const job = await batch.transcriptions({
+  model: "together/openai/whisper-large-v3",
+  requests: [{ customId: "a", audioUrl: "https://example.com/interview.wav" }],
+});
+```
+
+The transcript lands on `result.text`.
+
 ## Notes
 
 Together has no native batch webhook, so it is poll-only. Use the [server layer](/docs/server) for unified completion events.
 
-Together's batch API is chat/audio only — it rejects the embeddings endpoint and offers no batch image generation, so [`batch.embeddings()`](/docs/embeddings) and [`batch.images()`](/docs/images) throw `UnsupportedProviderError`.
+Together's batch API is chat and audio only — it rejects the embeddings endpoint and offers no batch image generation, so [`batch.embeddings()`](/docs/embeddings) and [`batch.images()`](/docs/images) throw `UnsupportedProviderError`.
 
 ## Credentials
 

@@ -386,14 +386,15 @@ export const unsupportedModerationProvider = (
   );
 
 /**
- * Providers whose batch API accepts audio transcription. Groq and Mistral
- * expose `/v1/audio/transcriptions` as a batch endpoint; OpenAI's batch API
- * does not accept audio endpoints, and the remaining providers have no
- * standalone transcription API.
+ * Providers whose batch API accepts audio transcription. Groq, Mistral, and
+ * Together expose `/v1/audio/transcriptions` as a batch endpoint; OpenAI's
+ * batch API does not accept audio endpoints, and the remaining providers have
+ * no standalone transcription API.
  */
 export const TRANSCRIPTION_PROVIDERS = new Set<BatchProvider>([
   "groq",
   "mistral",
+  "together",
 ]);
 
 export const unsupportedTranscriptionProvider = (
@@ -401,7 +402,7 @@ export const unsupportedTranscriptionProvider = (
 ): UnsupportedProviderError =>
   new UnsupportedProviderError(
     provider,
-    `batchwork: provider "${provider}" does not offer batch transcription. Transcriptions are supported for: groq, mistral.`
+    `batchwork: provider "${provider}" does not offer batch transcription. Transcriptions are supported for: groq, mistral, together.`
   );
 
 /**

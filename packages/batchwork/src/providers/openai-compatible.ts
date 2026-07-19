@@ -50,6 +50,11 @@ export interface OpenAICompatibleConfig {
    */
   lineFormat?: BatchLineFormat;
   /**
+   * Extra fields merged into each `body-only` line for a given endpoint
+   * (e.g. Together audio lines require `method: "FILE"`).
+   */
+  lineExtras?: (endpoint: string) => Record<string, unknown> | undefined;
+  /**
    * Map the captured endpoint path to the value the provider expects in the
    * batch `url`/`endpoint` field (e.g. Groq serves under `/openai/v1` but its
    * batch `url` must be `/v1/chat/completions`).
@@ -128,7 +133,11 @@ export const createOpenAICompatibleAdapter = (
       input.built.map((item) => {
         const body = omit(item.body, "stream");
         if (lineFormat === "body-only") {
-          return { body, custom_id: item.customId };
+          return {
+            body,
+            custom_id: item.customId,
+            ...config.lineExtras?.(endpoint),
+          };
         }
         return {
           body,

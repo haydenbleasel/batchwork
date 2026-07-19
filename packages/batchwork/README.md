@@ -135,7 +135,7 @@ for (const r of results) {
 }
 ```
 
-Batch transcription is available for **Groq** (`whisper-large-v3`, audio by `url`) and **Mistral** (Voxtral models, e.g. `"mistral/voxtral-mini-latest"`, audio by `file_url`); other providers throw a clear error — OpenAI's batch API doesn't accept its audio endpoints. Batch audio endpoints take **hosted URLs only** (no file uploads), so each `audioUrl` must stay reachable while the batch processes. Request `timestampGranularities: ["segment"]` to also get timestamped spans on `result.segments`.
+Batch transcription is available for **Groq** (`whisper-large-v3`, audio by `url`), **Mistral** (Voxtral models, e.g. `"mistral/voxtral-mini-latest"`, audio by `file_url`), and **Together AI** (Whisper models, e.g. `"together/openai/whisper-large-v3"`, audio by `file`); other providers throw a clear error — OpenAI's batch API doesn't accept its audio endpoints. Batch audio endpoints take **hosted URLs only** (no file uploads), so each `audioUrl` must stay reachable while the batch processes. Request `timestampGranularities: ["segment"]` to also get timestamped spans on `result.segments`.
 
 ## Moderations
 

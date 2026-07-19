@@ -27,7 +27,7 @@ for (const r of results) {
 
 Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/docs/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`.
 
-You can also pass a `"provider/model"` string (e.g. `"mistral/voxtral-mini-latest"`) — the only form for Mistral, whose AI SDK package has no transcription model yet.
+You can also pass a `"provider/model"` string — the only form for Mistral (`"mistral/voxtral-mini-latest"`) and Together (`"together/openai/whisper-large-v3"`), whose AI SDK packages have no transcription model yet.
 
 :::warning
 Batch audio endpoints accept **hosted URLs only** — there is no file upload. The provider fetches each `audioUrl` while the batch processes, so the URL must be publicly reachable (or a signed link that outlives the batch window, typically 24h).
@@ -39,8 +39,9 @@ Batch transcription is available for the providers whose batch API accepts an au
 
 | Provider | Example model | Notes |
 | --- | --- | --- |
-| Groq | `whisper-large-v3` | `/v1/audio/transcriptions`, audio by `url`. Translations via `providerOptions`. |
+| Groq | `whisper-large-v3` | `/v1/audio/transcriptions`, audio by `url`. |
 | Mistral | `voxtral-mini-latest` | `/v1/audio/transcriptions`, audio by `file_url`, model set on the job. |
+| Together AI | `"together/openai/whisper-large-v3"` | `/v1/audio/transcriptions`, audio by `file`, `method: "FILE"` lines. |
 
 OpenAI's Batch API does not accept its audio endpoints, and the remaining providers have no standalone transcription API. Calling `batch.transcriptions()` with any of them throws `UnsupportedProviderError` before any network request. (Gemini models can still transcribe audio through [`batch()`](/docs/text) by passing audio file parts in `messages`.)
 
