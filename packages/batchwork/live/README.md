@@ -108,6 +108,8 @@ bun test --env-file=.env.local ./live/xai-videos.live.test.ts
 bun test --env-file=.env.local ./live/groq-transcriptions.live.test.ts
 ```
 
+`*-translations.live.test.ts` do the same for **audio translation to English** (`batch.translations()`) — Groq (`whisper-large-v3` only) and Together, overridable via `BATCHWORK_LIVE_GROQ_TRANSLATION_MODEL` / `BATCHWORK_LIVE_TOGETHER_TRANSLATION_MODEL`.
+
 ## Moderations
 
 `*-moderations.live.test.ts` round-trip a 20-record **moderation** batch (`batch.moderations()` → `wait()` → `collect()`) of benign sentences and assert every record returns an unflagged verdict. Only OpenAI and Mistral accept a moderation endpoint in batch:

@@ -5,15 +5,15 @@ description: Run batches on Groq's OpenAI-compatible Batch API — the same File
 
 Groq's Batch API is OpenAI-compatible — same Files API upload, same `/batches` lifecycle, same JSONL result files — so Batchwork reuses its OpenAI flow almost verbatim. The one wrinkle is the base path.
 
-| Property     | Value                                              |
-| ------------ | -------------------------------------------------- |
-| **Shape**    | JSONL file upload (OpenAI-compat)                  |
-| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions` |
-| **Results**  | Output + error files (JSONL)                       |
-| **Webhooks** | Poll-only (managed by the server)                  |
-| **Env var**  | `GROQ_API_KEY`                                     |
-| **Package**  | `@ai-sdk/groq`                                     |
-| **Base URL** | `https://api.groq.com/openai/v1`                   |
+| Property | Value |
+| --- | --- |
+| **Shape** | JSONL file upload (OpenAI-compat) |
+| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions`, `/v1/audio/translations` |
+| **Results** | Output + error files (JSONL) |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env var** | `GROQ_API_KEY` |
+| **Package** | `@ai-sdk/groq` |
+| **Base URL** | `https://api.groq.com/openai/v1` |
 
 ## Example
 
@@ -51,6 +51,8 @@ const job = await batch.transcriptions({
 ```
 
 The transcript lands on `result.text` (and `result.segments` when you request `timestampGranularities`).
+
+Groq also batches `/v1/audio/translations` (audio in any language → English text) via [`batch.translations()`](/docs/transcriptions#translations) — `whisper-large-v3` only; the turbo variant can't translate.
 
 ## Notes
 

@@ -5,6 +5,7 @@ import {
   buildModerationBodies,
   buildRequestBodies,
   buildTranscriptionBodies,
+  buildTranslationBodies,
   buildVideoBodies,
 } from "./body";
 import { BatchworkError } from "./errors";
@@ -17,11 +18,13 @@ import {
   MODERATION_PROVIDERS,
   resolveModel,
   TRANSCRIPTION_PROVIDERS,
+  TRANSLATION_PROVIDERS,
   unsupportedEmbeddingProvider,
   unsupportedImageEditProvider,
   unsupportedImageProvider,
   unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
+  unsupportedTranslationProvider,
   unsupportedVideoProvider,
   VIDEO_PROVIDERS,
 } from "./model";
@@ -36,6 +39,7 @@ import type {
   BatchRef,
   BatchResult,
   BatchTranscriptionOptions,
+  BatchTranslationOptions,
   BatchVideoOptions,
   ProviderCredentials,
 } from "./types";
@@ -404,6 +408,55 @@ const submitVideos = async (options: BatchVideoOptions): Promise<BatchJob> => {
 };
 
 /**
+ * Submit a batch of audio-translation requests (Whisper's translate task —
+ * audio in any language, English text out) and return a handle. Mirrors
+ * {@link batch.transcriptions} minus `language`: each request's `audioUrl`
+ * produces one English transcript on `result.text`, correlated by `customId`.
+ * Supported for Groq and Together; other providers throw
+ * {@link UnsupportedProviderError} — Mistral batches transcriptions but not
+ * translations.
+ *
+ * @example
+ * const job = await batch.translations({
+ *   model: groq.transcription("whisper-large-v3"),
+ *   requests: [{ customId: "a", audioUrl: "https://example.com/french.wav" }],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ */
+const submitTranslations = async (
+  options: BatchTranslationOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!TRANSLATION_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedTranslationProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = buildTranslationBodies(
+    resolved,
+    options.requests,
+    options.defaults,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
  * Submit a batch of requests and return a {@link BatchJob} handle.
  *
  * Callable directly as a shorthand for text/chat batches, with one method per
@@ -414,6 +467,7 @@ const submitVideos = async (options: BatchVideoOptions): Promise<BatchJob> => {
  * - {@link batch.images} / {@link batch.images.create} — image generation
  * - {@link batch.images.edit} — image editing
  * - {@link batch.transcriptions} — audio transcription
+ * - {@link batch.translations} — audio translation to English
  * - {@link batch.moderations} — content moderation
  * - {@link batch.videos} — video generation
  *
@@ -443,6 +497,8 @@ export const batch = Object.assign(submitText, {
   text: submitText,
   /** Submit a batch of audio-transcription requests. */
   transcriptions: submitTranscriptions,
+  /** Submit a batch of audio-translation (to English) requests. */
+  translations: submitTranslations,
   /** Submit a batch of video-generation requests. */
   videos: submitVideos,
 });

@@ -193,6 +193,22 @@ export interface BatchTranscriptionSegment {
 }
 
 /**
+ * A single audio-translation request within a batch: the audio at `audioUrl`
+ * is translated into English text (Whisper's translate task — English is the
+ * only target, so there is no language field). Same URL rules as
+ * {@link BatchTranscriptionRequest}.
+ */
+export type BatchTranslationRequest = Omit<
+  BatchTranscriptionRequest,
+  "language"
+>;
+
+/** Defaults merged into every translation request; request-level values win. */
+export type BatchTranslationDefaults = Partial<
+  Omit<BatchTranslationRequest, "customId" | "audioUrl">
+>;
+
+/**
  * A single video-generation request within a batch. One `prompt` produces one
  * video, correlated to its result by `customId`. Editing and extending an
  * existing video route through `providerOptions` (e.g. xAI's
@@ -402,6 +418,19 @@ export interface BatchImageEditOptions extends ProviderCredentials {
   metadata?: Record<string, string>;
   model: ImageModel;
   requests: BatchImageEditRequest[];
+}
+
+/** Input to `batch.translations()`. */
+export interface BatchTranslationOptions extends ProviderCredentials {
+  defaults?: BatchTranslationDefaults;
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  /**
+   * A transcription model object (e.g. `groq.transcription("whisper-large-v3")`)
+   * or a `"provider/model"` string (e.g. `"together/openai/whisper-large-v3"`).
+   */
+  model: TranscriptionModel;
+  requests: BatchTranslationRequest[];
 }
 
 /** Input to `batch.videos()`. */

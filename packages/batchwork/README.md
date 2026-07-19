@@ -152,6 +152,8 @@ for (const r of results) {
 
 Batch transcription is available for **Groq** (`whisper-large-v3`, audio by `url`), **Mistral** (Voxtral models, e.g. `"mistral/voxtral-mini-latest"`, audio by `file_url`), and **Together AI** (Whisper models, e.g. `"together/openai/whisper-large-v3"`, audio by `file`); other providers throw a clear error — OpenAI's batch API doesn't accept its audio endpoints. Batch audio endpoints take **hosted URLs only** (no file uploads), so each `audioUrl` must stay reachable while the batch processes. Request `timestampGranularities: ["segment"]` to also get timestamped spans on `result.segments`.
 
+`batch.translations()` runs Whisper's **translate** task instead — audio in any language, English text out — on **Groq** (`whisper-large-v3` only) and **Together AI**, with the same request shape minus `language`.
+
 ## Moderations
 
 Moderate content in bulk — pass a moderation model and texts (or image URLs, OpenAI omni moderation only), and get verdicts back on `result.moderation`:

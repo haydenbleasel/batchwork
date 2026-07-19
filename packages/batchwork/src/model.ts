@@ -383,6 +383,25 @@ export const createCaptureVideoModel = async (
 };
 
 /**
+ * Providers whose batch API accepts audio translation (Whisper's
+ * translate-to-English task). Groq and Together expose
+ * `/v1/audio/translations` as a batch endpoint; Mistral batches
+ * transcriptions but not translations.
+ */
+export const TRANSLATION_PROVIDERS = new Set<BatchProvider>([
+  "groq",
+  "together",
+]);
+
+export const unsupportedTranslationProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch translation. Translations are supported for: groq, together.`
+  );
+
+/**
  * Providers whose batch API accepts moderation. OpenAI exposes
  * `/v1/moderations` as a batch endpoint (omni moderation, text + images);
  * Mistral runs its moderation models through the same batch job flow

@@ -27,6 +27,7 @@ import type {
   BatchRequest,
   BatchResult,
   BatchTranscriptionRequest,
+  BatchTranslationRequest,
   BatchVideoRequest,
   VideoModel,
 } from "../src/types";
@@ -377,6 +378,58 @@ export const runLiveVideos = async (
   log(
     `[${label}] sample ${sample?.customId}: ${sample?.videos?.[0]?.durationSeconds ?? "?"}s ${sample?.videos?.[0]?.url}`
   );
+};
+
+const buildTranslationRequests = (ids: string[]): BatchTranslationRequest[] =>
+  ids.map((customId) => ({ audioUrl: LIVE_AUDIO_URL, customId }));
+
+/**
+ * Submit a small audio-translation batch to a live provider, wait for it to
+ * finish, and assert every record round-trips with a non-empty English text.
+ */
+export const runLiveTranslations = async (
+  label: string,
+  model: TranscriptionModel
+): Promise<void> => {
+  const ids = Array.from(
+    { length: LIVE_TRANSCRIPTION_RECORD_COUNT },
+    (_, index) => `live-${index}`
+  );
+  const requests = buildTranslationRequests(ids);
+
+  log(`[${label}] submitting ${requests.length} translation records…`);
+  const job = await batch.translations({ model, requests });
+  log(`[${label}] submitted ${job.id} (${job.provider})`);
+  expect(job.id).toBeTruthy();
+
+  const snapshot = await job.wait({
+    onPoll: (poll) =>
+      log(`[${label}] ${poll.status} ${JSON.stringify(poll.requestCounts)}`),
+    pollIntervalMs: POLL_INTERVAL_MS,
+    timeoutMs: LIVE_WAIT_TIMEOUT_MS,
+  });
+  expect(snapshot.status).toBe("completed");
+
+  const results = await job.collect();
+  log(`[${label}] results: ${summarize(results)}`);
+
+  const errored = results.filter((result) => result.status === "errored");
+  for (const result of errored) {
+    log(
+      `[${label}] ${result.customId} errored: ${JSON.stringify(result.error)}`
+    );
+  }
+
+  const seen = new Set(results.map((result) => result.customId));
+  expect(seen.size).toBe(LIVE_TRANSCRIPTION_RECORD_COUNT);
+  for (const id of ids) {
+    expect(seen.has(id)).toBe(true);
+  }
+
+  expect(errored).toHaveLength(0);
+  const sample = results.find((result) => result.status === "succeeded");
+  expect(sample?.text).toBeTruthy();
+  log(`[${label}] sample ${sample?.customId}: ${sample?.text?.trim()}`);
 };
 
 const buildModerationRequests = (ids: string[]): BatchModerationRequest[] =>

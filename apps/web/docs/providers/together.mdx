@@ -5,15 +5,15 @@ description: Run batches on Together AI's Batch API — a leaner request line sh
 
 Together AI's Batch API mirrors OpenAI's (Files API + `/batches`) with two twists: a leaner `{ custom_id, body }` line shape with the endpoint declared on the batch, and a presigned-URL file upload in place of OpenAI's direct multipart POST. Batchwork handles both.
 
-| Property     | Value                                              |
-| ------------ | -------------------------------------------------- |
-| **Shape**    | JSONL file upload (`body`-only)                    |
-| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions` |
-| **Results**  | Output + error files (JSONL)                       |
-| **Webhooks** | Poll-only (managed by the server)                  |
-| **Env var**  | `TOGETHER_API_KEY`                                 |
-| **Package**  | `@ai-sdk/togetherai`                               |
-| **Base URL** | `https://api.together.xyz/v1`                      |
+| Property | Value |
+| --- | --- |
+| **Shape** | JSONL file upload (`body`-only) |
+| **Endpoint** | `/v1/chat/completions`, `/v1/audio/transcriptions`, `/v1/audio/translations` |
+| **Results** | Output + error files (JSONL) |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env var** | `TOGETHER_API_KEY` |
+| **Package** | `@ai-sdk/togetherai` |
+| **Base URL** | `https://api.together.xyz/v1` |
 
 ## Example
 
@@ -55,6 +55,8 @@ const job = await batch.transcriptions({
 ```
 
 The transcript lands on `result.text`.
+
+Together also batches `/v1/audio/translations` (audio in any language → English text) via [`batch.translations()`](/docs/transcriptions#translations), using the same `method: "FILE"` line shape.
 
 ## Notes
 

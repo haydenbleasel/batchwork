@@ -36,6 +36,8 @@ import type {
   BatchRequest,
   BatchTranscriptionDefaults,
   BatchTranscriptionRequest,
+  BatchTranslationDefaults,
+  BatchTranslationRequest,
   BatchVideoDefaults,
   BatchVideoRequest,
   ProviderCredentials,
@@ -504,15 +506,11 @@ const transcriptionBody = (
   throw unsupportedTranscriptionProvider(resolved.provider);
 };
 
-/**
- * Build provider transcription request bodies for every batch item. Each item
- * maps to a single transcription of a hosted audio URL, correlated by
- * `customId`.
- */
-export const buildTranscriptionBodies = (
+const buildAudioBodies = (
   resolved: ResolvedModel,
   requests: readonly BatchTranscriptionRequest[],
   defaults: BatchTranscriptionDefaults | undefined,
+  endpoint: string,
   rawLimits?: BatchLimits | ResolvedBatchLimits
 ): BuiltRequest[] => {
   const limits = resolveBatchLimits(rawLimits);
@@ -531,9 +529,47 @@ export const buildTranscriptionBodies = (
       JSON.stringify(body),
       limits.maxRequestBytes
     );
-    return { body, customId: item.customId, endpoint: TRANSCRIPTION_ENDPOINT };
+    return { body, customId: item.customId, endpoint };
   });
 };
+
+/**
+ * Build provider transcription request bodies for every batch item. Each item
+ * maps to a single transcription of a hosted audio URL, correlated by
+ * `customId`.
+ */
+export const buildTranscriptionBodies = (
+  resolved: ResolvedModel,
+  requests: readonly BatchTranscriptionRequest[],
+  defaults: BatchTranscriptionDefaults | undefined,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): BuiltRequest[] =>
+  buildAudioBodies(
+    resolved,
+    requests,
+    defaults,
+    TRANSCRIPTION_ENDPOINT,
+    rawLimits
+  );
+
+/**
+ * Build provider audio-translation request bodies for every batch item. The
+ * body shape is identical to transcription (minus `language` — the output is
+ * always English); only the endpoint differs.
+ */
+export const buildTranslationBodies = (
+  resolved: ResolvedModel,
+  requests: readonly BatchTranslationRequest[],
+  defaults: BatchTranslationDefaults | undefined,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): BuiltRequest[] =>
+  buildAudioBodies(
+    resolved,
+    requests,
+    defaults,
+    "/v1/audio/translations",
+    rawLimits
+  );
 
 /**
  * Derive provider image-generation request bodies for every batch item by

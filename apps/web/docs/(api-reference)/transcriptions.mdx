@@ -59,6 +59,21 @@ Each request is a hosted `audioUrl` plus an optional `customId` and a few knobs:
 
 `limits` and `metadata` work exactly as in [`batch()`](/docs/limits), and `defaults` are merged into every request (request-level values win) — handy for applying one `language` across the whole batch.
 
+## Translations
+
+`batch.translations()` runs Whisper's **translate** task instead: audio in any language, English text out. It mirrors `batch.transcriptions()` exactly, minus the `language` field (English is the only target):
+
+```ts
+const job = await batch.translations({
+  model: groq.transcription("whisper-large-v3"),
+  requests: [
+    { customId: "a", audioUrl: "https://example.com/french-interview.wav" },
+  ],
+});
+```
+
+Translations are supported for **Groq** (`whisper-large-v3` only — the turbo variant can't translate) and **Together AI** (`"together/openai/whisper-large-v3"`). Mistral batches transcriptions but has no translations endpoint, so it throws `UnsupportedProviderError` here. The English text lands on `result.text`, with `result.segments` available via `timestampGranularities` as usual.
+
 ## Results
 
 Transcriptions reuse the normalized [`BatchResult`](/docs/results). The transcript lands on `result.text`; when timestamps were requested, `result.segments` holds `{ text, startSecond?, endSecond? }` spans:
