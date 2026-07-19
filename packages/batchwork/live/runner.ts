@@ -21,6 +21,7 @@ import type {
 import { batch } from "../src/batch";
 import type {
   BatchEmbeddingRequest,
+  BatchImageEditRequest,
   BatchImageRequest,
   BatchModerationRequest,
   BatchRequest,
@@ -242,6 +243,73 @@ export const runLiveImages = async (
   const sample = results.find((result) => result.status === "succeeded");
   expect(sample?.images?.length).toBeGreaterThan(0);
   // Inline base64 (`data`) or a hosted URL (`url`, e.g. xAI batch) — either works.
+  const image = sample?.images?.[0];
+  expect(image?.data ?? image?.url).toBeTruthy();
+  log(
+    `[${label}] sample ${sample?.customId}: ${sample?.images?.length} image(s), ${image?.mediaType ?? image?.url ?? "?"}`
+  );
+};
+
+/**
+ * A stable public source image for edit tests; batch edit bodies are JSON, so
+ * the provider fetches this URL at execution time.
+ */
+export const LIVE_SOURCE_IMAGE_URL =
+  process.env.BATCHWORK_LIVE_SOURCE_IMAGE_URL ??
+  "https://picsum.photos/seed/batchwork/800/600";
+
+const buildImageEditRequests = (ids: string[]): BatchImageEditRequest[] =>
+  ids.map((customId, index) => ({
+    customId,
+    images: [{ imageUrl: LIVE_SOURCE_IMAGE_URL }],
+    prompt: `Tint the whole image with a subtle color wash, variation ${index}.`,
+  }));
+
+/**
+ * Submit a small image-edit batch to a live provider, wait for it to finish,
+ * and assert every record round-trips with at least one edited image.
+ */
+export const runLiveImageEdits = async (
+  label: string,
+  model: ImageModel
+): Promise<void> => {
+  const ids = Array.from(
+    { length: LIVE_IMAGE_RECORD_COUNT },
+    (_, index) => `live-${index}`
+  );
+  const requests = buildImageEditRequests(ids);
+
+  log(`[${label}] submitting ${requests.length} image-edit records…`);
+  const job = await batch.images.edit({ model, requests });
+  log(`[${label}] submitted ${job.id} (${job.provider})`);
+  expect(job.id).toBeTruthy();
+
+  const snapshot = await job.wait({
+    onPoll: (poll) =>
+      log(`[${label}] ${poll.status} ${JSON.stringify(poll.requestCounts)}`),
+    pollIntervalMs: POLL_INTERVAL_MS,
+    timeoutMs: LIVE_WAIT_TIMEOUT_MS,
+  });
+  expect(snapshot.status).toBe("completed");
+
+  const results = await job.collect();
+  log(`[${label}] results: ${summarize(results)}`);
+
+  const errored = results.filter((result) => result.status === "errored");
+  for (const result of errored) {
+    log(
+      `[${label}] ${result.customId} errored: ${JSON.stringify(result.error)}`
+    );
+  }
+
+  const seen = new Set(results.map((result) => result.customId));
+  expect(seen.size).toBe(LIVE_IMAGE_RECORD_COUNT);
+  for (const id of ids) {
+    expect(seen.has(id)).toBe(true);
+  }
+
+  expect(errored).toHaveLength(0);
+  const sample = results.find((result) => result.status === "succeeded");
   const image = sample?.images?.[0];
   expect(image?.data ?? image?.url).toBeTruthy();
   log(

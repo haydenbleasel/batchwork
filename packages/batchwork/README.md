@@ -88,7 +88,22 @@ for (const r of results) {
 }
 ```
 
-Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-2`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Generation only — image editing and Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+Batch image generation is available for **OpenAI** (`/v1/images/generations`, e.g. `gpt-image-2`), **Google Gemini** image models (e.g. `gemini-2.5-flash-image`), and **xAI** (`/v1/images/generations`, e.g. `grok-imagine-image-quality`); other providers throw a clear error. Google's Imagen models aren't batch-supported, and Together AI's batch API is chat/audio only. OpenAI and Google return inline base64 on `image.data`; xAI batch returns signed `image.url`s that **expire ~1h** after completion, so download them promptly.
+
+Image **editing** works too, on OpenAI and xAI, via `batch.images.edit()` (`batch.images.create()` is an alias of `batch.images()`). Source images are passed as JSON references — uploaded `fileId`s (OpenAI) or hosted `imageUrl`s — with an optional `mask` on OpenAI:
+
+```ts
+const job = await batch.images.edit({
+  model: openai.image("gpt-image-1.5"),
+  requests: [
+    {
+      customId: "a",
+      prompt: "Make the bicycle blue.",
+      images: [{ imageUrl: "https://example.com/bicycle.png" }],
+    },
+  ],
+});
+```
 
 ## Videos
 

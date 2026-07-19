@@ -99,8 +99,8 @@ export interface BatchImage {
 
 /**
  * A single image-generation request within a batch. One `prompt` produces one
- * or more images, correlated to its result by `customId`. Generation only;
- * image editing (input images / masks) is not supported by batch APIs.
+ * or more images, correlated to its result by `customId`. For editing an
+ * existing image, use `batch.images.edit` with a {@link BatchImageEditRequest}.
  */
 export interface BatchImageRequest {
   /** Aspect ratio, `"{width}:{height}"` (e.g. Gemini image models). */
@@ -122,6 +122,44 @@ export interface BatchImageRequest {
 /** Defaults merged into every image request; request-level values take precedence. */
 export type BatchImageDefaults = Partial<
   Omit<BatchImageRequest, "customId" | "prompt">
+>;
+
+/**
+ * Reference to an input image asset: an already-uploaded provider file id
+ * (OpenAI Files API), or a hosted image URL (data URIs also work). Batch
+ * requests are JSON, so raw image uploads aren't possible — stage assets ahead
+ * of time.
+ */
+export type BatchImageRef = { fileId: string } | { imageUrl: string };
+
+/**
+ * A single image-edit request within a batch. One `prompt` applied to one or
+ * more source `images` produces one or more edited images, correlated to its
+ * result by `customId`.
+ */
+export interface BatchImageEditRequest {
+  /** Correlates this request to its result. Auto-generated when omitted. */
+  customId?: string;
+  /** Source image(s) to edit. xAI accepts URL references only (no file ids). */
+  images: BatchImageRef[];
+  /**
+   * Mask whose transparent areas indicate where to edit (OpenAI only; xAI
+   * throws before submitting).
+   */
+  mask?: BatchImageRef;
+  /** Number of edited images to generate. Defaults to 1. */
+  n?: number;
+  /** The text prompt describing the edit. */
+  prompt: string;
+  /** Forwarded to the provider edit call (e.g. `{ openai: { quality } }`). */
+  providerOptions?: ProviderOptions;
+  /** Output size, `"{width}x{height}"` (OpenAI; xAI uses `providerOptions`). */
+  size?: `${number}x${number}`;
+}
+
+/** Defaults merged into every image-edit request; request-level values win. */
+export type BatchImageEditDefaults = Partial<
+  Omit<BatchImageEditRequest, "customId" | "images" | "prompt">
 >;
 
 /**
@@ -355,6 +393,15 @@ export interface BatchModerationOptions extends ProviderCredentials {
    */
   model: string;
   requests: BatchModerationRequest[];
+}
+
+/** Input to `batch.images.edit()`. */
+export interface BatchImageEditOptions extends ProviderCredentials {
+  defaults?: BatchImageEditDefaults;
+  limits?: BatchLimits;
+  metadata?: Record<string, string>;
+  model: ImageModel;
+  requests: BatchImageEditRequest[];
 }
 
 /** Input to `batch.videos()`. */

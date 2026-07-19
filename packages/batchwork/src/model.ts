@@ -328,6 +328,22 @@ export const createCaptureEmbeddingModel = async (
 };
 
 /**
+ * Providers whose batch API accepts image editing. OpenAI and xAI both expose
+ * `/v1/images/edits` as a batch endpoint (JSON bodies with asset references —
+ * OpenAI takes uploaded file ids or image URLs plus an optional mask; xAI
+ * takes image URLs only). Google's Gemini batch has no edit endpoint.
+ */
+export const IMAGE_EDIT_PROVIDERS = new Set<BatchProvider>(["openai", "xai"]);
+
+export const unsupportedImageEditProvider = (
+  provider: BatchProvider
+): UnsupportedProviderError =>
+  new UnsupportedProviderError(
+    provider,
+    `batchwork: provider "${provider}" does not offer batch image editing. Image edits are supported for: openai, xai.`
+  );
+
+/**
  * Providers whose batch API accepts video generation. xAI exposes
  * `/v1/videos/generations` (plus `/edits` and `/extensions`) as batch
  * endpoints for Grok Imagine. OpenAI's Videos API (Sora) is deprecated and

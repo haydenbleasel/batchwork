@@ -1,11 +1,11 @@
 ---
 title: Images
-description: Generate thousands of images in one batch with batch.images — the same job handle, base64 or hosted images per request.
+description: Generate and edit thousands of images in one batch with batch.images.create and batch.images.edit — the same job handle, base64 or hosted images per request.
 ---
 
 ## Submit an image batch
 
-`batch.images()` mirrors [`batch()`](/docs/text): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`.
+`batch.images()` mirrors [`batch()`](/docs/text): pass an image model and a list of `prompt`s, and it returns the same `BatchJob` handle **immediately**. Each request produces one or more images, correlated by `customId`. It comes in two flavors — `batch.images.create()` (an alias of calling `batch.images()` directly) for generation, and [`batch.images.edit()`](#editing-images) for editing existing images.
 
 ```ts
 import { batch } from "batchwork";
@@ -47,7 +47,36 @@ Batch image generation is available for the providers whose batch API accepts an
 Anthropic, Groq, and Mistral expose **no** image model; Together AI's batch API is chat/audio only; and Google's Imagen models (`:predict`) aren't batch-supported. Calling `batch.images()` with any of them throws `UnsupportedProviderError` before any network request.
 :::
 
-This is **generation only** — image editing (input images, masks) isn't supported by the batch APIs. For video generation, see [`batch.videos()`](/docs/videos).
+For video generation, see [`batch.videos()`](/docs/videos).
+
+## Editing images
+
+`batch.images.edit()` applies a `prompt` to one or more source images per request. Batch bodies are JSON, so source images are passed as **references** — an already-uploaded provider file id (OpenAI Files API) or a hosted image URL — never raw uploads:
+
+```ts
+const job = await batch.images.edit({
+  model: openai.image("gpt-image-1.5"),
+  requests: [
+    {
+      customId: "a",
+      prompt: "Make the bicycle blue.",
+      images: [{ imageUrl: "https://example.com/bicycle.png" }],
+      mask: { fileId: "file-abc123" }, // optional, OpenAI only
+    },
+  ],
+});
+```
+
+Editing is supported for **OpenAI** (`/v1/images/edits`, file ids or URLs, optional `mask`, `size`/`n`) and **xAI** (`/v1/images/edits`, URL references only — masks, `size`, and file ids throw before any network request; use `providerOptions.xai.aspect_ratio` for dimensions). Other providers throw `UnsupportedProviderError` — Google's Gemini batch has no edit endpoint.
+
+| Field | Notes |
+| --- | --- |
+| `prompt` | The text describing the edit. |
+| `images` | Source image references: `{ fileId }` (OpenAI) or `{ imageUrl }` (both; data URIs work on xAI). |
+| `mask` | Optional mask reference; transparent areas indicate where to edit. OpenAI only. |
+| `customId` / `n` / `size` / `providerOptions` | As in generation. |
+
+Edited images come back on `result.images` exactly like generation — inline base64 for OpenAI, signed ~1h URLs (and/or base64) for xAI. Source URLs must stay reachable by the provider while the batch processes.
 
 ## Request shape
 
@@ -129,3 +158,5 @@ OpenAI and Google return inline base64 on `image.data` (with `image.mediaType`, 
 ## How it's built
 
 Like [`batch()`](/docs/models#how-the-body-is-built), `batch.images()` derives each provider request body by running the AI SDK's `generateImage()` through a **capturing `fetch`** that records the serialized body and aborts before any network call. Each request maps to a single image-generation call, correlated by `customId`.
+
+Edit bodies are built directly instead — the AI SDK's `generateImage` has no way to pass input images, so there is nothing to capture. Batchwork writes the JSON asset-reference shape each provider expects: `{ images: [{ file_id | image_url }], mask? }` for OpenAI, `{ image: { url } }` for xAI.

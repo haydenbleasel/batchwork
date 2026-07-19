@@ -18,6 +18,7 @@ import {
   createCaptureImageModel,
   createCaptureModel,
   createCaptureVideoModel,
+  unsupportedImageEditProvider,
   unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
 } from "./model";
@@ -26,6 +27,9 @@ import type {
   BatchDefaults,
   BatchEmbeddingRequest,
   BatchImageDefaults,
+  BatchImageEditDefaults,
+  BatchImageEditRequest,
+  BatchImageRef,
   BatchImageRequest,
   BatchLimits,
   BatchModerationRequest,
@@ -575,6 +579,102 @@ export const buildImageBodies = async (
       return built;
     }
   );
+};
+
+const IMAGE_EDIT_ENDPOINT = "/v1/images/edits";
+
+const openaiImageRef = (ref: BatchImageRef): Record<string, string> =>
+  "fileId" in ref ? { file_id: ref.fileId } : { image_url: ref.imageUrl };
+
+/**
+ * Build the provider image-edit body directly — the AI SDK's `generateImage`
+ * has no way to pass input images, so there is no call to capture. Both
+ * providers take JSON with asset references: OpenAI `{ images: [{ file_id |
+ * image_url }], mask? }`, xAI `{ image: { url } }` (URLs only, no masks).
+ */
+const imageEditBody = (
+  resolved: ResolvedModel,
+  request: BatchImageEditRequest,
+  customId: string
+): Record<string, unknown> => {
+  if (request.images.length === 0) {
+    throw new BatchworkError(
+      `batchwork: image-edit request "${customId}" needs at least one entry in \`images\`.`
+    );
+  }
+  const options = request.providerOptions?.[resolved.provider];
+  if (resolved.provider === "openai") {
+    return {
+      images: request.images.map(openaiImageRef),
+      model: resolved.modelId,
+      prompt: request.prompt,
+      ...(request.mask ? { mask: openaiImageRef(request.mask) } : {}),
+      ...(request.n === undefined ? {} : { n: request.n }),
+      ...(request.size ? { size: request.size } : {}),
+      ...options,
+    };
+  }
+  if (resolved.provider === "xai") {
+    if (request.mask) {
+      throw new BatchworkError(
+        `batchwork: image-edit request "${customId}" has a \`mask\`, but xAI image edits do not support masks.`
+      );
+    }
+    if (request.size) {
+      throw new BatchworkError(
+        `batchwork: image-edit request "${customId}" has \`size\`, but xAI image edits take \`providerOptions.xai.aspect_ratio\` instead.`
+      );
+    }
+    const urls = request.images.map((ref) => {
+      if ("fileId" in ref) {
+        throw new BatchworkError(
+          `batchwork: image-edit request "${customId}" uses a \`fileId\` reference, but xAI image edits accept image URLs only.`
+        );
+      }
+      return ref.imageUrl;
+    });
+    return {
+      model: resolved.modelId,
+      prompt: request.prompt,
+      ...(urls.length === 1
+        ? { image: { url: urls[0] } }
+        : { images: urls.map((url) => ({ url })) }),
+      ...(request.n === undefined ? {} : { n: request.n }),
+      ...options,
+    };
+  }
+  throw unsupportedImageEditProvider(resolved.provider);
+};
+
+/**
+ * Build provider image-edit request bodies for every batch item. Each item
+ * maps to a single edit call, correlated by `customId`.
+ */
+export const buildImageEditBodies = (
+  resolved: ResolvedModel,
+  requests: readonly BatchImageEditRequest[],
+  defaults: BatchImageEditDefaults | undefined,
+  rawLimits?: BatchLimits | ResolvedBatchLimits
+): BuiltRequest[] => {
+  const limits = resolveBatchLimits(rawLimits);
+  if (requests.length > limits.maxRequests) {
+    throw new BatchworkError(
+      `batchwork: requests length ${requests.length} exceeds the ${limits.maxRequests} request limit.`
+    );
+  }
+  return assignCustomIds(requests).map((item) => {
+    const body = imageEditBody(
+      resolved,
+      mergeDefaults(item.request, defaults),
+      item.customId
+    );
+    assertByteLength(
+      `request "${item.customId}"`,
+      JSON.stringify(body),
+      limits.maxRequestBytes
+    );
+    return { body, customId: item.customId, endpoint: IMAGE_EDIT_ENDPOINT };
+  });
 };
 
 const captureVideoOne = async (

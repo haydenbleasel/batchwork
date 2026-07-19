@@ -8,7 +8,7 @@ OpenAI's Batch API is the reference "shape" Batchwork is built around: requests 
 | Property | Value |
 | --- | --- |
 | **Shape** | JSONL file upload → create batch |
-| **Endpoints** | `/v1/chat/completions`, `/v1/responses`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/moderations` |
+| **Endpoints** | `/v1/chat/completions`, `/v1/responses`, `/v1/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/images/edits`, `/v1/moderations` |
 | **Results** | Output + error files (JSONL) |
 | **Webhooks** | Native (`batch.completed`, `batch.failed`, …) |
 | **Env var** | `OPENAI_API_KEY` |
@@ -86,6 +86,21 @@ const job = await batch.images({
 ```
 
 Results come back as inline base64 on `result.images[].data` (with `mediaType`). Pass `size`, `n`, or `providerOptions.openai` (e.g. `quality`) per request — see [Images](/docs/images).
+
+OpenAI also batches **image edits** through `/v1/images/edits` — source images and masks are passed as JSON references (uploaded `fileId`s or hosted `imageUrl`s), never raw uploads. Use [`batch.images.edit()`](/docs/images#editing-images):
+
+```ts
+const job = await batch.images.edit({
+  model: openai.image("gpt-image-1.5"),
+  requests: [
+    {
+      customId: "a",
+      prompt: "Make the bicycle blue.",
+      images: [{ imageUrl: "https://example.com/bicycle.png" }],
+    },
+  ],
+});
+```
 
 ## Moderations
 

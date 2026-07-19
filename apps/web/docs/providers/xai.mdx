@@ -8,7 +8,7 @@ xAI's Batch API uses an OpenAI-compatible Files API to upload the input and crea
 | Property | Value |
 | --- | --- |
 | **Shape** | JSONL file upload (OpenAI-compat) |
-| **Endpoint** | `/v1/chat/completions`, `/v1/images/generations`, `/v1/videos/*` |
+| **Endpoint** | `/v1/chat/completions`, `/v1/images/generations`, `/v1/images/edits`, `/v1/videos/*` |
 | **Results** | Paginated `/results` JSON |
 | **Webhooks** | Poll-only (managed by the server) |
 | **Env var** | `XAI_API_KEY` |
@@ -61,6 +61,21 @@ Image results come back under the `image_response` op in the paginated `/results
 :::warning
 xAI batch returns **signed image URLs** on `result.images[].url` (and/or inline `data`) that **expire ~1h** after the batch completes — fetch and persist them promptly. See [Images](/docs/images).
 :::
+
+xAI also batches **image edits** through `/v1/images/edits` — source images are passed as hosted URL references (`{ imageUrl }`; data URIs work, file ids and masks don't). Use [`batch.images.edit()`](/docs/images#editing-images):
+
+```ts
+const job = await batch.images.edit({
+  model: xai.image("grok-imagine-image-quality"),
+  requests: [
+    {
+      customId: "a",
+      prompt: "Add a rainbow.",
+      images: [{ imageUrl: "https://example.com/photo.png" }],
+    },
+  ],
+});
+```
 
 ## Videos
 

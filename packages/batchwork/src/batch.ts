@@ -1,6 +1,7 @@
 import {
   buildEmbeddingBodies,
   buildImageBodies,
+  buildImageEditBodies,
   buildModerationBodies,
   buildRequestBodies,
   buildTranscriptionBodies,
@@ -11,11 +12,13 @@ import { BatchJob } from "./job";
 import { resolveBatchLimits } from "./limits";
 import {
   EMBEDDING_PROVIDERS,
+  IMAGE_EDIT_PROVIDERS,
   IMAGE_PROVIDERS,
   MODERATION_PROVIDERS,
   resolveModel,
   TRANSCRIPTION_PROVIDERS,
   unsupportedEmbeddingProvider,
+  unsupportedImageEditProvider,
   unsupportedImageProvider,
   unsupportedModerationProvider,
   unsupportedTranscriptionProvider,
@@ -25,6 +28,7 @@ import {
 import { getAdapter } from "./providers";
 import type {
   BatchEmbeddingsOptions,
+  BatchImageEditOptions,
   BatchImageOptions,
   BatchModerationOptions,
   BatchOptions,
@@ -198,6 +202,60 @@ const submitImages = async (options: BatchImageOptions): Promise<BatchJob> => {
 };
 
 /**
+ * Submit a batch of image-edit requests to the model's provider and return a
+ * handle. Each request's `prompt` is applied to its source `images` (uploaded
+ * file ids or hosted URLs — batch bodies are JSON, so raw uploads aren't
+ * possible), producing edited images on `result.images`, correlated by
+ * `customId` via {@link BatchJob.results}. Supported for OpenAI and xAI; other
+ * providers throw {@link UnsupportedProviderError}.
+ *
+ * @example
+ * const job = await batch.images.edit({
+ *   model: openai.image("gpt-image-1.5"),
+ *   requests: [
+ *     {
+ *       customId: "a",
+ *       prompt: "Make the bicycle blue.",
+ *       images: [{ imageUrl: "https://example.com/bicycle.png" }],
+ *     },
+ *   ],
+ * });
+ * const results = await job.wait().then(() => job.collect());
+ */
+const submitImageEdits = async (
+  options: BatchImageEditOptions
+): Promise<BatchJob> => {
+  if (options.requests.length === 0) {
+    throw new BatchworkError(EMPTY_REQUESTS_MESSAGE);
+  }
+
+  const resolved = resolveModel(options.model);
+  if (!IMAGE_EDIT_PROVIDERS.has(resolved.provider)) {
+    throw unsupportedImageEditProvider(resolved.provider);
+  }
+  const credentials = pickCredentials(options);
+  const limits = resolveBatchLimits(options.limits);
+  const adapter = getAdapter(resolved.provider);
+
+  const built = buildImageEditBodies(
+    resolved,
+    options.requests,
+    options.defaults,
+    limits
+  );
+  const snapshot = await adapter.submit({
+    built,
+    credentials,
+    endpoint: built[0]?.endpoint ?? "",
+    limits,
+    metadata: options.metadata,
+    modelId: resolved.modelId,
+  });
+
+  return new BatchJob(adapter, credentials, snapshot);
+};
+
+/**
  * Submit a batch of moderation requests to the model's provider and return a
  * handle. Each request's `value` (and/or `imageUrls`, OpenAI omni moderation
  * only) produces one verdict on `result.moderation`, correlated by `customId`
@@ -353,7 +411,8 @@ const submitVideos = async (options: BatchVideoOptions): Promise<BatchJob> => {
  *
  * - `batch()` / {@link batch.text} — text & chat completions
  * - {@link batch.embeddings} — embedding vectors
- * - {@link batch.images} — image generation
+ * - {@link batch.images} / {@link batch.images.create} — image generation
+ * - {@link batch.images.edit} — image editing
  * - {@link batch.transcriptions} — audio transcription
  * - {@link batch.moderations} — content moderation
  * - {@link batch.videos} — video generation
@@ -367,8 +426,17 @@ const submitVideos = async (options: BatchVideoOptions): Promise<BatchJob> => {
 export const batch = Object.assign(submitText, {
   /** Submit a batch of embedding requests. */
   embeddings: submitEmbeddings,
-  /** Submit a batch of image-generation requests. */
-  images: submitImages,
+  /**
+   * Submit a batch of image-generation requests. Also exposes
+   * {@link batch.images.create} (an alias of calling it directly) and
+   * {@link batch.images.edit} for editing existing images.
+   */
+  images: Object.assign(submitImages, {
+    /** Submit a batch of image-generation requests. Equivalent to `batch.images()`. */
+    create: submitImages,
+    /** Submit a batch of image-edit requests. */
+    edit: submitImageEdits,
+  }),
   /** Submit a batch of moderation requests. */
   moderations: submitModerations,
   /** Submit a batch of text/chat requests. Equivalent to calling `batch()`. */

@@ -75,6 +75,13 @@ xAI batch returns signed image URLs (`image.url`) that expire ~1h after completi
 bun test --env-file=.env.local ./live/openai-images.live.test.ts
 ```
 
+`*-image-edits.live.test.ts` round-trip a small **image-edit** batch (`batch.images.edit()`) against a public source image (override with `BATCHWORK_LIVE_SOURCE_IMAGE_URL`). OpenAI and xAI are the only batch edit providers:
+
+| Provider | Key (as above) | Default edit model | Override env var |
+| --- | --- | --- | --- |
+| OpenAI | `OPENAI_API_KEY` | `gpt-image-1.5` | `BATCHWORK_LIVE_OPENAI_IMAGE_EDIT_MODEL` |
+| xAI | `XAI_API_KEY` | `grok-imagine-image-quality` | `BATCHWORK_LIVE_XAI_IMAGE_EDIT_MODEL` |
+
 ## Videos
 
 `xai-videos.live.test.ts` round-trips a **2-record video** batch (`batch.videos()` → `wait()` → `collect()`) and asserts every record returns a signed video URL. Video generation is the priciest modality, so the record count is minimal. xAI (Grok Imagine) is the only batch-video provider:
