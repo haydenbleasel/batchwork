@@ -1,5 +1,16 @@
 # batchwork
 
+## 1.3.0
+
+### Minor Changes
+
+- 37d8011: Add Together AI to `batch.transcriptions()` — Whisper models (e.g. `"together/openai/whisper-large-v3"`) batch through `/v1/audio/transcriptions`, with Batchwork writing Together's audio-specific `method: "FILE"` lines and `body.file` URL references automatically.
+- cab0f91: Add `batch.translations()` — batch audio translation to English (Whisper's translate task) for Groq (`whisper-large-v3`) and Together AI (`"together/openai/whisper-large-v3"`) via `/v1/audio/translations`. Mirrors `batch.transcriptions()` minus the `language` field (English is the only target); English text lands on `result.text` with optional timestamped `result.segments`. Mistral batches transcriptions but not translations and throws `UnsupportedProviderError`.
+- 164a64d: Add `batch.transcriptions()` — batch audio transcription for Groq (`whisper-large-v3`) and Mistral (Voxtral models). Pass hosted audio URLs (batch audio endpoints accept URLs, not file uploads); transcripts land on `result.text`, with timestamped spans on `result.segments` when `timestampGranularities` is requested. Includes new `BatchTranscriptionRequest`/`BatchTranscriptionOptions`/`BatchTranscriptionSegment` types and an `UnsupportedProviderError` gate for providers whose batch API rejects audio endpoints.
+- f2dfa3b: Add `batch.moderations()` — batch content moderation for OpenAI (`omni-moderation-latest`, text + image inputs) and Mistral (`mistral-moderation-latest`, text-only). Pass models as `"provider/model"` strings; verdicts land on `result.moderation` as `{ flagged, categories, categoryScores }` with provider-native category names (Mistral's missing top-level flag is computed as "any category flagged"). Includes new `BatchModerationRequest`/`BatchModerationOptions`/`BatchModeration` types and an `UnsupportedProviderError` gate for providers without a moderation endpoint.
+- 977dbb0: Add `batch.images.edit()` — batch image editing for OpenAI and xAI via `/v1/images/edits`. Source images are passed as JSON asset references (`{ fileId }` from the OpenAI Files API or `{ imageUrl }`), with an optional `mask` on OpenAI; xAI takes URL references only and rejects masks/file ids before any network request. `batch.images.create()` is added as an explicit alias of `batch.images()`, which continues to work unchanged. Edited images land on `result.images` exactly like generation.
+- 3a4334a: Add `batch.videos()` — batch video generation for xAI (Grok Imagine). Prompts go through `/v1/videos/generations`, with per-line routing to `/v1/videos/edits` and `/v1/videos/extensions` via `providerOptions.xai` (`videoUrl`, `mode: "extend-video"`, `referenceImageUrls`), mirroring the AI SDK's `experimental_generateVideo`. Results land on `result.videos` as signed URLs that expire ~1h after completion. OpenAI's Videos API (Sora) is deliberately unsupported — it is deprecated and shuts down September 2026 — and Google's Veo models are not batch-compatible; both throw `UnsupportedProviderError`.
+
 ## 1.2.1
 
 ### Patch Changes
