@@ -5,10 +5,9 @@ import InstallCommand from "./install-command.astro";
 
 interface Props {
   version: string;
-  releaseUrl: string;
 }
 
-const { version, releaseUrl } = Astro.props;
+const { version } = Astro.props;
 
 const LOGOS = [
   { file: "openai", name: "OpenAI" },
@@ -134,9 +133,7 @@ for await (const result of job.results()) {
   >
     <a
       class="fade-up group inline-flex items-center gap-2 font-mono text-muted-foreground text-xs transition-colors hover:text-foreground"
-      href={releaseUrl}
-      rel="noreferrer"
-      target="_blank"
+      href="/changelog"
     >
       <span class="inline-block size-1.5 rounded-full bg-emerald-500"></span>
       Latest update — v{version} released
