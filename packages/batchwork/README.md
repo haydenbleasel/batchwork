@@ -2,7 +2,7 @@
 
 A unified **batch API** for AI providers. Submit thousands of LLM requests at roughly half the cost with a single call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
 
-[![npm version](https://img.shields.io/npm/v/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![license](https://img.shields.io/npm/l/batchwork.svg)](#license) [![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork) ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/haydenbleasel/batchwork?utm_source=oss&utm_medium=github&utm_campaign=haydenbleasel%2Fbatchwork&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+[![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![license](https://img.shields.io/npm/l/batchwork.svg)](#license) [![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork) ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/haydenbleasel/batchwork?utm_source=oss&utm_medium=github&utm_campaign=haydenbleasel%2Fbatchwork&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 📖 **Full documentation: [batchwork.dev](https://batchwork.dev)**
 
