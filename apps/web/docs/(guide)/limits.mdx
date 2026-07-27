@@ -25,7 +25,7 @@ await batch({
 
 ## Metadata
 
-`metadata` attaches free-form key/value pairs to the batch. It's forwarded to OpenAI, Groq, Together AI, and Mistral, and ignored by Anthropic, Google Gemini, and xAI (whose batch APIs don't accept batch-level metadata):
+`metadata` attaches free-form key/value pairs to the batch. It's forwarded to OpenAI, Azure OpenAI, Groq, Together AI, and Mistral, and ignored by Anthropic, Google Gemini, and xAI (whose batch APIs don't accept batch-level metadata):
 
 ```ts
 await batch({ model, requests, metadata: { description: "nightly eval" } });
@@ -57,6 +57,7 @@ Per-batch limits vary by provider:
 | OpenAI        | 50,000                 | 200 MB                   |
 | Anthropic     | 100,000                | 256 MB                   |
 | Google Gemini | No fixed count         | 2 GB file · 20 MB inline |
+| Azure OpenAI  | 100,000                | 200 MB                   |
 | Groq          | 50,000                 | 200 MB                   |
 | Mistral       | 100,000                | 512 MB                   |
 | Together AI   | 50,000                 | 100 MB                   |
@@ -65,6 +66,7 @@ Per-batch limits vary by provider:
 Notes:
 
 - **Google Gemini** doesn't cap request count directly — batches are bounded by the 2 GB input-file size and a per-model enqueued-token quota. Inline requests must stay under 20 MB total.
+- **Azure OpenAI** accepts up to 100,000 requests in a 200 MB input file. Batchwork's conservative 50,000-request default still applies; set `limits.maxRequests: 100_000` when your Global Batch or Data Zone Batch deployment and enqueued-token quota allow it. Azure's quota varies by model, deployment type, and subscription — see [Azure's current Batch limits](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/batch?tabs=global-batch%2Cstructured-outputs%2Cpython-secure&pivots=rest-api#batch-limits).
 - **Together AI** also limits enqueued tokens to 30B per model at any time.
 - **xAI**'s 50,000 cap applies to file-based batches; inline batches are theoretically unbounded but throttled above ~1,000,000 requests.
 

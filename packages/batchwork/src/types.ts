@@ -22,6 +22,7 @@ export type VideoModel = Parameters<
 /** Providers with a batch adapter. */
 export type BatchProvider =
   | "anthropic"
+  | "azure"
   | "google"
   | "groq"
   | "mistral"

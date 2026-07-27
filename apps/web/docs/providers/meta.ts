@@ -6,6 +6,7 @@ export default defineMeta({
     "openai",
     "anthropic",
     "google",
+    "azure",
     "groq",
     "mistral",
     "together",

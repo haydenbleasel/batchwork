@@ -24,7 +24,7 @@ describe("UnsupportedProviderError", () => {
     expect(error.name).toBe("UnsupportedProviderError");
     expect(error.provider).toBe("cohere");
     expect(error.message).toContain('provider "cohere" is not supported');
-    expect(error.message).toContain("openai, anthropic");
+    expect(error.message).toContain("openai, azure, anthropic");
   });
 });
 

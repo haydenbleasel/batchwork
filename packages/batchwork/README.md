@@ -11,7 +11,7 @@ A unified **batch API** for AI providers. Submit thousands of LLM requests at ro
 ```bash
 npm install batchwork
 # plus the provider package(s) you use:
-npm install @ai-sdk/openai @ai-sdk/anthropic
+npm install @ai-sdk/openai @ai-sdk/anthropic @ai-sdk/azure
 ```
 
 `batchwork` depends only on `ai`. The `@ai-sdk/*` provider packages are **optional peer dependencies** — install only the ones you batch with. Requires Node.js 20 or newer.
@@ -179,7 +179,7 @@ Batch moderation is available for **OpenAI** (`omni-moderation-latest`, text + i
 
 ## Features
 
-- **One API, many providers** — OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
+- **One API, many providers** — OpenAI, Azure OpenAI, Anthropic, Google Gemini, Groq, Mistral, Together AI, and xAI.
 - **AI SDK native** — author requests in the familiar `generateText` shape.
 - **Chat, embeddings, images, video, audio & moderation** — `batch()` for completions, `batch.embeddings()` for vectors, `batch.images()` for image generation, `batch.videos()` for video generation, `batch.transcriptions()` for audio transcription, `batch.moderations()` for content moderation.
 - **~50% cheaper** — every request runs against the provider's batch window.

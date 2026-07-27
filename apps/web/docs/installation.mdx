@@ -20,6 +20,8 @@ Batchwork reads provider credentials from the standard environment variables:
 ```bash
 OPENAI_API_KEY=sk-…
 ANTHROPIC_API_KEY=sk-ant-…
+AZURE_RESOURCE_NAME=my-azure-openai-resource
+AZURE_API_KEY=…
 ```
 
 Or pass them explicitly per call:
@@ -34,6 +36,8 @@ await batch({
 
 `baseURL` and extra `headers` are accepted the same way for self-hosted gateways or beta flags.
 
+Azure OpenAI also needs `AZURE_RESOURCE_NAME` (or an explicit Azure `baseURL`) and accepts `AZURE_API_KEY` or `AZURE_OPENAI_API_KEY`. See [Azure OpenAI](/docs/providers/azure) for deployment and Global Batch requirements.
+
 ## Requirements
 
 - **Node 20+**, Bun, or any edge runtime with `fetch`, `FormData`, and Web Crypto.
@@ -44,7 +48,7 @@ await batch({
 All thrown errors extend `BatchworkError`, with two typed subclasses you may want to catch:
 
 - **`MissingDependencyError`** — you batched a provider whose `@ai-sdk/*` package isn't installed. The message tells you exactly what to `npm install`.
-- **`UnsupportedProviderError`** — the model resolved to a provider without a batch adapter (i.e. not one of the seven [supported providers](/docs/providers/openai)).
+- **`UnsupportedProviderError`** — the model resolved to a provider without a batch adapter (i.e. not one of the eight [supported providers](/docs/providers/openai)).
 
 Provider error responses include the method, URL, and status code, but not the upstream response body. This keeps prompts, provider diagnostics, and other batch data out of route responses and logs by default.
 

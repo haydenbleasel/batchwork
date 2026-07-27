@@ -1,0 +1,99 @@
+---
+title: Azure OpenAI
+description: Run text batches on Azure OpenAI Batch with Azure Global Batch or Data Zone Batch deployments, JSONL file upload, and normalized results.
+---
+
+Azure OpenAI Batch follows the OpenAI JSONL flow: Batchwork serializes requests through the AI SDK, uploads the input file, creates a 24-hour batch, polls it, and reads the output and error files. Use a **Global Batch** or **Data Zone Batch** deployment; standard Azure deployments cannot process Batch API jobs.
+
+| Property | Value |
+| --- | --- |
+| **Shape** | JSONL file upload → create batch |
+| **Input endpoints** | `/v1/chat/completions`, `/v1/responses` |
+| **Results** | Output + error files (JSONL) |
+| **Webhooks** | Poll-only (managed by the server) |
+| **Env vars** | `AZURE_RESOURCE_NAME`, `AZURE_API_KEY` (or `AZURE_OPENAI_API_KEY`) |
+| **Package** | `@ai-sdk/azure` |
+| **API root** | `https://{resource}.openai.azure.com/openai/v1` |
+
+## Example
+
+```ts
+import { azure } from "@ai-sdk/azure";
+import { batch } from "batchwork";
+
+const job = await batch({
+  // Azure model ids are deployment names.
+  model: azure("my-batch-deployment"),
+  requests: [
+    { customId: "fr", prompt: "Capital of France? One word." },
+    { customId: "jp", prompt: "Capital of Japan? One word." },
+  ],
+});
+```
+
+`azure("deployment")` uses Azure's Responses API. Use `azure.chat("deployment")` for Chat Completions. Each deployment must be configured for Global Batch or Data Zone Batch before submitting a job.
+
+## How it works
+
+1. **Build** — each request becomes a JSONL line with its deployment name in `body.model`.
+2. **Upload** — Batchwork uploads that JSONL to `/openai/v1/files` with `purpose=batch`.
+3. **Create** — it creates a 24-hour batch through `/openai/v1/batches`.
+4. **Poll** — Batchwork reads the batch status until it reaches a terminal state.
+5. **Read** — it downloads output and error JSONL files into normalized [`BatchResult`](/docs/results)s.
+
+Azure input lines retain the AI SDK path, such as `/v1/responses` or `/v1/chat/completions`. Batchwork creates text batches with `endpoint: "/v1/chat/completions"`.
+
+## Notes
+
+Azure OpenAI support covers Batchwork's text `batch()` API for Chat Completions and Responses models. `batch.embeddings()`, `batch.images()`, `batch.transcriptions()`, and `batch.moderations()` are not supported for Azure OpenAI. The deployment must use **Global Batch** or **Data Zone Batch**; a standard deployment cannot process Batch API jobs.
+
+Azure accepts up to **100,000 requests** in one **200 MB** input file. Batchwork defaults to 50,000 requests for every provider, so raise that guardrail explicitly when needed:
+
+```ts
+await batch({
+  model: azure("my-batch-deployment"),
+  requests,
+  limits: { maxRequests: 100_000 },
+});
+```
+
+Azure measures batch capacity as **enqueued tokens**: the input tokens count against the deployment's quota until the batch reaches a terminal state. The available quota varies by model, Global Batch vs. Data Zone Batch deployment, and subscription. Enable Azure's dynamic quota where available to reduce submission failures, and consult [Azure's current Batch limits](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/batch?tabs=global-batch%2Cstructured-outputs%2Cpython-secure&pivots=rest-api#batch-limits) before sizing a workload.
+
+Batchwork's Azure adapter uploads directly through the Files API. That uses Azure's 200 MB input-file limit and the default **500 input files per resource** when files have no expiry. Azure can raise that file count with `expires_after` or use Bring Your Own Storage, but Batchwork does not expose either Azure-specific staging option yet. Output and error files do not count against those input-file limits.
+
+## Credentials
+
+Set a resource name and API key:
+
+```bash
+AZURE_RESOURCE_NAME=my-azure-openai-resource
+AZURE_API_KEY=…
+```
+
+`AZURE_OPENAI_API_KEY` is also accepted. Batchwork converts `AZURE_RESOURCE_NAME` to the Azure API root automatically. To use an explicit endpoint instead, pass either the resource's `/openai` URL or its `/openai/v1` API root:
+
+```ts
+await batch({
+  model: azure.chat("my-batch-deployment"),
+  baseURL: "https://my-azure-openai-resource.openai.azure.com/openai/v1",
+  apiKey: process.env.AZURE_API_KEY,
+  requests,
+});
+```
+
+Batchwork sends API keys as Azure's `api-key` header. For Microsoft Entra ID, pass your own bearer token in `headers`; caller-supplied `Authorization` or `api-key` headers take precedence over environment credentials.
+
+```ts
+await batch({
+  model: azure("my-batch-deployment"),
+  baseURL: "https://my-azure-openai-resource.openai.azure.com/openai/v1",
+  headers: { Authorization: `Bearer ${token}` },
+  requests,
+});
+```
+
+Install the optional peer dependency:
+
+```bash
+bun add @ai-sdk/azure
+```

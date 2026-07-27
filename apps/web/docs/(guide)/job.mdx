@@ -11,7 +11,7 @@ description: batch() returns a BatchJob handle — poll status, wait for complet
 const job = await batch({ model, requests });
 
 job.id; // provider batch id
-job.provider; // "openai" | "anthropic" | "google" | "groq" | "mistral" | "together" | "xai"
+job.provider; // "openai" | "anthropic" | "google" | "azure" | "groq" | "mistral" | "together" | "xai"
 job.status; // normalized status
 job.requestCounts; // { total, completed, failed, processing?, … }
 job.snapshot; // the full latest snapshot

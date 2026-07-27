@@ -47,7 +47,20 @@ export const textFromBody = (body: unknown): string | undefined => {
     }
   }
   // `text` is the top-level field of transcription responses.
-  return asString(obj.output_text) ?? asString(obj.text);
+  const directText = asString(obj.output_text) ?? asString(obj.text);
+  if (directText !== undefined) {
+    return directText;
+  }
+  // Responses API batches return message content under `output`, unlike the
+  // convenience `output_text` field exposed by some SDK response helpers.
+  for (const output of asArray(obj.output)) {
+    for (const content of asArray(asRecord(output).content)) {
+      const text = asString(asRecord(content).text);
+      if (text !== undefined) {
+        return text;
+      }
+    }
+  }
 };
 
 /**

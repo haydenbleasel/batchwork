@@ -96,6 +96,70 @@ describe("batch (end-to-end, mocked transport)", () => {
     });
   });
 
+  it("submits and reads an Azure OpenAI Responses batch", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/files" &&
+          method === "POST",
+      },
+      {
+        body: {
+          id: "batch_azure",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/batches" &&
+          method === "POST",
+      },
+      {
+        body: {
+          id: "batch_azure",
+          output_file_id: "file-out",
+          request_counts: { completed: 1, failed: 0, total: 1 },
+          status: "completed",
+        },
+        match: (url, method) =>
+          url.endsWith("/batches/batch_azure") && method === "GET",
+      },
+      {
+        body: JSON.stringify({
+          custom_id: "a",
+          response: {
+            body: {
+              output: [{ content: [{ text: "hi", type: "output_text" }] }],
+            },
+            status_code: 200,
+          },
+        }),
+        match: (url) => url.endsWith("/files/file-out/content"),
+      },
+    ]);
+
+    const job = await batch({
+      apiKey: "test-key",
+      baseURL: "https://example.openai.azure.com/openai/v1",
+      model: "azure/my-batch-deployment",
+      requests: [{ customId: "a", prompt: "Say hi" }],
+    });
+    expect(job).toMatchObject({ id: "batch_azure", provider: "azure" });
+
+    const createCall = fetchMock.mock.calls.find(
+      (call) =>
+        String(call[0]).endsWith("/batches") && call[1]?.method === "POST"
+    );
+    expect(String(createCall?.[1]?.body)).toContain(
+      '"endpoint":"/v1/chat/completions"'
+    );
+
+    await job.wait({ pollIntervalMs: 1 });
+    expect(await job.collect()).toMatchObject([
+      { customId: "a", status: "succeeded", text: "hi" },
+    ]);
+  });
+
   it("rejects an empty request list", async () => {
     await expect(
       batch({ apiKey: "test-key", model: "openai/gpt-4o-mini", requests: [] })
