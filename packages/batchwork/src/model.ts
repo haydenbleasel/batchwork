@@ -1,4 +1,5 @@
 import type { createAnthropic } from "@ai-sdk/anthropic";
+import type { createAzure } from "@ai-sdk/azure";
 import type { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { createGroq } from "@ai-sdk/groq";
 import type { createMistral } from "@ai-sdk/mistral";
@@ -18,6 +19,9 @@ import type { BatchProvider, ProviderCredentials, VideoModel } from "./types";
 /** The shape `loadProvider` expects from each optional `@ai-sdk/*` package. */
 interface AnthropicModule {
   createAnthropic: typeof createAnthropic;
+}
+interface AzureModule {
+  createAzure: typeof createAzure;
 }
 interface GoogleModule {
   createGoogleGenerativeAI: typeof createGoogleGenerativeAI;
@@ -58,12 +62,33 @@ export interface ResolvedModel {
  */
 const CAPTURE_API_KEY = "batchwork-capture";
 
+const azureCaptureBaseUrl = (
+  baseURL: string | undefined
+): string | undefined => {
+  if (!baseURL) {
+    return;
+  }
+  const normalized = baseURL.replace(/\/+$/u, "");
+  try {
+    if (new URL(normalized).hostname.endsWith(".openai.azure.com")) {
+      // The AI SDK appends `/v1` itself, so it wants the `/openai` root —
+      // accept the bare resource URL, `/openai`, or `/openai/v1` forms.
+      const root = normalized.replace(/\/v1$/u, "");
+      return root.endsWith("/openai") ? root : `${root}/openai`;
+    }
+  } catch {
+    // Let the provider report malformed URLs with its normal error.
+  }
+  return normalized;
+};
+
 /** The optional `@ai-sdk/*` package backing each provider. */
 const PACKAGE_BY_PROVIDER: Record<
   BatchProvider,
   { label: string; specifier: string }
 > = {
   anthropic: { label: "Anthropic", specifier: "@ai-sdk/anthropic" },
+  azure: { label: "Azure OpenAI", specifier: "@ai-sdk/azure" },
   google: { label: "Google Gemini", specifier: "@ai-sdk/google" },
   groq: { label: "Groq", specifier: "@ai-sdk/groq" },
   mistral: { label: "Mistral", specifier: "@ai-sdk/mistral" },
@@ -78,6 +103,7 @@ const PACKAGE_BY_PROVIDER: Record<
  */
 const PROVIDER_BY_FAMILY: Record<string, BatchProvider> = {
   anthropic: "anthropic",
+  azure: "azure",
   google: "google",
   groq: "groq",
   mistral: "mistral",
@@ -145,7 +171,7 @@ export const resolveModel = (
 
   const [family, suffix] = splitOnce(model.provider, ".");
   const provider = PROVIDER_BY_FAMILY[family];
-  if (provider === "openai") {
+  if (provider === "openai" || provider === "azure") {
     return { kind: openaiKind(suffix), modelId: model.modelId, provider };
   }
   if (provider) {
@@ -162,6 +188,9 @@ const importProvider = (provider: BatchProvider): Promise<unknown> => {
   switch (provider) {
     case "anthropic": {
       return import("@ai-sdk/anthropic");
+    }
+    case "azure": {
+      return import("@ai-sdk/azure");
     }
     case "google": {
       return import("@ai-sdk/google");
@@ -228,6 +257,22 @@ export const createCaptureModel = async (
     case "openai": {
       const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
       const provider = createOpenAI(settings);
+      if (resolved.kind === "responses") {
+        return provider.responses(resolved.modelId);
+      }
+      if (resolved.kind === "completion") {
+        return provider.completion(resolved.modelId);
+      }
+      return provider.chat(resolved.modelId);
+    }
+    case "azure": {
+      const { createAzure } = await loadProvider<AzureModule>("azure");
+      const provider = createAzure({
+        ...settings,
+        // Batchwork documents Azure base URLs as the API root ending in
+        // `/openai/v1`; the AI SDK expects the Azure root before `/v1`.
+        baseURL: azureCaptureBaseUrl(credentials.baseURL),
+      });
       if (resolved.kind === "responses") {
         return provider.responses(resolved.modelId);
       }

@@ -28,6 +28,7 @@ describe("resolveModel", () => {
   it("resolves provider/model strings", () => {
     const cases: [string, BatchProvider][] = [
       ["openai/gpt-4o-mini", "openai"],
+      ["azure/my-batch-deployment", "azure"],
       ["anthropic/claude-3-5-sonnet", "anthropic"],
       ["groq/llama-3.3-70b", "groq"],
       ["mistral/mistral-small-latest", "mistral"],
@@ -44,6 +45,9 @@ describe("resolveModel", () => {
 
   it("resolves AI SDK model objects by provider prefix", () => {
     expect(resolveModel(model("groq.chat", "llama")).provider).toBe("groq");
+    expect(resolveModel(model("azure.chat", "deployment")).provider).toBe(
+      "azure"
+    );
     expect(resolveModel(model("mistral.chat", "m")).provider).toBe("mistral");
     expect(resolveModel(model("google.generative-ai", "g")).provider).toBe(
       "google"
@@ -54,7 +58,7 @@ describe("resolveModel", () => {
     );
   });
 
-  it("preserves OpenAI request kinds", () => {
+  it("preserves OpenAI-compatible request kinds", () => {
     expect(resolveModel(model("openai.responses", "gpt-4o")).kind).toBe(
       "responses"
     );
@@ -62,6 +66,9 @@ describe("resolveModel", () => {
       "completion"
     );
     expect(resolveModel(model("openai.chat", "gpt-4o")).kind).toBe("chat");
+    expect(resolveModel(model("azure.responses", "deployment")).kind).toBe(
+      "responses"
+    );
     // Non-OpenAI providers always resolve to the chat shape.
     expect(resolveModel(model("groq.chat", "llama")).kind).toBe("chat");
   });
@@ -97,6 +104,7 @@ describe("createCaptureModel", () => {
   it("constructs a model for every supported provider", async () => {
     const providers: BatchProvider[] = [
       "anthropic",
+      "azure",
       "google",
       "groq",
       "mistral",

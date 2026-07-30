@@ -78,7 +78,7 @@ describe("shared helpers", () => {
     );
   });
 
-  it("textFromBody prefers chat content, then output_text", () => {
+  it("textFromBody preserves direct text and reads Responses API output", () => {
     expect(textFromBody({ choices: [{ message: { content: "hi" } }] })).toBe(
       "hi"
     );
@@ -87,6 +87,29 @@ describe("shared helpers", () => {
       textFromBody({ choices: [{ message: {} }], output_text: "ot" })
     ).toBe("ot");
     expect(textFromBody({ output_text: "only" })).toBe("only");
+    expect(textFromBody({ output_text: "" })).toBe("");
+    expect(
+      textFromBody({
+        output: [
+          {
+            content: [{ text: "Thinking…", type: "reasoning_text" }],
+            type: "reasoning",
+          },
+          {
+            content: [
+              { text: "First", type: "output_text" },
+              { text: " second", type: "output_text" },
+            ],
+            type: "message",
+          },
+          {
+            content: [{ text: " third", type: "output_text" }],
+            type: "message",
+          },
+        ],
+        text: { format: { type: "text" } },
+      })
+    ).toBe("First second third");
     expect(textFromBody({})).toBeUndefined();
   });
 

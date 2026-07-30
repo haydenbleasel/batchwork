@@ -1,6 +1,7 @@
 import type { BatchProvider } from "../types";
 import type { BatchAdapter } from "./adapter";
 import { anthropicAdapter } from "./anthropic";
+import { azureAdapter } from "./azure";
 import { googleAdapter } from "./google";
 import { groqAdapter } from "./groq";
 import { mistralAdapter } from "./mistral";
@@ -10,6 +11,7 @@ import { xaiAdapter } from "./xai";
 
 const adapters: Record<BatchProvider, BatchAdapter> = {
   anthropic: anthropicAdapter,
+  azure: azureAdapter,
   google: googleAdapter,
   groq: groqAdapter,
   mistral: mistralAdapter,

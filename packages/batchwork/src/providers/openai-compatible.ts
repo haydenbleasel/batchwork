@@ -25,9 +25,20 @@ import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 export type BatchLineFormat = "body-only" | "method-url";
 
 export interface OpenAICompatibleConfig {
+  /** Env var for the default Bearer auth; unused when `authHeaders` is set. */
   apiKeyEnv: string;
   apiKeyLabel: string;
-  baseUrl: string;
+  /**
+   * Default API root. Providers with a resource-specific endpoint (Azure) can
+   * resolve it from credentials or environment configuration instead.
+   */
+  baseUrl?: string;
+  /** Build provider authentication headers instead of the default Bearer key. */
+  authHeaders?: (credentials: ProviderCredentials) => Record<string, string>;
+  /**
+   * Resolve a provider API root when `credentials.baseURL` is not provided.
+   */
+  resolveBaseUrl?: (credentials: ProviderCredentials) => string;
   // How long the provider may take to finish (OpenAI/Groq/Together).
   completionWindow?: string;
   // Files API purpose value for uploaded JSONL batch inputs.
@@ -60,6 +71,11 @@ export interface OpenAICompatibleConfig {
    * batch `url` must be `/v1/chat/completions`).
    */
   normalizeEndpoint?: (endpoint: string) => string;
+  /**
+   * Map the JSONL request URL to the value required by batch creation. Azure
+   * requires `/chat/completions` here while its input lines use `/v1/...`.
+   */
+  batchEndpoint?: (endpoint: string) => string;
 }
 
 const DEFAULT_COMPLETION_WINDOW = "24h";
@@ -115,12 +131,27 @@ export const createOpenAICompatibleAdapter = (
   const lineFormat = config.lineFormat ?? "method-url";
 
   const baseUrl = (credentials: ProviderCredentials): string =>
-    credentials.baseURL ?? config.baseUrl;
+    config.resolveBaseUrl?.(credentials) ??
+    credentials.baseURL ??
+    config.baseUrl ??
+    (() => {
+      throw new BatchworkError(
+        `batchwork: missing ${config.apiKeyLabel} base URL. Pass \`baseURL\`.`
+      );
+    })();
 
   const authHeaders = (
     credentials: ProviderCredentials
   ): Record<string, string> => ({
-    Authorization: `Bearer ${resolveApiKey(credentials, config.apiKeyEnv, config.apiKeyLabel)}`,
+    ...(config.authHeaders
+      ? config.authHeaders(credentials)
+      : {
+          Authorization: `Bearer ${resolveApiKey(
+            credentials,
+            config.apiKeyEnv,
+            config.apiKeyLabel
+          )}`,
+        }),
     ...credentials.headers,
   });
 
@@ -129,6 +160,7 @@ export const createOpenAICompatibleAdapter = (
     const endpoint = config.normalizeEndpoint
       ? config.normalizeEndpoint(input.endpoint)
       : input.endpoint;
+    const batchEndpoint = config.batchEndpoint?.(endpoint) ?? endpoint;
     const jsonl = encodeJsonl(
       input.built.map((item) => {
         const body = omit(item.body, "stream");
@@ -157,7 +189,7 @@ export const createOpenAICompatibleAdapter = (
     const raw = await requestJson(`${url}/batches`, {
       body: JSON.stringify({
         completion_window: completionWindow,
-        endpoint,
+        endpoint: batchEndpoint,
         input_file_id: inputFileId,
         metadata: input.metadata,
       }),

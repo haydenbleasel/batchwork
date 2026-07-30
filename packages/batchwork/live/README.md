@@ -19,6 +19,7 @@ Set the relevant key(s) in your environment (e.g. a local `.env`, which is git-i
 | Provider | Env var | Default model |
 | --- | --- | --- |
 | OpenAI | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| Azure OpenAI | `AZURE_RESOURCE_NAME` + `AZURE_API_KEY` (or `AZURE_OPENAI_API_KEY`) | Set `BATCHWORK_LIVE_AZURE_MODEL` to a Global Batch/Data Zone Batch deployment |
 | Anthropic | `ANTHROPIC_API_KEY` | `claude-haiku-4-5` |
 | Google | `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) | `gemini-3.5-flash` |
 | Groq | `GROQ_API_KEY` | `llama-3.1-8b-instant` |
@@ -32,6 +33,8 @@ A `.env.local` like this is enough (copy `.env.example`):
 OPENAI_API_KEY=sk-...
 XAI_API_KEY=xai-...
 ```
+
+Azure OpenAI has no portable default model because its model ids are deployment names. Its live test requires `AZURE_RESOURCE_NAME`, `AZURE_API_KEY` (or `AZURE_OPENAI_API_KEY`), and `BATCHWORK_LIVE_AZURE_MODEL`. That deployment must use **Global Batch** or **Data Zone Batch**; a standard deployment cannot accept Azure Batch API jobs.
 
 > **Why `--env-file`?** `bun test` runs with `NODE_ENV=test`, and Bun (following the Next.js convention) does **not** auto-load `.env.local` in the test environment. The `test:live` script therefore passes `--env-file=.env.local` explicitly. Exported shell variables work too and take precedence.
 
@@ -138,5 +141,6 @@ The Postgres test creates its tables via `migratePostgres` and truncates between
 
 These tests exercise the library, but some failures are account-level, not bugs:
 
+- **Azure OpenAI** — the model deployment must use **Global Batch** or **Data Zone Batch**, and it needs enough enqueued-token quota to accept the test. Enable Azure dynamic quota where available; a standard deployment cannot submit a Batch API job.
 - **Groq** — the Batch API requires a paid plan. A free-tier key returns `403 not_available_for_plan` on file upload.
 - **Together** — the model must be **serverless and batch-eligible**. Dedicated-only models fail with `Unable to access non-serverless model …`, and a few models are explicitly excluded from batch. Reasoning/code models may also return empty `text` (their output lands in a non-standard field).

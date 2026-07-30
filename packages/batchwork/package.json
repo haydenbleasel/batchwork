@@ -67,6 +67,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^4.0.8",
+    "@ai-sdk/azure": "^4.0.8",
     "@ai-sdk/google": "^4.0.8",
     "@ai-sdk/groq": "^4.0.5",
     "@ai-sdk/mistral": "^4.0.5",
@@ -83,6 +84,7 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": ">=3",
+    "@ai-sdk/azure": ">=3",
     "@ai-sdk/google": ">=3",
     "@ai-sdk/groq": ">=3",
     "@ai-sdk/mistral": ">=3",
@@ -96,6 +98,9 @@
       "optional": true
     },
     "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
       "optional": true
     },
     "@ai-sdk/google": {

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test";
 
 import { anthropicAdapter } from "../src/providers/anthropic";
+import { azureAdapter } from "../src/providers/azure";
 import { googleAdapter } from "../src/providers/google";
 import { groqAdapter } from "../src/providers/groq";
 import { mistralAdapter } from "../src/providers/mistral";
@@ -360,6 +361,157 @@ describe("openai adapter", () => {
     });
     expect(out[1]).toMatchObject({ customId: "b", status: "errored" });
     expect(out[1]?.error?.message).toBe("bad model");
+  });
+});
+
+describe("azure adapter", () => {
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  const azureCredentials = {
+    apiKey: "azure-test-key",
+    baseURL: "https://example.openai.azure.com/openai",
+  };
+
+  it("uses Azure's API root, api-key auth, and batch endpoint", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/files" &&
+          method === "POST",
+      },
+      {
+        body: {
+          id: "batch_azure",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/batches" &&
+          method === "POST",
+      },
+    ]);
+
+    const snapshot = await azureAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "batch-deployment" },
+          customId: "a",
+          endpoint: "/openai/v1/chat/completions",
+        },
+      ],
+      credentials: azureCredentials,
+      endpoint: "/openai/v1/chat/completions",
+      modelId: "batch-deployment",
+    });
+
+    expect(snapshot).toMatchObject({ id: "batch_azure", provider: "azure" });
+    const uploadHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<
+      string,
+      string
+    >;
+    expect(uploadHeaders["api-key"]).toBe("azure-test-key");
+    expect(uploadHeaders.Authorization).toBeUndefined();
+
+    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    expect(lines[0]).toMatchObject({
+      custom_id: "a",
+      method: "POST",
+      url: "/v1/chat/completions",
+    });
+    const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(createBody.endpoint).toBe("/v1/chat/completions");
+    expect(createBody.input_file_id).toBe("file-in");
+  });
+
+  it("expands a bare resource baseURL to the /openai/v1 API root", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/files" &&
+          method === "POST",
+      },
+      {
+        body: {
+          id: "batch_azure",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/batches" &&
+          method === "POST",
+      },
+    ]);
+
+    await azureAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "batch-deployment" },
+          customId: "a",
+          endpoint: "/openai/v1/chat/completions",
+        },
+      ],
+      credentials: {
+        apiKey: "azure-test-key",
+        baseURL: "https://example.openai.azure.com",
+      },
+      endpoint: "/openai/v1/chat/completions",
+      modelId: "batch-deployment",
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://example.openai.azure.com/openai/v1/files"
+    );
+  });
+
+  it("uses the Responses API result text and caller-supplied bearer auth", async () => {
+    const bearerCredentials = {
+      baseURL: "https://example.openai.azure.com/openai/v1",
+      headers: { Authorization: "Bearer entra-token" },
+    };
+    const output = JSON.stringify({
+      custom_id: "a",
+      response: {
+        body: {
+          output: [
+            {
+              content: [{ text: "Azure reply", type: "output_text" }],
+              type: "message",
+            },
+          ],
+        },
+        status_code: 200,
+      },
+    });
+    const fetchMock = install([
+      {
+        body: {
+          id: "batch_azure",
+          output_file_id: "file-out",
+          request_counts: { completed: 1, failed: 0, total: 1 },
+          status: "completed",
+        },
+        match: (url, method) =>
+          url.endsWith("/batches/batch_azure") && method === "GET",
+      },
+      { body: output, match: (url) => url.endsWith("/files/file-out/content") },
+    ]);
+
+    const out = await collect(
+      azureAdapter.results("batch_azure", bearerCredentials)
+    );
+    expect(out).toMatchObject([
+      { customId: "a", status: "succeeded", text: "Azure reply" },
+    ]);
+    const retrieveHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<
+      string,
+      string
+    >;
+    expect(retrieveHeaders.Authorization).toBe("Bearer entra-token");
+    expect(retrieveHeaders["api-key"]).toBeUndefined();
   });
 });
 
