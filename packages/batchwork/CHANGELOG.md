@@ -1,5 +1,11 @@
 # batchwork
 
+## 1.4.0
+
+### Minor Changes
+
+- 07386df: Add Azure OpenAI Batch support for Chat Completions and Responses deployments.
+
 ## 1.3.0
 
 ### Minor Changes
