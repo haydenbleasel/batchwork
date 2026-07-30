@@ -2,10 +2,7 @@ import { describe, it } from "bun:test";
 
 import { azure } from "@ai-sdk/azure";
 
-import {
-  LIVE_TEST_TIMEOUT_MS,
-  runLiveBatch,
-} from "./runner";
+import { LIVE_TEST_TIMEOUT_MS, runLiveBatch } from "./runner";
 
 const MODEL_ID = process.env.BATCHWORK_LIVE_AZURE_MODEL ?? "";
 const hasCredentials = Boolean(

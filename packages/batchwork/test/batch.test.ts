@@ -96,7 +96,7 @@ describe("batch (end-to-end, mocked transport)", () => {
     });
   });
 
-  it("submits and reads an Azure OpenAI Responses batch", async () => {
+  it("submits an Azure OpenAI batch and normalizes Responses output", async () => {
     const fetchMock = install([
       {
         body: { id: "file-in" },
@@ -129,7 +129,12 @@ describe("batch (end-to-end, mocked transport)", () => {
           custom_id: "a",
           response: {
             body: {
-              output: [{ content: [{ text: "hi", type: "output_text" }] }],
+              output: [
+                {
+                  content: [{ text: "hi", type: "output_text" }],
+                  type: "message",
+                },
+              ],
             },
             status_code: 200,
           },

@@ -90,13 +90,26 @@ describe("shared helpers", () => {
     expect(textFromBody({ output_text: "" })).toBe("");
     expect(
       textFromBody({
-        text: { format: { type: "text" } },
         output: [
-          { content: [{ text: "First" }, { text: " second" }] },
-          { content: [{ text: " third" }] },
+          {
+            content: [{ text: "Thinking…", type: "reasoning_text" }],
+            type: "reasoning",
+          },
+          {
+            content: [
+              { text: "First", type: "output_text" },
+              { text: " second", type: "output_text" },
+            ],
+            type: "message",
+          },
+          {
+            content: [{ text: " third", type: "output_text" }],
+            type: "message",
+          },
         ],
+        text: { format: { type: "text" } },
       })
-    ).toBe("First");
+    ).toBe("First second third");
     expect(textFromBody({})).toBeUndefined();
   });
 

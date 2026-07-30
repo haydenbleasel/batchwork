@@ -53,13 +53,28 @@ export const textFromBody = (body: unknown): string | undefined => {
   }
   // Responses API batches return message content under `output`, unlike the
   // convenience `output_text` field exposed by some SDK response helpers.
+  // Reasoning models emit non-message items (e.g. `reasoning`) ahead of the
+  // answer, so only `message` items and their `output_text` parts count, and
+  // multi-part answers concatenate like OpenAI's `output_text` helper.
+  const parts: string[] = [];
   for (const output of asArray(obj.output)) {
-    for (const content of asArray(asRecord(output).content)) {
-      const text = asString(asRecord(content).text);
+    const item = asRecord(output);
+    if (item.type !== "message") {
+      continue;
+    }
+    for (const content of asArray(item.content)) {
+      const part = asRecord(content);
+      if (part.type !== "output_text") {
+        continue;
+      }
+      const text = asString(part.text);
       if (text !== undefined) {
-        return text;
+        parts.push(text);
       }
     }
+  }
+  if (parts.length > 0) {
+    return parts.join("");
   }
 };
 

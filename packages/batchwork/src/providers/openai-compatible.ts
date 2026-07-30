@@ -25,6 +25,7 @@ import { resolveApiKey, streamResultFile, uploadInputFile } from "./shared";
 export type BatchLineFormat = "body-only" | "method-url";
 
 export interface OpenAICompatibleConfig {
+  /** Env var for the default Bearer auth; unused when `authHeaders` is set. */
   apiKeyEnv: string;
   apiKeyLabel: string;
   /**

@@ -426,6 +426,47 @@ describe("azure adapter", () => {
     expect(createBody.input_file_id).toBe("file-in");
   });
 
+  it("expands a bare resource baseURL to the /openai/v1 API root", async () => {
+    const fetchMock = install([
+      {
+        body: { id: "file-in" },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/files" &&
+          method === "POST",
+      },
+      {
+        body: {
+          id: "batch_azure",
+          request_counts: { completed: 0, failed: 0, total: 1 },
+          status: "validating",
+        },
+        match: (url, method) =>
+          url === "https://example.openai.azure.com/openai/v1/batches" &&
+          method === "POST",
+      },
+    ]);
+
+    await azureAdapter.submit({
+      built: [
+        {
+          body: { messages: [], model: "batch-deployment" },
+          customId: "a",
+          endpoint: "/openai/v1/chat/completions",
+        },
+      ],
+      credentials: {
+        apiKey: "azure-test-key",
+        baseURL: "https://example.openai.azure.com",
+      },
+      endpoint: "/openai/v1/chat/completions",
+      modelId: "batch-deployment",
+    });
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://example.openai.azure.com/openai/v1/files"
+    );
+  });
+
   it("uses the Responses API result text and caller-supplied bearer auth", async () => {
     const bearerCredentials = {
       baseURL: "https://example.openai.azure.com/openai/v1",
@@ -435,7 +476,12 @@ describe("azure adapter", () => {
       custom_id: "a",
       response: {
         body: {
-          output: [{ content: [{ text: "Azure reply", type: "output_text" }] }],
+          output: [
+            {
+              content: [{ text: "Azure reply", type: "output_text" }],
+              type: "message",
+            },
+          ],
         },
         status_code: 200,
       },

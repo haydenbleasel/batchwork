@@ -81,7 +81,7 @@ await batch({
 });
 ```
 
-Batchwork sends API keys as Azure's `api-key` header. For Microsoft Entra ID, pass your own bearer token in `headers`; caller-supplied `Authorization` or `api-key` headers take precedence over environment credentials.
+Batchwork sends API keys as Azure's `api-key` header. For Microsoft Entra ID, omit `apiKey` and pass your own bearer token in `headers`; caller-supplied `Authorization` or `api-key` headers take precedence over environment credentials. (An explicit `apiKey` argument always adds the `api-key` header, so don't combine it with a bearer token.)
 
 ```ts
 await batch({

@@ -71,7 +71,10 @@ const azureCaptureBaseUrl = (
   const normalized = baseURL.replace(/\/+$/u, "");
   try {
     if (new URL(normalized).hostname.endsWith(".openai.azure.com")) {
-      return normalized.replace(/\/v1$/u, "");
+      // The AI SDK appends `/v1` itself, so it wants the `/openai` root —
+      // accept the bare resource URL, `/openai`, or `/openai/v1` forms.
+      const root = normalized.replace(/\/v1$/u, "");
+      return root.endsWith("/openai") ? root : `${root}/openai`;
     }
   } catch {
     // Let the provider report malformed URLs with its normal error.

@@ -26,9 +26,17 @@ const baseUrl = (credentials: ProviderCredentials): string => {
   }
 
   const normalized = withoutTrailingSlash(configured);
-  return isAzureOpenAIUrl(normalized) && !normalized.endsWith("/v1")
+  if (!isAzureOpenAIUrl(normalized)) {
+    return normalized;
+  }
+  // Accept the bare resource URL, its `/openai` URL, or its `/openai/v1` API
+  // root — batch calls always need the full `/openai/v1` root.
+  if (normalized.endsWith("/v1")) {
+    return normalized;
+  }
+  return normalized.endsWith("/openai")
     ? `${normalized}/v1`
-    : normalized;
+    : `${normalized}/openai/v1`;
 };
 
 const hasCallerAuth = (headers: Record<string, string> | undefined): boolean =>
@@ -65,6 +73,11 @@ export const azureAdapter = createOpenAICompatibleAdapter({
   apiKeyEnv: "AZURE_API_KEY",
   apiKeyLabel: "Azure OpenAI",
   authHeaders,
+  // Azure batch creation only accepts `/v1/chat/completions` for text batches
+  // and, unlike OpenAI, does not validate JSONL line URLs against it — so
+  // Responses input lines (`/v1/responses`) ride on this endpoint. Verified
+  // against a live Global Batch deployment; revisit if Azure adds validation
+  // or a `/v1/responses` batch endpoint.
   batchEndpoint: () => "/v1/chat/completions",
   id: "azure",
   normalizeEndpoint: (endpoint) => endpoint.replace(/^\/openai/u, ""),
