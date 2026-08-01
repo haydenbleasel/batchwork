@@ -30,7 +30,9 @@ Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`
 You can also pass a `"provider/model"` string — the only form for Mistral (`"mistral/voxtral-mini-latest"`) and Together (`"together/openai/whisper-large-v3"`), whose AI SDK packages have no transcription model yet.
 
 :::warning
+
 Batch audio endpoints accept **hosted URLs only** — there is no file upload. The provider fetches each `audioUrl` while the batch processes, so the URL must be publicly reachable (or a signed link that outlives the batch window, typically 24h).
+
 :::
 
 ## Supported providers

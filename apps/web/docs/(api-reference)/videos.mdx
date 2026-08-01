@@ -32,7 +32,9 @@ for (const r of results) {
 Everything on the [job handle](/docs/job) works unchanged — `wait()`, `poll()`, `results()`, `collect()`, and `cancel()` — as does [rehydration](/docs/usage#rehydrate-later) with `getBatch` / `getBatchResults` / `cancelBatch`. You can also pass the `"xai/grok-imagine-video"` string form.
 
 :::warning
+
 Results are **signed URLs that expire ~1 hour** after the batch completes (the same window as xAI batch images). Download promptly — there is no re-fetch.
+
 :::
 
 ## Supported providers

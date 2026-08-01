@@ -40,7 +40,9 @@ Batch embeddings are available for the providers whose batch API accepts the emb
 | Google Gemini | `gemini-embedding-2` | Async `:asyncBatchEmbedContent` batch. |
 
 :::warning
+
 Anthropic, Groq, and xAI expose **no** embedding model, and Together AI's batch API rejects the embeddings endpoint. Calling `batch.embeddings()` with any of them throws `UnsupportedProviderError` before any network request.
+
 :::
 
 ## Request shape
