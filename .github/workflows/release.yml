@@ -31,9 +31,11 @@ jobs:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
-      # Ensure npm 11.5.1 or later is installed
+      # Trusted publishing needs npm 11.5.1+. Pinned to 11.x because npm 12 changed
+      # `npm info --json` to return an array, which breaks the published-version
+      # check in `changeset publish` (it re-attempts already-published versions).
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - uses: oven-sh/setup-bun@v2
         name: Install Bun
