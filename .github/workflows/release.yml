@@ -64,6 +64,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: "" # Workaround for https://github.com/changesets/action/pull/545
+          # setup-node v7 no longer exports a dummy NODE_AUTH_TOKEN (actions/setup-node#1558),
+          # which breaks the `npm info` published-version check in `changeset publish`.
+          # Publishing uses npm OIDC trusted publishing, so no real token is needed here.
+          NODE_AUTH_TOKEN: ""
 
       - name: Deploy web to Vercel
         if: steps.changesets.outputs.published == 'true'
