@@ -73,7 +73,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@remotion/cli": "4.0.484",
-        "@remotion/google-fonts": "4.0.484",
+        "@remotion/google-fonts": "4.0.501",
         "react": "^19.2.7",
         "react-dom": "^19.2.7",
         "remotion": "4.0.484",
@@ -623,7 +623,7 @@
 
     "@remotion/compositor-win32-x64-msvc": ["@remotion/compositor-win32-x64-msvc@4.0.484", "", { "os": "win32", "cpu": "x64" }, "sha512-MxTN7uCZ5zD+X7TaaYfAR4ewtH9BZ7Wh5xS+oRJ72XbNHV/d+nULtOG3VdphFo/HhaPRzTYO9i/sZjogE+In/g=="],
 
-    "@remotion/google-fonts": ["@remotion/google-fonts@4.0.484", "", { "dependencies": { "remotion": "4.0.484" } }, "sha512-ZFq0pbchI/BkOuFDYKeuJI9OWHzwE8+7qyOEcK6AXih4ppfip9VKVrLscXptSZpyda2lszHXChAFSTavTJc/VQ=="],
+    "@remotion/google-fonts": ["@remotion/google-fonts@4.0.501", "", { "dependencies": { "remotion": "4.0.501" } }, "sha512-VYF69RClNTn2Df6azEtA0ETaBRy68LIiZvyehF6gwj6t4BL2kJESV2PYjDI0S+RbuLDKpO2YjDzdC3ybL9FzqQ=="],
 
     "@remotion/licensing": ["@remotion/licensing@4.0.484", "", {}, "sha512-YtiERD4bC3n5yQtNgEZasdZXqDKjIJssjKDLL+YjGDU3mMcw/93my83UU6jJVCB7TBrIms8DVbCgqt4hhU8kMA=="],
 
@@ -2586,6 +2586,8 @@
     "@manypkg/get-packages/fs-extra": ["fs-extra@8.1.0", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^4.0.0", "universalify": "^0.1.0" } }, "sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g=="],
 
     "@mdx-js/mdx/source-map": ["source-map@0.7.6", "", {}, "sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ=="],
+
+    "@remotion/google-fonts/remotion": ["remotion@4.0.501", "", { "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-jNv0TvxEsNL4B7aPqy16x+5oBUrJVGL33Lr1xZc4B7HAn5c7AQYMxKVZk15lEilSQBQwap+53fSYbzAIlOwCmg=="],
 
     "@remotion/studio/semver": ["semver@7.5.3", "", { "dependencies": { "lru-cache": "^6.0.0" }, "bin": { "semver": "bin/semver.js" } }, "sha512-QBlUtyVk/5EeHbi7X0fw6liDZc7BBmEaSYn01fMU1OUYbf6GPsbTtd8WmnqbI20SeycoHSeiybkE/q1Q+qlThQ=="],
 
