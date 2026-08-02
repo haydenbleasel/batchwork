@@ -15,6 +15,7 @@ import type {
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
 import type { BatchProvider, ProviderCredentials, VideoModel } from "./types";
+import { trimTrailingSlashes } from "./util";
 
 /** The shape `loadProvider` expects from each optional `@ai-sdk/*` package. */
 interface AnthropicModule {
@@ -68,7 +69,7 @@ const azureCaptureBaseUrl = (
   if (!baseURL) {
     return;
   }
-  const normalized = baseURL.replace(/\/+$/u, "");
+  const normalized = trimTrailingSlashes(baseURL);
   try {
     if (new URL(normalized).hostname.endsWith(".openai.azure.com")) {
       // The AI SDK appends `/v1` itself, so it wants the `/openai` root —

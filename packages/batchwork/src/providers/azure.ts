@@ -1,9 +1,7 @@
 import { BatchworkError } from "../errors";
 import type { ProviderCredentials } from "../types";
+import { trimTrailingSlashes } from "../util";
 import { createOpenAICompatibleAdapter } from "./openai-compatible";
-
-const withoutTrailingSlash = (value: string): string =>
-  value.replace(/\/+$/u, "");
 
 const isAzureOpenAIUrl = (value: string): boolean => {
   try {
@@ -25,7 +23,7 @@ const baseUrl = (credentials: ProviderCredentials): string => {
     );
   }
 
-  const normalized = withoutTrailingSlash(configured);
+  const normalized = trimTrailingSlashes(configured);
   if (!isAzureOpenAIUrl(normalized)) {
     return normalized;
   }
