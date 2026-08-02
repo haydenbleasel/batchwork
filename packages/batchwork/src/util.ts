@@ -1,5 +1,14 @@
 /** Small, defensive helpers for reading loosely-typed provider JSON. */
 
+/** Linear-time trailing-slash trim; a `/\/+$/` regex is polynomial (ReDoS). */
+export const trimTrailingSlashes = (value: string): string => {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") {
+    end -= 1;
+  }
+  return value.slice(0, end);
+};
+
 export const asRecord = (value: unknown): Record<string, unknown> => {
   if (typeof value === "object" && value !== null) {
     return value as Record<string, unknown>;
