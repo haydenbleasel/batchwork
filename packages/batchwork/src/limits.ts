@@ -1,5 +1,3 @@
-import pMap from "p-map";
-
 import { BatchworkError } from "./errors";
 import type { BatchLimits } from "./types";
 
@@ -71,9 +69,3 @@ export const assertByteLength = (
 ): void => {
   assertByteCount(label, byteLength(value), maxBytes);
 };
-
-export const mapWithConcurrency = <Input, Output>(
-  items: readonly Input[],
-  concurrency: number,
-  mapper: (item: Input) => Promise<Output>
-): Promise<Output[]> => pMap(items, (item) => mapper(item), { concurrency });

@@ -5,13 +5,10 @@ import {
   generateText,
 } from "ai";
 import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
+import pMap from "p-map";
 
 import { BatchworkError } from "./errors";
-import {
-  assertByteLength,
-  mapWithConcurrency,
-  resolveBatchLimits,
-} from "./limits";
+import { assertByteLength, resolveBatchLimits } from "./limits";
 import type { ResolvedBatchLimits } from "./limits";
 import {
   createCaptureEmbeddingModel,
@@ -299,9 +296,8 @@ export const buildRequestBodies = async (
   const model = await createCaptureModel(resolved, credentials, captureFetch);
   const items = assignCustomIds(requests);
 
-  return await mapWithConcurrency(
+  return await pMap(
     items,
-    limits.captureConcurrency,
     async (item) => {
       const built = await captureOne(
         model,
@@ -315,7 +311,8 @@ export const buildRequestBodies = async (
         limits.maxRequestBytes
       );
       return built;
-    }
+    },
+    { concurrency: limits.captureConcurrency }
   );
 };
 
@@ -344,9 +341,8 @@ export const buildEmbeddingBodies = async (
   );
   const items = assignCustomIds(requests);
 
-  return await mapWithConcurrency(
+  return await pMap(
     items,
-    limits.captureConcurrency,
     async (item) => {
       const built = await captureEmbeddingOne(
         model,
@@ -360,7 +356,8 @@ export const buildEmbeddingBodies = async (
         limits.maxRequestBytes
       );
       return built;
-    }
+    },
+    { concurrency: limits.captureConcurrency }
   );
 };
 
@@ -597,9 +594,8 @@ export const buildImageBodies = async (
   );
   const items = assignCustomIds(requests);
 
-  return await mapWithConcurrency(
+  return await pMap(
     items,
-    limits.captureConcurrency,
     async (item) => {
       const built = await captureImageOne(
         model,
@@ -613,7 +609,8 @@ export const buildImageBodies = async (
         limits.maxRequestBytes
       );
       return built;
-    }
+    },
+    { concurrency: limits.captureConcurrency }
   );
 };
 
@@ -770,9 +767,8 @@ export const buildVideoBodies = async (
   );
   const items = assignCustomIds(requests);
 
-  return await mapWithConcurrency(
+  return await pMap(
     items,
-    limits.captureConcurrency,
     async (item) => {
       const built = await captureVideoOne(
         model,
@@ -786,6 +782,7 @@ export const buildVideoBodies = async (
         limits.maxRequestBytes
       );
       return built;
-    }
+    },
+    { concurrency: limits.captureConcurrency }
   );
 };
