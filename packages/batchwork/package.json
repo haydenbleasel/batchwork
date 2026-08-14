@@ -63,7 +63,8 @@
     "test:live": "bun test --env-file=.env.local ./live"
   },
   "dependencies": {
-    "ai": "^7.0.15"
+    "ai": "^7.0.15",
+    "ipaddr.js": "^2.5.0"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^4.0.8",

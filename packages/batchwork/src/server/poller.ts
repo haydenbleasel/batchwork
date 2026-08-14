@@ -1,3 +1,5 @@
+import ipaddr from "ipaddr.js";
+
 import { BatchworkError } from "../errors";
 import { isTerminalStatus } from "../job";
 import { getAdapter } from "../providers";
@@ -77,93 +79,6 @@ export interface BatchPoller {
   ) => (request: Request) => Promise<Response>;
 }
 
-const parseIpv4 = (host: string): number[] | undefined => {
-  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(host)) {
-    return;
-  }
-  const parts = host.split(".").map(Number);
-  const valid = parts.every(
-    (part) => Number.isInteger(part) && part >= 0 && part <= 255
-  );
-  return valid ? parts : undefined;
-};
-
-const isPrivateIpv4 = (parts: number[]): boolean => {
-  const [a = 0, b = 0] = parts;
-  if (a === 0 || a === 10 || a === 127 || a >= 224) {
-    return true;
-  }
-  switch (a) {
-    case 100: {
-      return b >= 64 && b <= 127;
-    }
-    case 169: {
-      return b === 254;
-    }
-    case 172: {
-      return b >= 16 && b <= 31;
-    }
-    case 192: {
-      return b === 168;
-    }
-    case 198: {
-      return b === 18 || b === 19;
-    }
-    default: {
-      return false;
-    }
-  }
-};
-
-const isHextet = (value: number): boolean =>
-  Number.isInteger(value) && value >= 0 && value <= 65_535;
-
-const parseIpv4MappedIpv6 = (host: string): number[] | undefined => {
-  const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
-  if (!normalized.startsWith("::ffff:")) {
-    return;
-  }
-
-  const suffix = normalized.slice("::ffff:".length);
-  const dotted = parseIpv4(suffix);
-  if (dotted) {
-    return dotted;
-  }
-
-  const [high, low, extra] = suffix.split(":");
-  if (!(high && low) || extra !== undefined) {
-    return;
-  }
-  const highBits = Number.parseInt(high, 16);
-  const lowBits = Number.parseInt(low, 16);
-  if (!(isHextet(highBits) && isHextet(lowBits))) {
-    return;
-  }
-  return [
-    Math.floor(highBits / 256),
-    highBits % 256,
-    Math.floor(lowBits / 256),
-    lowBits % 256,
-  ];
-};
-
-const isPrivateIpv6 = (host: string): boolean => {
-  const normalized = host.replace(/^\[/u, "").replace(/\]$/u, "").toLowerCase();
-  // Only an IPv6 literal can be a private address, and one always contains a
-  // colon — guard so a bare DNS name like `fc2.com` is not mistaken for `fc00::/7`.
-  if (!normalized.includes(":")) {
-    return false;
-  }
-  if (normalized === "::" || normalized === "::1") {
-    return true;
-  }
-  return (
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:")
-  );
-};
-
 /** Whether a hostname points at localhost or a private network. */
 const isPrivateHost = (host: string): boolean => {
   if (
@@ -173,8 +88,16 @@ const isPrivateHost = (host: string): boolean => {
   ) {
     return true;
   }
-  const ipv4 = parseIpv4(host) ?? parseIpv4MappedIpv6(host);
-  return (ipv4 ? isPrivateIpv4(ipv4) : false) || isPrivateIpv6(host);
+  // A URL hostname wraps IPv6 literals in brackets; ipaddr.js expects them bare.
+  const literal = host.replace(/^\[/u, "").replace(/\]$/u, "");
+  if (!ipaddr.isValid(literal)) {
+    // A DNS name; only literal addresses are classified here.
+    return false;
+  }
+  // `process` unwraps IPv4-mapped IPv6 (`::ffff:127.0.0.1`) to IPv4 first.
+  // Anything but plain public unicast (loopback, private, link-local, CGNAT,
+  // multicast, reserved, teredo/6to4 with embedded addresses, …) is refused.
+  return ipaddr.process(literal).range() !== "unicast";
 };
 
 const isRedirectStatus = (status: number): boolean =>
