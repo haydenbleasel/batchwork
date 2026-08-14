@@ -1,3 +1,5 @@
+import pMap from "p-map";
+
 import { BatchworkError } from "./errors";
 import type { BatchLimits } from "./types";
 
@@ -70,26 +72,8 @@ export const assertByteLength = (
   assertByteCount(label, byteLength(value), maxBytes);
 };
 
-export const mapWithConcurrency = async <Input, Output>(
+export const mapWithConcurrency = <Input, Output>(
   items: readonly Input[],
   concurrency: number,
   mapper: (item: Input) => Promise<Output>
-): Promise<Output[]> => {
-  const results = [] as Output[];
-  results.length = items.length;
-  let nextIndex = 0;
-  const workerCount = Math.min(concurrency, items.length);
-
-  const runNext = async (): Promise<void> => {
-    const index = nextIndex;
-    nextIndex += 1;
-    if (index >= items.length) {
-      return;
-    }
-    results[index] = await mapper(items[index] as Input);
-    await runNext();
-  };
-
-  await Promise.all(Array.from({ length: workerCount }, () => runNext()));
-  return results;
-};
+): Promise<Output[]> => pMap(items, (item) => mapper(item), { concurrency });
