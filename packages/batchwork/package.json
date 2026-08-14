@@ -65,7 +65,8 @@
   "dependencies": {
     "ai": "^7.0.15",
     "ipaddr.js": "^2.5.0",
-    "p-map": "^7.0.6"
+    "p-map": "^7.0.6",
+    "standardwebhooks": "^1.0.0"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^4.0.8",

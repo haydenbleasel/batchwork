@@ -1,14 +1,25 @@
+import { Webhook, WebhookVerificationError } from "standardwebhooks";
+
 import { BatchworkError } from "../errors";
 import type { BatchWebhookEvent } from "./types";
 
-// Standard Webhooks-style HMAC-SHA256 signing, compatible with OpenAI's webhook
-// signatures (so the same verifier handles inbound OpenAI events and batchwork's
-// own outbound deliveries). Uses Web Crypto so it runs on edge runtimes.
+// Standard Webhooks HMAC-SHA256 signing via the reference `standardwebhooks`
+// implementation, compatible with OpenAI's webhook signatures (so the same
+// verifier handles inbound OpenAI events and batchwork's own outbound
+// deliveries). The library is pure JS, so it runs on edge runtimes.
 
-const SIGNATURE_VERSION = "v1";
 const TOLERANCE_SECONDS = 300;
 const SECRET_PREFIX = "whsec_";
 const encoder = new TextEncoder();
+
+/**
+ * A `whsec_` secret is base64-encoded key material (the library decodes it);
+ * anything else is used as raw UTF-8 bytes, matching OpenAI's conventions.
+ */
+const createWebhook = (secret: string): Webhook =>
+  secret.startsWith(SECRET_PREFIX)
+    ? new Webhook(secret)
+    : new Webhook(encoder.encode(secret), { format: "raw" });
 
 export interface WebhookReplayStore {
   claim?: (
@@ -86,57 +97,6 @@ const withReplayLock = async <Result>(
   }
 };
 
-const base64ToBytes = (value: string): Uint8Array<ArrayBuffer> =>
-  Uint8Array.from(atob(value), (char) => char.codePointAt(0) ?? 0);
-
-const bytesToBase64 = (bytes: Uint8Array): string => {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCodePoint(byte);
-  }
-  return btoa(binary);
-};
-
-const importKey = (secret: string): Promise<CryptoKey> => {
-  const raw = secret.startsWith(SECRET_PREFIX)
-    ? base64ToBytes(secret.slice(SECRET_PREFIX.length))
-    : encoder.encode(secret);
-  return crypto.subtle.importKey(
-    "raw",
-    raw,
-    { hash: "SHA-256", name: "HMAC" },
-    false,
-    ["sign", "verify"]
-  );
-};
-
-const signContent = async (
-  secret: string,
-  content: string
-): Promise<string> => {
-  const key = await importKey(secret);
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(content)
-  );
-  return bytesToBase64(new Uint8Array(signature));
-};
-
-const verifyContent = async (
-  secret: string,
-  content: string,
-  signature: string
-): Promise<boolean> => {
-  const key = await importKey(secret);
-  return crypto.subtle.verify(
-    "HMAC",
-    key,
-    base64ToBytes(signature),
-    encoder.encode(content)
-  );
-};
-
 const rememberWebhookId = async (
   id: string,
   timestamp: number,
@@ -165,19 +125,24 @@ const rememberWebhookId = async (
 };
 
 /** Build Standard Webhooks signature headers for an outbound delivery. */
-export const signWebhook = async (
+export const signWebhook = (
   secret: string,
   id: string,
   body: string,
   timestampSeconds: number
 ): Promise<Record<string, string>> => {
-  const timestamp = Math.floor(timestampSeconds).toString();
-  const signature = await signContent(secret, `${id}.${timestamp}.${body}`);
-  return {
+  const timestamp = Math.floor(timestampSeconds);
+  // `sign` returns the already version-prefixed signature (`v1,…`).
+  const signature = createWebhook(secret).sign(
+    id,
+    new Date(timestamp * 1000),
+    body
+  );
+  return Promise.resolve({
     "webhook-id": id,
-    "webhook-signature": `${SIGNATURE_VERSION},${signature}`,
-    "webhook-timestamp": timestamp,
-  };
+    "webhook-signature": signature,
+    "webhook-timestamp": timestamp.toString(),
+  });
 };
 
 export interface VerifiedWebhook {
@@ -213,24 +178,26 @@ export const verifyWebhook = async (
   }
 
   const body = await request.text();
-  const content = `${id}.${timestamp}.${body}`;
-  const signatures = signatureHeader.split(" ").map((part) => {
-    const comma = part.indexOf(",");
-    return comma === -1 ? part : part.slice(comma + 1);
-  });
-
-  let valid = false;
-  for (const signature of signatures) {
-    // oxlint-disable-next-line no-await-in-loop -- usually a single signature.
-    if (await verifyContent(secret, content, signature)) {
-      valid = true;
-      break;
+  try {
+    createWebhook(secret).verify(body, {
+      "webhook-id": id,
+      "webhook-signature": signatureHeader,
+      "webhook-timestamp": timestamp,
+    });
+  } catch (error) {
+    if (error instanceof WebhookVerificationError) {
+      // The library re-checks the timestamp with the same tolerance; map its
+      // failures onto the tolerance error above for a stable error surface.
+      throw new BatchworkError(
+        error.message.toLowerCase().includes("timestamp")
+          ? "batchwork: webhook timestamp outside tolerance."
+          : "batchwork: webhook signature verification failed.",
+        { cause: error }
+      );
     }
-  }
-  if (!valid) {
-    throw new BatchworkError(
-      "batchwork: webhook signature verification failed."
-    );
+    // Any other error means the signature verified but the library's trailing
+    // `JSON.parse` of the payload failed. `verifyWebhook` returns the raw body
+    // and does not require JSON, so a non-JSON body is not an error here.
   }
 
   await rememberWebhookId(
