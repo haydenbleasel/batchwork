@@ -1,5 +1,13 @@
 # batchwork
 
+## 1.4.1
+
+### Patch Changes
+
+- 34b89a2: Delegate webhook HMAC signing and verification to `standardwebhooks`, the Standard Webhooks reference implementation (pure JS, edge-compatible). Batchwork's error surface, raw-string secret handling, replay protection, and non-JSON body support are unchanged.
+- 2c59103: Back `mapWithConcurrency` (used for concurrent request-body capture) with `p-map` instead of a hand-rolled worker pool. Behavior is unchanged for callers; a failed capture now also stops launching further work instead of letting remaining workers run to completion with discarded results.
+- f8e8d93: Replace the hand-rolled private-IP classification in the webhook URL validator with `ipaddr.js`. The battle-tested parser closes gaps in the previous checks (e.g. `192.0.0.0/24`, documentation ranges, 6to4/Teredo addresses with embedded targets) and unwraps IPv4-mapped IPv6 literals more robustly.
+
 ## 1.4.0
 
 ### Minor Changes
