@@ -24,7 +24,7 @@
     "@remotion/google-fonts": "4.0.501",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "remotion": "4.0.501"
+    "remotion": "4.0.518"
   },
   "devDependencies": {
     "@types/node": "^26.1.0",
