@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import {
   batch,
@@ -9,33 +9,9 @@ import {
   getBatchResults,
 } from "../src/batch";
 import type { BatchResult } from "../src/types";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import { installRoutes } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 describe("batch (end-to-end, mocked transport)", () => {
   afterEach(() => {
@@ -43,7 +19,7 @@ describe("batch (end-to-end, mocked transport)", () => {
   });
 
   it("submits, waits, and collects an OpenAI batch", async () => {
-    install([
+    installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -97,7 +73,7 @@ describe("batch (end-to-end, mocked transport)", () => {
   });
 
   it("submits an Azure OpenAI batch and normalizes Responses output", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) =>
@@ -178,7 +154,7 @@ describe("batch.embeddings (end-to-end, mocked transport)", () => {
   });
 
   it("submits an OpenAI embeddings batch against the embeddings endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -254,10 +230,10 @@ describe("batch.embeddings (end-to-end, mocked transport)", () => {
 
 describe("batch namespace", () => {
   it("is callable as a text shorthand and exposes a method per modality", () => {
-    expect(typeof batch).toBe("function");
+    expect(batch).toBeInstanceOf(Function);
     expect(batch.text).toBe(batch);
-    expect(typeof batch.embeddings).toBe("function");
-    expect(typeof batch.images).toBe("function");
+    expect(batch.embeddings).toBeInstanceOf(Function);
+    expect(batch.images).toBeInstanceOf(Function);
   });
 
   it("keeps the deprecated standalone aliases wired to the namespace", () => {
@@ -282,7 +258,7 @@ describe("getBatch / getBatchResults / cancelBatch", () => {
   });
 
   it("rehydrates a handle from a provider + id", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "batch_1",
@@ -303,7 +279,7 @@ describe("getBatch / getBatchResults / cancelBatch", () => {
   });
 
   it("infers the provider from a model when no provider is given", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "batch_2",
@@ -330,7 +306,7 @@ describe("getBatch / getBatchResults / cancelBatch", () => {
   });
 
   it("streams results for an existing batch by id", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "batch_4",
@@ -355,7 +331,7 @@ describe("getBatch / getBatchResults / cancelBatch", () => {
   });
 
   it("cancels an existing batch by id", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "batch_5", status: "cancelling" },
         match: (url, method) => url.endsWith("/cancel") && method === "POST",

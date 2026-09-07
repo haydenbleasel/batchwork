@@ -27,16 +27,16 @@ export const createRedisStore = (
       await redis.del(batchKey(id));
       await redis.srem(indexKey, id);
     },
-    get: async (id) => coerce<TrackedBatch>(await redis.get(batchKey(id))),
+    get: async (id) => coerce(await redis.get(batchKey(id))),
     list: async (filter) => {
       const ids = await redis.smembers(indexKey);
       if (ids.length === 0) {
         return [];
       }
-      const raws = await redis.mget<unknown[]>(...ids.map(batchKey));
+      const raws = await redis.mget(...ids.map(batchKey));
       const records: TrackedBatch[] = [];
       for (const raw of raws) {
-        const record = coerce<TrackedBatch>(raw);
+        const record = coerce(raw);
         if (record) {
           records.push(record);
         }

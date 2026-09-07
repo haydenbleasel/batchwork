@@ -1,18 +1,23 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { requestJson, requestStream } from "../src/http";
+import { installFetch } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
 
-/** Install a fetch that returns the given response object for any call. */
-const install = (response: Partial<Response> | (() => Promise<Response>)) => {
-  const fetchMock = mock(() =>
-    typeof response === "function"
-      ? response()
-      : Promise.resolve(response as Response)
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
+/** Install a fetch that answers every call with `respond`. */
+const install = (respond: () => Promise<Response>) => installFetch(respond);
+
+/**
+ * Install a fetch resolving to a partial `Response` stand-in that carries only
+ * the members under test.
+ */
+const installPartial = (response: Partial<Response>) => {
+  // SAFETY: `requestJson`/`requestStream` read only `ok`, `status`, `body`,
+  // and `text` from a response, and each stand-in supplies exactly the members
+  // its test exercises.
+  const stub = response as Response;
+  return installFetch(() => Promise.resolve(stub));
 };
 
 describe("requestJson", () => {
@@ -24,9 +29,9 @@ describe("requestJson", () => {
     install(() =>
       Promise.resolve(new Response('{"ok":true}', { status: 200 }))
     );
-    await expect(
-      requestJson<{ ok: boolean }>("https://x.test/y", {})
-    ).resolves.toEqual({ ok: true });
+    await expect(requestJson("https://x.test/y", {})).resolves.toEqual({
+      ok: true,
+    });
   });
 
   it("throws with the method, url, and status on failure", async () => {
@@ -44,7 +49,7 @@ describe("requestJson", () => {
 
   it("does not read or leak provider error bodies", async () => {
     let read = false;
-    install({
+    installPartial({
       ok: false,
       status: 500,
       text: () => {
@@ -83,7 +88,7 @@ describe("requestStream", () => {
   });
 
   it("throws when the body is empty", async () => {
-    install({ body: null, ok: true, status: 200 });
+    installPartial({ body: null, ok: true, status: 200 });
     await expect(requestStream("https://x.test/y", {})).rejects.toThrow(
       "returned an empty body"
     );

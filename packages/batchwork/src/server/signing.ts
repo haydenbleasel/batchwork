@@ -220,5 +220,7 @@ export const verifyBatchWebhook = async (
   options?: VerifyWebhookOptions
 ): Promise<BatchWebhookEvent> => {
   const { body } = await verifyWebhook(request, secret, options);
+  // SAFETY: the signature just verified against the shared secret proves the
+  // body was produced by batchwork's own delivery, which serializes `toEvent`.
   return JSON.parse(body) as BatchWebhookEvent;
 };

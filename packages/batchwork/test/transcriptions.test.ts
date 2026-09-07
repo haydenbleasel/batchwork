@@ -1,42 +1,11 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { createGroq } from "@ai-sdk/groq";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  headers?: Record<string, string>;
-  match: (url: string, method: string) => boolean;
-  status?: number;
-}
+import { installRoutes, uploadedJsonl } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(
-        new Response(payload, {
-          headers: route.headers,
-          status: route.status ?? 200,
-        })
-      );
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const AUDIO_URL = "https://example.com/call.wav";
 
@@ -46,7 +15,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
   });
 
   it("submits a Groq transcription batch against the audio endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -101,8 +70,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     // The per-line `url` targets the audio endpoint; the audio file rides in
     // the body's `url` field (Groq batch takes hosted URLs, not file uploads).
     expect(jsonl).toContain('"url":"/v1/audio/transcriptions"');
@@ -123,7 +91,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
   });
 
   it("submits a Mistral transcription batch with the model on the job", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -170,8 +138,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain(`"file_url":"${AUDIO_URL}"`);
     // Mistral carries the model on the job, so it is stripped from each line.
     expect(jsonl).not.toContain('"model"');
@@ -189,7 +156,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
 
   it("submits a Together transcription batch with FILE-method lines", async () => {
     const storageUrl = "https://storage.example/presigned-put";
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: "",
         headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },
@@ -263,7 +230,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
   });
 
   it("merges defaults and provider options into the request body", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -290,8 +257,7 @@ describe("batch.transcriptions (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"language":"en"');
     expect(jsonl).toContain('"temperature":0');
   });

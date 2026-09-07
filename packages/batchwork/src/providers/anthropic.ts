@@ -8,6 +8,8 @@ import type {
   BatchSnapshot,
   BatchStatus,
   BatchUsage,
+  HttpHeaders,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import { asArray, asNumber, asRecord, asString, omit, toDate } from "../util";
@@ -57,7 +59,7 @@ const validateResultsUrl = (
   return resultsUrl.toString();
 };
 
-const headers = (credentials: ProviderCredentials): Record<string, string> => ({
+const headers = (credentials: ProviderCredentials): HttpHeaders => ({
   "anthropic-version": ANTHROPIC_VERSION,
   "content-type": "application/json",
   "x-api-key": apiKey(credentials),
@@ -74,7 +76,7 @@ const mapStatus = (status: string | undefined): BatchStatus => {
   return "in_progress";
 };
 
-const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
+const normalizeSnapshot = (raw: JsonValue): BatchSnapshot => {
   const obj = asRecord(raw);
   const counts = asRecord(obj.request_counts);
   const succeeded = asNumber(counts.succeeded) ?? 0;
@@ -102,7 +104,9 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   };
 };
 
-const textFromMessage = (message: unknown): string | undefined => {
+const textFromMessage = (
+  message: JsonValue | undefined
+): string | undefined => {
   let text = "";
   for (const item of asArray(asRecord(message).content)) {
     const block = asRecord(item);
@@ -113,7 +117,9 @@ const textFromMessage = (message: unknown): string | undefined => {
   return text.length > 0 ? text : undefined;
 };
 
-const usageFromMessage = (message: unknown): BatchUsage | undefined => {
+const usageFromMessage = (
+  message: JsonValue | undefined
+): BatchUsage | undefined => {
   const usage = asRecord(asRecord(message).usage);
   const inputTokens = asNumber(usage.input_tokens);
   const outputTokens = asNumber(usage.output_tokens);
@@ -127,7 +133,7 @@ const usageFromMessage = (message: unknown): BatchUsage | undefined => {
   };
 };
 
-const normalizeResult = (line: unknown): BatchResult => {
+const normalizeResult = (line: JsonValue): BatchResult => {
   const obj = asRecord(line);
   const customId = asString(obj.custom_id) ?? "";
   const result = asRecord(obj.result);

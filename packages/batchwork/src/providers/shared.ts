@@ -6,6 +6,7 @@
  */
 
 import { BatchworkError } from "../errors";
+import { isBoolean } from "../guards";
 import { requestJson, requestStream } from "../http";
 import { streamJsonl } from "../jsonl";
 import type {
@@ -15,6 +16,7 @@ import type {
   BatchResultError,
   BatchTranscriptionSegment,
   BatchUsage,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import { asArray, asNumber, asNumberArray, asRecord, asString } from "../util";
@@ -37,7 +39,9 @@ export const resolveApiKey = (
   return key;
 };
 
-export const textFromBody = (body: unknown): string | undefined => {
+export const textFromBody = (
+  body: JsonValue | undefined
+): string | undefined => {
   const obj = asRecord(body);
   const choices = asArray(obj.choices);
   if (choices.length > 0) {
@@ -85,7 +89,7 @@ export const textFromBody = (body: unknown): string | undefined => {
  * chat/embedding/image results are unaffected.
  */
 export const segmentsFromBody = (
-  body: unknown
+  body: JsonValue | undefined
 ): BatchTranscriptionSegment[] | undefined => {
   const obj = asRecord(body);
   if (asString(obj.text) === undefined) {
@@ -107,7 +111,9 @@ export const segmentsFromBody = (
 };
 
 /** Read the embedding vector from an OpenAI-shaped embeddings response body. */
-export const embeddingFromBody = (body: unknown): number[] | undefined => {
+export const embeddingFromBody = (
+  body: JsonValue | undefined
+): number[] | undefined => {
   const data = asArray(asRecord(body).data);
   if (data.length === 0) {
     return;
@@ -120,7 +126,9 @@ export const embeddingFromBody = (body: unknown): number[] | undefined => {
  * (`{ data: [{ b64_json }], output_format? }`). Returns undefined when the body
  * carries no image data, so chat/embedding results are unaffected.
  */
-export const imagesFromBody = (body: unknown): BatchImage[] | undefined => {
+export const imagesFromBody = (
+  body: JsonValue | undefined
+): BatchImage[] | undefined => {
   const obj = asRecord(body);
   const mediaType = `image/${asString(obj.output_format) ?? "png"}`;
   const images: BatchImage[] = [];
@@ -141,7 +149,7 @@ export const imagesFromBody = (body: unknown): BatchImage[] | undefined => {
  * other result shapes are unaffected.
  */
 export const moderationFromBody = (
-  body: unknown
+  body: JsonValue | undefined
 ): BatchModeration | undefined => {
   const results = asArray(asRecord(body).results);
   if (results.length === 0) {
@@ -150,7 +158,7 @@ export const moderationFromBody = (
   const first = asRecord(results[0]);
   const categories: Record<string, boolean> = {};
   for (const [key, value] of Object.entries(asRecord(first.categories))) {
-    if (typeof value === "boolean") {
+    if (isBoolean(value)) {
       categories[key] = value;
     }
   }
@@ -164,14 +172,15 @@ export const moderationFromBody = (
       categoryScores[key] = score;
     }
   }
-  const flagged =
-    typeof first.flagged === "boolean"
-      ? first.flagged
-      : Object.values(categories).some(Boolean);
+  const flagged = isBoolean(first.flagged)
+    ? first.flagged
+    : Object.values(categories).some(Boolean);
   return { categories, categoryScores, flagged };
 };
 
-export const usageFromBody = (body: unknown): BatchUsage | undefined => {
+export const usageFromBody = (
+  body: JsonValue | undefined
+): BatchUsage | undefined => {
   const usage = asRecord(asRecord(body).usage);
   const inputTokens =
     asNumber(usage.prompt_tokens) ?? asNumber(usage.input_tokens);
@@ -192,7 +201,10 @@ export const usageFromBody = (body: unknown): BatchUsage | undefined => {
   };
 };
 
-const errorFromValue = (value: unknown, fallback: string): BatchResultError => {
+const errorFromValue = (
+  value: JsonValue | undefined,
+  fallback: string
+): BatchResultError => {
   const obj = asRecord(value);
   const nested = asRecord(obj.error);
   const source = nested.message ? nested : obj;
@@ -204,7 +216,7 @@ const errorFromValue = (value: unknown, fallback: string): BatchResultError => {
 };
 
 /** Normalize an OpenAI-shaped result line into a {@link BatchResult}. */
-export const normalizeOpenAIResult = (line: unknown): BatchResult => {
+export const normalizeOpenAIResult = (line: JsonValue): BatchResult => {
   const obj = asRecord(line);
   const customId = asString(obj.custom_id) ?? "";
 
@@ -261,13 +273,19 @@ export const uploadInputFile = async (
     new Blob([jsonl], { type: "application/jsonl" }),
     "batchwork.jsonl"
   );
-  const raw = await requestJson<{ id: string }>(`${baseUrl}/files`, {
+  const raw = await requestJson(`${baseUrl}/files`, {
     body: form,
     headers,
     method: "POST",
     redirect: "manual",
   });
-  return raw.id;
+  const id = asString(asRecord(raw).id);
+  if (!id) {
+    throw new BatchworkError(
+      "batchwork: the file upload response carried no file id."
+    );
+  }
+  return id;
 };
 
 /**

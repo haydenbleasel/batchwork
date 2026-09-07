@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { createBatchPoller } from "../src/server/poller";
 import {
@@ -8,35 +8,14 @@ import {
 } from "../src/server/signing";
 import { createMemoryStore } from "../src/server/store";
 import type { BatchWebhookEvent } from "../src/server/types";
-
-type FetchInput = string | URL | Request;
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import {
+  installFetch,
+  installRoutes,
+  jsonBody,
+  requestUrl,
+} from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: FetchInput, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const WEBHOOK_URL = "https://app.test/webhooks/batch";
 const SECRET = "topsecret";
@@ -152,7 +131,7 @@ describe("createBatchPoller", () => {
       { secret: SECRET, webhookUrl: WEBHOOK_URL }
     );
 
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: completedBatch("batch_delivery"),
         match: (url, method) =>
@@ -167,11 +146,14 @@ describe("createBatchPoller", () => {
     const delivery = fetchMock.mock.calls.find(
       (call) => call[0] === WEBHOOK_URL
     );
-    const init = delivery?.[1] as RequestInit;
-    const headers = init.headers as Record<string, string>;
-    expect(headers["webhook-signature"]).toMatch(/^v1,/u);
+    const init = delivery?.[1];
+    if (!init) {
+      throw new Error("expected webhook delivery request");
+    }
+    const headers = new Headers(init.headers);
+    expect(headers.get("webhook-signature")).toMatch(/^v1,/u);
 
-    const event = JSON.parse(String(init.body)) as BatchWebhookEvent;
+    const event = jsonBody(delivery);
     expect(event).toMatchObject({
       id: "batch_delivery",
       provider: "openai",
@@ -184,7 +166,7 @@ describe("createBatchPoller", () => {
       headers,
       method: "POST",
     });
-    expect(await verifyBatchWebhook(received, SECRET)).toEqual(event);
+    expect(await verifyBatchWebhook(received, SECRET)).toMatchObject(event);
 
     const stored = await store.get("batch_delivery");
     expect(stored?.deliveredAt).toBeDefined();
@@ -232,7 +214,7 @@ describe("createBatchPoller", () => {
       status: "in_progress",
       webhookUrl: "https://127.0.0.1/internal",
     });
-    install([
+    installRoutes([
       {
         body: completedBatch("batch_private"),
         match: (url, method) =>
@@ -255,35 +237,30 @@ describe("createBatchPoller", () => {
 
     const redirectedUrl = "https://127.0.0.1/internal";
     const requestedUrls: string[] = [];
-    const fetchMock = mock(
-      (input: FetchInput, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : String(input);
-        requestedUrls.push(url);
+    const fetchMock = installFetch((input, init) => {
+      const url = requestUrl(input);
+      requestedUrls.push(url);
 
-        if (url.includes("/batches/batch_redirect")) {
+      if (url.includes("/batches/batch_redirect")) {
+        return Promise.resolve(Response.json(completedBatch("batch_redirect")));
+      }
+      if (url === WEBHOOK_URL) {
+        if (init?.redirect === "manual") {
           return Promise.resolve(
-            Response.json(completedBatch("batch_redirect"))
+            new Response("redirect", {
+              headers: { location: redirectedUrl },
+              status: 302,
+            })
           );
         }
-        if (url === WEBHOOK_URL) {
-          if (init?.redirect === "manual") {
-            return Promise.resolve(
-              new Response("redirect", {
-                headers: { location: redirectedUrl },
-                status: 302,
-              })
-            );
-          }
-          requestedUrls.push(redirectedUrl);
-          return Promise.resolve(new Response("internal", { status: 200 }));
-        }
-        if (url === redirectedUrl) {
-          return Promise.resolve(new Response("internal", { status: 200 }));
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+        requestedUrls.push(redirectedUrl);
+        return Promise.resolve(new Response("internal", { status: 200 }));
       }
-    );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+      if (url === redirectedUrl) {
+        return Promise.resolve(new Response("internal", { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
 
     await expect(poller.tick()).rejects.toThrow("redirected");
 
@@ -293,7 +270,7 @@ describe("createBatchPoller", () => {
     if (!delivery) {
       throw new Error("expected webhook delivery request");
     }
-    expect((delivery[1] as RequestInit).redirect).toBe("manual");
+    expect(delivery[1]?.redirect).toBe("manual");
     expect(requestedUrls).not.toContain(redirectedUrl);
     const stored = await store.get("batch_redirect");
     expect(stored?.deliveredAt).toBeUndefined();
@@ -315,7 +292,7 @@ describe("createBatchPoller", () => {
       { webhookUrl }
     );
 
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: completedBatch("batch_custom"),
         match: (url, method) =>
@@ -347,7 +324,7 @@ describe("createBatchPoller", () => {
     });
     await poller.track({ id: "batch_sink", provider: "openai" }, {});
 
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: completedBatch("batch_sink"),
         match: (url, method) =>
@@ -374,7 +351,7 @@ describe("createBatchPoller", () => {
       { webhookUrl: WEBHOOK_URL }
     );
 
-    install([
+    installRoutes([
       {
         body: {
           id: "batch_2",
@@ -399,7 +376,7 @@ describe("createBatchPoller", () => {
       { secret: SECRET, webhookUrl: WEBHOOK_URL }
     );
 
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: completedBatch("batch_3"),
         match: (url, method) =>
@@ -450,7 +427,7 @@ describe("createBatchPoller", () => {
       { id: "batch_fn", provider: "openai" },
       { webhookUrl: WEBHOOK_URL }
     );
-    install([
+    installRoutes([
       {
         body: completedBatch("batch_fn"),
         match: (url, method) =>
@@ -470,7 +447,7 @@ describe("createBatchPoller", () => {
       { id: "batch_change", provider: "openai" },
       { webhookUrl: WEBHOOK_URL }
     );
-    install([
+    installRoutes([
       {
         body: {
           id: "batch_change",
@@ -495,7 +472,7 @@ describe("createBatchPoller", () => {
     // propagates it).
     const poller = createBatchPoller({ credentials: { apiKey: "k" }, store });
     await poller.track({ id: "batch_nourl", provider: "openai" }, {});
-    install([
+    installRoutes([
       {
         body: completedBatch("batch_nourl"),
         match: (url, method) =>
@@ -515,8 +492,8 @@ describe("createBatchPoller", () => {
       { id: "batch_fail", provider: "openai" },
       { webhookUrl: WEBHOOK_URL }
     );
-    const fetchMock = mock((input: FetchInput): Promise<Response> => {
-      const url = String(input);
+    installFetch((input) => {
+      const url = requestUrl(input);
       if (url.includes("/batches/batch_fail")) {
         return Promise.resolve(
           Response.json(completedBatch("batch_fail"), {
@@ -529,7 +506,6 @@ describe("createBatchPoller", () => {
       }
       return Promise.reject(new Error(`unexpected ${url}`));
     });
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     await expect(poller.tick()).rejects.toThrow("webhook delivery");
   });
@@ -601,7 +577,7 @@ describe("createBatchPoller", () => {
         { id: "batch_wip", provider: "openai" },
         { webhookUrl: WEBHOOK_URL }
       );
-      install([
+      installRoutes([
         {
           body: {
             id: "batch_wip",

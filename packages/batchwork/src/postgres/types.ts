@@ -6,10 +6,7 @@
  * batchwork never imports a driver, so it adds no dependency of its own.
  */
 export interface SqlExecutor {
-  query: <Row = Record<string, unknown>>(
-    text: string,
-    params?: unknown[]
-  ) => Promise<{ rows: Row[] }>;
+  query: <Row>(text: string, params?: unknown[]) => Promise<{ rows: Row[] }>;
 }
 
 /** Options for the Postgres-backed batch store. */

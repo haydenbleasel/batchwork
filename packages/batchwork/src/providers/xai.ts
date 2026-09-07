@@ -7,6 +7,9 @@ import type {
   BatchSnapshot,
   BatchStatus,
   BatchVideo,
+  HttpHeaders,
+  JsonObject,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import { asArray, asNumber, asRecord, asString, omit, toDate } from "../util";
@@ -29,14 +32,12 @@ const apiKey = (credentials: ProviderCredentials): string =>
 const baseUrl = (credentials: ProviderCredentials): string =>
   credentials.baseURL ?? XAI_BASE;
 
-const authHeaders = (
-  credentials: ProviderCredentials
-): Record<string, string> => ({
+const authHeaders = (credentials: ProviderCredentials): HttpHeaders => ({
   Authorization: `Bearer ${apiKey(credentials)}`,
   ...credentials.headers,
 });
 
-const deriveStatus = (state: Record<string, unknown>): BatchStatus => {
+const deriveStatus = (state: JsonObject): BatchStatus => {
   const pending = asNumber(state.num_pending);
   // No counts yet (e.g. immediately after creation): still processing.
   if (pending === undefined) {
@@ -56,7 +57,7 @@ const deriveStatus = (state: Record<string, unknown>): BatchStatus => {
   return "completed";
 };
 
-const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
+const normalizeSnapshot = (raw: JsonValue): BatchSnapshot => {
   const obj = asRecord(raw);
   const state = asRecord(obj.state);
   const id = asString(obj.batch_id) ?? asString(obj.id) ?? "";
@@ -87,7 +88,7 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
  * inline `base64`. Returns undefined for chat results, which carry neither.
  */
 const imagesFromXaiCompletion = (
-  completion: unknown
+  completion: JsonValue | undefined
 ): BatchImage[] | undefined => {
   const obj = asRecord(completion);
   const entries = asArray(obj.data);
@@ -98,10 +99,14 @@ const imagesFromXaiCompletion = (
     const data = asString(record.base64) ?? asString(record.b64_json);
     const url = asString(record.url);
     if (data || url) {
-      images.push({
-        ...(data ? { data } : {}),
-        ...(url ? { url } : {}),
-      });
+      const image: BatchImage = {};
+      if (data) {
+        image.data = data;
+      }
+      if (url) {
+        image.url = url;
+      }
+      images.push(image);
     }
   }
   return images.length > 0 ? images : undefined;
@@ -114,7 +119,7 @@ const imagesFromXaiCompletion = (
  * completion. Only called for video ops, so image/chat results are unaffected.
  */
 const videosFromXaiCompletion = (
-  completion: unknown
+  completion: JsonValue | undefined
 ): BatchVideo[] | undefined => {
   const obj = asRecord(completion);
   const entries = asArray(obj.data);
@@ -125,17 +130,18 @@ const videosFromXaiCompletion = (
     const video = asRecord(record.video);
     const url = asString(video.url) ?? asString(record.url);
     if (url) {
+      const entry: BatchVideo = { url };
       const duration = asNumber(video.duration) ?? asNumber(record.duration);
-      videos.push({
-        ...(duration === undefined ? {} : { durationSeconds: duration }),
-        url,
-      });
+      if (duration !== undefined) {
+        entry.durationSeconds = duration;
+      }
+      videos.push(entry);
     }
   }
   return videos.length > 0 ? videos : undefined;
 };
 
-const normalizeResult = (item: unknown): BatchResult => {
+const normalizeResult = (item: JsonValue): BatchResult => {
   const obj = asRecord(item);
   const customId = asString(obj.batch_request_id) ?? "";
   const batchResult = asRecord(obj.batch_result);
@@ -233,12 +239,12 @@ async function* results(
       query.set("pagination_token", token);
     }
     // oxlint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop -- pages are read sequentially.
-    const raw = await requestJson<Record<string, unknown>>(
+    const raw = await requestJson(
       `${baseUrl(credentials)}/batches/${batchId}/results?${query.toString()}`,
       { headers }
     );
     const page = asRecord(raw);
-    for (const item of Array.isArray(page.results) ? page.results : []) {
+    for (const item of asArray(page.results)) {
       yield normalizeResult(item);
     }
     token = asString(page.pagination_token);

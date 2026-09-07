@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { anthropicAdapter } from "../src/providers/anthropic";
 import { azureAdapter } from "../src/providers/azure";
@@ -9,44 +9,18 @@ import { openaiAdapter } from "../src/providers/openai";
 import { togetherAdapter } from "../src/providers/together";
 import { xaiAdapter } from "../src/providers/xai";
 import type { BatchResult } from "../src/types";
+import { asRecord, parseJson } from "../src/util";
+import {
+  installFetch,
+  installRoutes,
+  requestUrl,
+  uploadedForm,
+  uploadedLines,
+} from "./fetch-mock";
 
 const credentials = { apiKey: "test-key" };
 
-type FetchInput = string | URL | Request;
-
-interface Route {
-  body: unknown;
-  headers?: Record<string, string>;
-  match: (url: string, method: string) => boolean;
-  status?: number;
-}
-
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: FetchInput, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(
-        new Response(payload, {
-          headers: route.headers,
-          status: route.status ?? 200,
-        })
-      );
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const collect = async (
   source: AsyncIterable<BatchResult>
@@ -58,30 +32,13 @@ const collect = async (
   return out;
 };
 
-const uploadedForm = (call: readonly unknown[] | undefined): FormData => {
-  const init = call?.[1] as RequestInit | undefined;
-  return init?.body as FormData;
-};
-
-const uploadedJsonl = async (
-  call: readonly unknown[] | undefined
-): Promise<Record<string, unknown>[]> => {
-  const form = uploadedForm(call);
-  const file = form.get("file") as Blob;
-  const text = await file.text();
-  return text
-    .trim()
-    .split("\n")
-    .map((line) => JSON.parse(line) as Record<string, unknown>);
-};
-
 describe("anthropic adapter", () => {
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
 
   it("submits an inline request array and normalizes the snapshot", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {
           created_at: "2026-01-01T00:00:00Z",
@@ -131,7 +88,7 @@ describe("anthropic adapter", () => {
   });
 
   it("rejects inline payloads above the byte limit before fetch", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
 
     await expect(
       anthropicAdapter.submit({
@@ -163,7 +120,7 @@ describe("anthropic adapter", () => {
       '{"custom_id":"d","result":{"type":"canceled"}}',
     ].join("\n");
 
-    install([
+    installRoutes([
       {
         body: {
           id: "b1",
@@ -208,7 +165,7 @@ describe("openai adapter", () => {
   });
 
   it("uploads a JSONL file then creates the batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -250,7 +207,7 @@ describe("openai adapter", () => {
   });
 
   it("rejects JSONL uploads above the byte limit before fetch", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
 
     await expect(
       openaiAdapter.submit({
@@ -273,29 +230,26 @@ describe("openai adapter", () => {
   it("rejects direct file upload redirects without following them", async () => {
     const redirectedUrl = "https://127.0.0.1/internal-upload";
     const requestedUrls: string[] = [];
-    const fetchMock = mock(
-      (input: FetchInput, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : String(input);
-        requestedUrls.push(url);
-        if (url.endsWith("/files")) {
-          if (init?.redirect === "manual") {
-            return Promise.resolve(
-              new Response("redirect", {
-                headers: { location: redirectedUrl },
-                status: 307,
-              })
-            );
-          }
-          requestedUrls.push(redirectedUrl);
-          return Promise.resolve(Response.json({ id: "file-in" }));
+    const fetchMock = installFetch((input, init) => {
+      const url = requestUrl(input);
+      requestedUrls.push(url);
+      if (url.endsWith("/files")) {
+        if (init?.redirect === "manual") {
+          return Promise.resolve(
+            new Response("redirect", {
+              headers: { location: redirectedUrl },
+              status: 307,
+            })
+          );
         }
-        if (url.endsWith("/batches")) {
-          return Promise.resolve(Response.json({ id: "batch_1" }));
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+        requestedUrls.push(redirectedUrl);
+        return Promise.resolve(Response.json({ id: "file-in" }));
       }
-    );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+      if (url.endsWith("/batches")) {
+        return Promise.resolve(Response.json({ id: "batch_1" }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
 
     await expect(
       openaiAdapter.submit({
@@ -318,7 +272,7 @@ describe("openai adapter", () => {
     if (!upload) {
       throw new Error("expected file upload request");
     }
-    expect((upload[1] as RequestInit).redirect).toBe("manual");
+    expect(upload[1]?.redirect).toBe("manual");
     expect(requestedUrls).not.toContain(redirectedUrl);
     expect(
       fetchMock.mock.calls.some((call) => String(call[0]).endsWith("/batches"))
@@ -331,7 +285,7 @@ describe("openai adapter", () => {
     const errors =
       '{"custom_id":"b","response":null,"error":{"message":"bad model","type":"invalid_request_error","code":"model_not_found"}}';
 
-    install([
+    installRoutes([
       {
         body: {
           error_file_id: "file-err",
@@ -375,7 +329,7 @@ describe("azure adapter", () => {
   };
 
   it("uses Azure's API root, api-key auth, and batch endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) =>
@@ -408,14 +362,11 @@ describe("azure adapter", () => {
     });
 
     expect(snapshot).toMatchObject({ id: "batch_azure", provider: "azure" });
-    const uploadHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<
-      string,
-      string
-    >;
-    expect(uploadHeaders["api-key"]).toBe("azure-test-key");
-    expect(uploadHeaders.Authorization).toBeUndefined();
+    const uploadHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(uploadHeaders.get("api-key")).toBe("azure-test-key");
+    expect(uploadHeaders.get("authorization")).toBeNull();
 
-    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    const lines = await uploadedLines(fetchMock.mock.calls[0]);
     expect(lines[0]).toMatchObject({
       custom_id: "a",
       method: "POST",
@@ -427,7 +378,7 @@ describe("azure adapter", () => {
   });
 
   it("expands a bare resource baseURL to the /openai/v1 API root", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) =>
@@ -486,7 +437,7 @@ describe("azure adapter", () => {
         status_code: 200,
       },
     });
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {
           id: "batch_azure",
@@ -506,12 +457,9 @@ describe("azure adapter", () => {
     expect(out).toMatchObject([
       { customId: "a", status: "succeeded", text: "Azure reply" },
     ]);
-    const retrieveHeaders = fetchMock.mock.calls[0]?.[1]?.headers as Record<
-      string,
-      string
-    >;
-    expect(retrieveHeaders.Authorization).toBe("Bearer entra-token");
-    expect(retrieveHeaders["api-key"]).toBeUndefined();
+    const retrieveHeaders = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(retrieveHeaders.get("authorization")).toBe("Bearer entra-token");
+    expect(retrieveHeaders.get("api-key")).toBeNull();
   });
 });
 
@@ -521,7 +469,7 @@ describe("groq adapter", () => {
   });
 
   it("normalizes the captured endpoint for the line url and batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -553,7 +501,7 @@ describe("groq adapter", () => {
     expect(snapshot.id).toBe("batch_g");
     expect(snapshot.provider).toBe("groq");
 
-    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    const lines = await uploadedLines(fetchMock.mock.calls[0]);
     expect(lines[0]?.url).toBe("/v1/chat/completions");
     expect(lines[0]?.method).toBe("POST");
     const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
@@ -582,7 +530,7 @@ describe("together adapter", () => {
 
   it("uploads via the presigned-URL flow and sets the endpoint on the batch", async () => {
     const storageUrl = "https://storage.example/presigned-put";
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       // 1. Init: JSON metadata POST -> 302 with Location + file id.
       {
         body: "",
@@ -635,7 +583,7 @@ describe("together adapter", () => {
     const lines = String(fetchMock.mock.calls[1]?.[1]?.body)
       .trim()
       .split("\n")
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
+      .map((line) => asRecord(parseJson(line)));
     // body-only: no method/url, just custom_id + body.
     expect(lines[0]?.method).toBeUndefined();
     expect(lines[0]?.url).toBeUndefined();
@@ -649,7 +597,7 @@ describe("together adapter", () => {
 
   it("throws when the presigned upload cannot be initiated", async () => {
     // A non-302 from the init POST means no presigned URL was issued.
-    install([
+    installRoutes([
       {
         body: "service unavailable",
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -663,7 +611,7 @@ describe("together adapter", () => {
   });
 
   it("throws when the init redirect omits the file id", async () => {
-    install([
+    installRoutes([
       {
         body: "",
         // A 302 with a Location but no X-Together-File-Id is unusable.
@@ -679,7 +627,7 @@ describe("together adapter", () => {
   });
 
   it("rejects unsafe presigned upload locations before PUT", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: "",
         headers: {
@@ -697,7 +645,7 @@ describe("together adapter", () => {
 
   it("rejects unsafe Together file ids before preprocess", async () => {
     const storageUrl = "https://storage.example/presigned-put";
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: "",
         headers: { Location: storageUrl, "X-Together-File-Id": "../secret" },
@@ -716,7 +664,7 @@ describe("together adapter", () => {
 
   it("throws when the presigned PUT upload fails", async () => {
     const storageUrl = "https://storage.example/presigned-put";
-    install([
+    installRoutes([
       {
         body: "",
         headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },
@@ -739,40 +687,37 @@ describe("together adapter", () => {
     const storageUrl = "https://storage.example/presigned-put";
     const redirectedUrl = "https://127.0.0.1/internal-upload";
     const requestedUrls: string[] = [];
-    const fetchMock = mock(
-      (input: FetchInput, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : String(input);
-        requestedUrls.push(url);
-        if (url.endsWith("/files") && init?.method === "POST") {
+    const fetchMock = installFetch((input, init) => {
+      const url = requestUrl(input);
+      requestedUrls.push(url);
+      if (url.endsWith("/files") && init?.method === "POST") {
+        return Promise.resolve(
+          new Response("", {
+            headers: {
+              Location: storageUrl,
+              "X-Together-File-Id": "file-in",
+            },
+            status: 302,
+          })
+        );
+      }
+      if (url === storageUrl && init?.method === "PUT") {
+        if (init.redirect === "manual") {
           return Promise.resolve(
-            new Response("", {
-              headers: {
-                Location: storageUrl,
-                "X-Together-File-Id": "file-in",
-              },
-              status: 302,
+            new Response("redirect", {
+              headers: { location: redirectedUrl },
+              status: 307,
             })
           );
         }
-        if (url === storageUrl && init?.method === "PUT") {
-          if (init.redirect === "manual") {
-            return Promise.resolve(
-              new Response("redirect", {
-                headers: { location: redirectedUrl },
-                status: 307,
-              })
-            );
-          }
-          requestedUrls.push(redirectedUrl);
-          return Promise.resolve(new Response("", { status: 200 }));
-        }
-        if (url.endsWith("/files/file-in/preprocess")) {
-          return Promise.resolve(Response.json({ id: "file-in" }));
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+        requestedUrls.push(redirectedUrl);
+        return Promise.resolve(new Response("", { status: 200 }));
       }
-    );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+      if (url.endsWith("/files/file-in/preprocess")) {
+        return Promise.resolve(Response.json({ id: "file-in" }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
 
     await expect(submitOneLine()).rejects.toThrow(
       "Together file upload failed (307)."
@@ -782,7 +727,7 @@ describe("together adapter", () => {
     if (!upload) {
       throw new Error("expected presigned PUT request");
     }
-    expect((upload[1] as RequestInit).redirect).toBe("manual");
+    expect(upload[1]?.redirect).toBe("manual");
     expect(requestedUrls).not.toContain(redirectedUrl);
     expect(
       fetchMock.mock.calls.some((call) =>
@@ -800,8 +745,7 @@ describe("together adapter", () => {
         return Promise.resolve("secret init body");
       },
     });
-    const fetchMock = mock(() => Promise.resolve(unreadable));
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    installFetch(() => Promise.resolve(unreadable));
 
     await expect(submitOneLine()).rejects.toThrow(
       "Together upload could not be initiated (500)."
@@ -816,7 +760,7 @@ describe("mistral adapter", () => {
   });
 
   it("sets the model on the job and strips it from each line", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -848,8 +792,8 @@ describe("mistral adapter", () => {
     expect(snapshot.provider).toBe("mistral");
     expect(snapshot.status).toBe("validating");
 
-    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
-    const lineBody = lines[0]?.body as Record<string, unknown>;
+    const lines = await uploadedLines(fetchMock.mock.calls[0]);
+    const lineBody = asRecord(lines[0]?.body);
     expect(lines[0]?.custom_id).toBe("a");
     expect(lineBody.model).toBeUndefined();
     const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
@@ -865,7 +809,7 @@ describe("mistral adapter", () => {
     const errors =
       '{"custom_id":"b","response":null,"error":{"message":"bad request","type":"invalid_request"}}';
 
-    install([
+    installRoutes([
       {
         body: {
           error_file: "file-err",
@@ -894,7 +838,7 @@ describe("mistral adapter", () => {
   });
 
   it("rejects JSONL uploads above the byte limit before fetch", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
 
     await expect(
       mistralAdapter.submit({
@@ -924,7 +868,7 @@ describe("google adapter", () => {
   });
 
   it("submits inline requests keyed by metadata.key", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { metadata: { state: "JOB_STATE_PENDING" }, name: "batches/1" },
         match: (url, method) =>
@@ -956,7 +900,7 @@ describe("google adapter", () => {
   });
 
   it("rejects inline payloads above the byte limit before fetch", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
 
     await expect(
       googleAdapter.submit({
@@ -977,7 +921,7 @@ describe("google adapter", () => {
   });
 
   it("parses inline responses keyed back by metadata.key", async () => {
-    install([
+    installRoutes([
       {
         body: {
           done: true,
@@ -1035,7 +979,7 @@ describe("xai adapter", () => {
   });
 
   it("uploads a file and creates a batch by input_file_id", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -1072,7 +1016,7 @@ describe("xai adapter", () => {
     expect(snapshot.provider).toBe("xai");
     expect(snapshot.status).toBe("in_progress");
     expect(uploadedForm(fetchMock.mock.calls[0]).has("purpose")).toBe(false);
-    const lines = await uploadedJsonl(fetchMock.mock.calls[0]);
+    const lines = await uploadedLines(fetchMock.mock.calls[0]);
     expect(lines[0]?.url).toBe("/v1/chat/completions");
     expect(lines[0]?.method).toBe("POST");
     const createBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
@@ -1080,7 +1024,7 @@ describe("xai adapter", () => {
   });
 
   it("paginates results and parses chat_get_completion", async () => {
-    install([
+    installRoutes([
       {
         body: {
           pagination_token: null,
@@ -1123,7 +1067,7 @@ describe("xai adapter", () => {
   });
 
   it("rejects JSONL uploads above the byte limit before fetch", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
 
     await expect(
       xaiAdapter.submit({

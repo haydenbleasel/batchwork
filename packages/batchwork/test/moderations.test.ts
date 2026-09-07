@@ -1,33 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import { installRoutes, uploadedJsonl } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 describe("batch.moderations (end-to-end, mocked transport)", () => {
   afterEach(() => {
@@ -35,7 +11,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
   });
 
   it("submits an OpenAI moderation batch against the moderations endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -87,8 +63,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/moderations"');
     expect(jsonl).toContain('"model":"omni-moderation-latest"');
     expect(jsonl).toContain('"input":"What a lovely day."');
@@ -109,7 +84,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
   });
 
   it("builds an OpenAI content-part input when imageUrls are given", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -135,8 +110,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('{"text":"check this","type":"text"}');
     expect(jsonl).toContain(
       '{"image_url":{"url":"https://example.com/upload.png"},"type":"image_url"}'
@@ -144,7 +118,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
   });
 
   it("submits a Mistral moderation batch and computes flagged from categories", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -192,8 +166,7 @@ describe("batch.moderations (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"input":"…something threatening…"');
     expect(jsonl).not.toContain('"model"');
 

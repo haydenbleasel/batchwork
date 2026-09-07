@@ -1,33 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import { installRoutes, uploadedJsonl, uploadedLines } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 describe("batch.videos (end-to-end, mocked transport)", () => {
   afterEach(() => {
@@ -35,7 +11,7 @@ describe("batch.videos (end-to-end, mocked transport)", () => {
   });
 
   it("submits an xAI video batch against the video generations endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -95,8 +71,7 @@ describe("batch.videos (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/videos/generations"');
     expect(jsonl).toContain('"model":"grok-imagine-video"');
     expect(jsonl).toContain('"prompt":"A red bicycle rolling downhill."');
@@ -115,7 +90,7 @@ describe("batch.videos (end-to-end, mocked transport)", () => {
   });
 
   it("captures edit mode against the edits endpoint per line", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -147,12 +122,7 @@ describe("batch.videos (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
-    const [generateLine, editLine] = jsonl
-      .split("\n")
-      .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const [generateLine, editLine] = await uploadedLines(uploadCall);
     expect(generateLine).toMatchObject({ url: "/v1/videos/generations" });
     expect(editLine).toMatchObject({
       body: { video: { url: "https://example.com/source.mp4" } },

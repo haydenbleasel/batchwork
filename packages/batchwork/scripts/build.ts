@@ -14,6 +14,9 @@ const dist = path.resolve(root, "dist");
 const srcDir = path.resolve(root, "src");
 
 // Peer/optional/runtime deps are consumers' responsibility — never bundle them.
+// SAFETY: package.json is this package's own manifest; bun/npm validate the
+// dependency maps as string records on every install, and absent maps read as
+// undefined.
 const deps = pkg as {
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
@@ -27,9 +30,7 @@ const external = [
 
 // Every published subpath in "exports". `root: src` mirrors the source tree
 // into dist/ (so "./dist/index.js" comes from "src/index.ts").
-const entrypoints = Object.values(
-  pkg.exports as Record<string, { import: string }>
-).map(({ import: imp }) =>
+const entrypoints = Object.values(pkg.exports).map(({ import: imp }) =>
   path.resolve(
     root,
     imp.replace(/^\.\/dist\//u, "src/").replace(/\.js$/u, ".ts")

@@ -8,6 +8,7 @@ import type { EmbeddingModel, ImageModel, LanguageModel } from "ai";
 import pMap from "p-map";
 
 import { BatchworkError } from "./errors";
+import { isString } from "./guards";
 import { assertByteLength, resolveBatchLimits } from "./limits";
 import type { ResolvedBatchLimits } from "./limits";
 import {
@@ -37,16 +38,19 @@ import type {
   BatchTranslationRequest,
   BatchVideoDefaults,
   BatchVideoRequest,
+  JsonObject,
+  JsonValue,
   ProviderCredentials,
   VideoModel,
 } from "./types";
+import { isJsonObject, parseJson } from "./util";
 
 type GenerateTextInput = Parameters<typeof generateText>[0];
 
 /** A provider request body derived from a single batch item. */
 export interface BuiltRequest {
   /** The serialized provider request body (becomes the batch line). */
-  body: Record<string, unknown>;
+  body: JsonObject;
   customId: string;
   /** API endpoint path the model targets, e.g. `/v1/chat/completions`. */
   endpoint: string;
@@ -72,18 +76,18 @@ class CaptureSignalError extends Error {
 }
 
 const resolveUrl = (input: string | URL | Request): string => {
-  if (typeof input === "string") {
-    return input;
-  }
   if (input instanceof URL) {
     return input.toString();
   }
-  return input.url;
+  if (input instanceof Request) {
+    return input.url;
+  }
+  return input;
 };
 
 const extractBody = (init?: RequestInit): string => {
   const body = init?.body;
-  if (typeof body === "string") {
+  if (isString(body)) {
     return body;
   }
   if (body instanceof Uint8Array) {
@@ -94,24 +98,41 @@ const extractBody = (init?: RequestInit): string => {
   );
 };
 
-// `CapturingFetch` is `typeof fetch`, whose shape varies by runtime types (e.g.
-// Bun adds a required `preconnect` method). We only ever call it as a plain
-// fetch, so cast the bare implementation rather than stub the extra members.
-const captureFetch = ((input: string | URL | Request, init?: RequestInit) =>
-  Promise.reject(
-    new CaptureSignalError(resolveUrl(input), extractBody(init))
-  )) as unknown as CapturingFetch;
-
-const findCapture = (error: unknown): CaptureSignalError | undefined => {
-  let current: unknown = error;
-  let depth = 0;
-  while (current && depth < MAX_CAUSE_DEPTH) {
-    if (current instanceof CaptureSignalError) {
-      return current;
-    }
-    current = (current as { cause?: unknown }).cause;
-    depth += 1;
+// `CapturingFetch` is `typeof fetch`, whose declaration varies by runtime
+// types: Bun's adds a `preconnect` member. Capture only ever calls it as a
+// plain fetch, so a no-op `preconnect` keeps the bare implementation
+// assignable under both sets of types.
+const captureFetch: CapturingFetch = Object.assign(
+  (input: string | URL | Request, init?: RequestInit) =>
+    Promise.reject(
+      new CaptureSignalError(resolveUrl(input), extractBody(init))
+    ),
+  {
+    preconnect: () => {
+      // Never called during capture.
+    },
   }
+);
+
+/** Whether a thrown value carries an Error-style `cause`. */
+const hasCause = (value: unknown): value is { cause: unknown } =>
+  typeof value === "object" && value !== null && "cause" in value;
+
+/**
+ * Walk a thrown value's `cause` chain (starting at the value itself) looking
+ * for the capture signal, giving up after `MAX_CAUSE_DEPTH` links.
+ */
+const findCapture = (
+  cause: unknown,
+  depth = 0
+): CaptureSignalError | undefined => {
+  if (depth >= MAX_CAUSE_DEPTH) {
+    return;
+  }
+  if (cause instanceof CaptureSignalError) {
+    return cause;
+  }
+  return hasCause(cause) ? findCapture(cause.cause, depth + 1) : undefined;
 };
 
 const endpointFromUrl = (url: string): string => {
@@ -140,8 +161,9 @@ const toGenerateInput = (
   model: LanguageModel,
   request: BatchRequest
 ): GenerateTextInput =>
-  // `prompt`/`messages` form a discriminated union in the AI SDK types; we
-  // pass both keys and let `generateText` validate the XOR at runtime.
+  // SAFETY: `prompt`/`messages` form a discriminated union in the AI SDK
+  // types; both keys are passed and `generateText` validates the XOR at
+  // runtime, so the object always satisfies one branch.
   ({
     frequencyPenalty: request.frequencyPenalty,
     maxOutputTokens: request.maxOutputTokens,
@@ -161,25 +183,20 @@ const toGenerateInput = (
     topP: request.topP,
   }) as GenerateTextInput;
 
-/**
- * Turn a thrown capture into a {@link BuiltRequest}. A genuine failure (one that
- * never reached the capturing `fetch`, e.g. an invalid prompt) is rethrown.
- */
+/** Turn a capture signal into a {@link BuiltRequest}. */
 const bodyFromCapture = (
-  error: unknown,
+  capture: CaptureSignalError,
   customId: string,
   maxRequestBytes: number
 ): BuiltRequest => {
-  const capture = findCapture(error);
-  if (capture) {
-    assertByteLength(`request "${customId}"`, capture.rawBody, maxRequestBytes);
-    return {
-      body: JSON.parse(capture.rawBody) as Record<string, unknown>,
-      customId,
-      endpoint: endpointFromUrl(capture.url),
-    };
+  assertByteLength(`request "${customId}"`, capture.rawBody, maxRequestBytes);
+  const body = parseJson(capture.rawBody);
+  if (!isJsonObject(body)) {
+    throw new BatchworkError(
+      `batchwork: the captured body for request "${customId}" is not a JSON object.`
+    );
   }
-  throw error;
+  return { body, customId, endpoint: endpointFromUrl(capture.url) };
 };
 
 const captureOne = async (
@@ -191,7 +208,13 @@ const captureOne = async (
   try {
     await generateText(toGenerateInput(model, request));
   } catch (error) {
-    return bodyFromCapture(error, customId, maxRequestBytes);
+    // A genuine failure (one that never reached the capturing `fetch`, e.g. an
+    // invalid prompt) carries no capture signal and is rethrown.
+    const capture = findCapture(error);
+    if (!capture) {
+      throw error;
+    }
+    return bodyFromCapture(capture, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the batch body."
@@ -215,7 +238,13 @@ const captureEmbeddingOne = async (
       value: request.value,
     });
   } catch (error) {
-    return bodyFromCapture(error, customId, maxRequestBytes);
+    // A genuine failure (one that never reached the capturing `fetch`, e.g. an
+    // invalid prompt) carries no capture signal and is rethrown.
+    const capture = findCapture(error);
+    if (!capture) {
+      throw error;
+    }
+    return bodyFromCapture(capture, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the embedding body."
@@ -246,7 +275,13 @@ const captureImageOne = async (
       size: request.size,
     });
   } catch (error) {
-    return bodyFromCapture(error, customId, maxRequestBytes);
+    // A genuine failure (one that never reached the capturing `fetch`, e.g. an
+    // invalid prompt) carries no capture signal and is rethrown.
+    const capture = findCapture(error);
+    if (!capture) {
+      throw error;
+    }
+    return bodyFromCapture(capture, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the image body."
@@ -364,20 +399,21 @@ export const buildEmbeddingBodies = async (
 const MODERATION_ENDPOINT = "/v1/moderations";
 
 /**
- * Build the moderation `input`: a bare string for text, or the OpenAI omni
- * moderation content-part array when images are involved.
+ * Build the OpenAI omni moderation content-part array for a request that
+ * involves images: an optional text part followed by one part per image URL.
  */
-const moderationInput = (request: BatchModerationRequest): unknown => {
-  const imageUrls = request.imageUrls ?? [];
-  if (imageUrls.length === 0) {
-    return request.value;
+const moderationParts = (
+  value: string | undefined,
+  imageUrls: readonly string[]
+): JsonValue[] => {
+  const parts: JsonValue[] = [];
+  if (value !== undefined) {
+    parts.push({ text: value, type: "text" });
   }
-  return [
-    ...(request.value === undefined
-      ? []
-      : [{ text: request.value, type: "text" }]),
-    ...imageUrls.map((url) => ({ image_url: { url }, type: "image_url" })),
-  ];
+  for (const url of imageUrls) {
+    parts.push({ image_url: { url }, type: "image_url" });
+  }
+  return parts;
 };
 
 /**
@@ -389,29 +425,33 @@ const moderationBody = (
   resolved: ResolvedModel,
   request: BatchModerationRequest,
   customId: string
-): Record<string, unknown> => {
-  if (request.value === undefined && !request.imageUrls?.length) {
+): JsonObject => {
+  const { value } = request;
+  const imageUrls = request.imageUrls ?? [];
+  if (value === undefined && imageUrls.length === 0) {
     throw new BatchworkError(
       `batchwork: moderation request "${customId}" needs \`value\` or \`imageUrls\`.`
     );
   }
   const options = request.providerOptions?.[resolved.provider];
   if (resolved.provider === "openai") {
-    return {
-      input: moderationInput(request),
-      model: resolved.modelId,
-      ...options,
-    };
+    // A text-only request sends the bare string; images switch to the
+    // content-part array.
+    const input =
+      imageUrls.length === 0 && value !== undefined
+        ? value
+        : moderationParts(value, imageUrls);
+    return { input, model: resolved.modelId, ...options };
   }
   if (resolved.provider === "mistral") {
-    if (request.imageUrls?.length) {
+    if (imageUrls.length > 0) {
       throw new BatchworkError(
         `batchwork: moderation request "${customId}" has \`imageUrls\`, but Mistral moderation is text-only.`
       );
     }
     // `model` is included for uniformity; the Mistral adapter strips it from
     // each line and sets it on the job instead.
-    return { input: request.value, model: resolved.modelId, ...options };
+    return { input: value ?? "", model: resolved.modelId, ...options };
   }
   throw unsupportedModerationProvider(resolved.provider);
 };
@@ -450,24 +490,39 @@ const TRANSCRIPTION_ENDPOINT = "/v1/audio/transcriptions";
  * (and the AI SDK's `transcribe`), which upload the file as multipart form
  * data — so there is no SDK call to capture.
  */
+/**
+ * The optional audio fields shared by every provider's line: `language`, and
+ * the timestamp granularities (which, where the provider needs it, also
+ * require the verbose response shape). `providerOptions` spreads after these,
+ * so it can still override `response_format`.
+ */
+const audioOptions = (
+  request: BatchTranscriptionRequest,
+  verboseTimestamps: boolean
+): JsonObject => {
+  const fields: JsonObject = {};
+  if (request.language) {
+    fields.language = request.language;
+  }
+  if (request.timestampGranularities) {
+    if (verboseTimestamps) {
+      fields.response_format = "verbose_json";
+    }
+    fields.timestamp_granularities = request.timestampGranularities;
+  }
+  return fields;
+};
+
 const transcriptionBody = (
   resolved: ResolvedModel,
   request: BatchTranscriptionRequest
-): Record<string, unknown> => {
+): JsonObject => {
   const options = request.providerOptions?.[resolved.provider];
   if (resolved.provider === "groq") {
     return {
       model: resolved.modelId,
       url: request.audioUrl,
-      ...(request.language ? { language: request.language } : {}),
-      // Timestamps require the verbose response shape; providerOptions can
-      // still override `response_format` since it spreads last.
-      ...(request.timestampGranularities
-        ? {
-            response_format: "verbose_json",
-            timestamp_granularities: request.timestampGranularities,
-          }
-        : {}),
+      ...audioOptions(request, true),
       ...options,
     };
   }
@@ -477,10 +532,7 @@ const transcriptionBody = (
     return {
       file_url: request.audioUrl,
       model: resolved.modelId,
-      ...(request.language ? { language: request.language } : {}),
-      ...(request.timestampGranularities
-        ? { timestamp_granularities: request.timestampGranularities }
-        : {}),
+      ...audioOptions(request, false),
       ...options,
     };
   }
@@ -490,13 +542,7 @@ const transcriptionBody = (
     return {
       file: request.audioUrl,
       model: resolved.modelId,
-      ...(request.language ? { language: request.language } : {}),
-      ...(request.timestampGranularities
-        ? {
-            response_format: "verbose_json",
-            timestamp_granularities: request.timestampGranularities,
-          }
-        : {}),
+      ...audioOptions(request, true),
       ...options,
     };
   }
@@ -616,7 +662,7 @@ export const buildImageBodies = async (
 
 const IMAGE_EDIT_ENDPOINT = "/v1/images/edits";
 
-const openaiImageRef = (ref: BatchImageRef): Record<string, string> =>
+const openaiImageRef = (ref: BatchImageRef): JsonObject =>
   "fileId" in ref ? { file_id: ref.fileId } : { image_url: ref.imageUrl };
 
 /**
@@ -629,7 +675,7 @@ const imageEditBody = (
   resolved: ResolvedModel,
   request: BatchImageEditRequest,
   customId: string
-): Record<string, unknown> => {
+): JsonObject => {
   if (request.images.length === 0) {
     throw new BatchworkError(
       `batchwork: image-edit request "${customId}" needs at least one entry in \`images\`.`
@@ -637,15 +683,21 @@ const imageEditBody = (
   }
   const options = request.providerOptions?.[resolved.provider];
   if (resolved.provider === "openai") {
-    return {
+    const body: JsonObject = {
       images: request.images.map(openaiImageRef),
       model: resolved.modelId,
       prompt: request.prompt,
-      ...(request.mask ? { mask: openaiImageRef(request.mask) } : {}),
-      ...(request.n === undefined ? {} : { n: request.n }),
-      ...(request.size ? { size: request.size } : {}),
-      ...options,
     };
+    if (request.mask) {
+      body.mask = openaiImageRef(request.mask);
+    }
+    if (request.n !== undefined) {
+      body.n = request.n;
+    }
+    if (request.size) {
+      body.size = request.size;
+    }
+    return { ...body, ...options };
   }
   if (resolved.provider === "xai") {
     if (request.mask) {
@@ -666,15 +718,17 @@ const imageEditBody = (
       }
       return ref.imageUrl;
     });
-    return {
+    const body: JsonObject = {
       model: resolved.modelId,
       prompt: request.prompt,
       ...(urls.length === 1
         ? { image: { url: urls[0] } }
         : { images: urls.map((url) => ({ url })) }),
-      ...(request.n === undefined ? {} : { n: request.n }),
-      ...options,
     };
+    if (request.n !== undefined) {
+      body.n = request.n;
+    }
+    return { ...body, ...options };
   }
   throw unsupportedImageEditProvider(resolved.provider);
 };
@@ -734,7 +788,13 @@ const captureVideoOne = async (
       resolution: request.resolution,
     });
   } catch (error) {
-    return bodyFromCapture(error, customId, maxRequestBytes);
+    // A genuine failure (one that never reached the capturing `fetch`, e.g. an
+    // invalid prompt) carries no capture signal and is rethrown.
+    const capture = findCapture(error);
+    if (!capture) {
+      throw error;
+    }
+    return bodyFromCapture(capture, customId, maxRequestBytes);
   }
   throw new BatchworkError(
     "batchwork: the request was not intercepted while building the video body."

@@ -6,6 +6,8 @@ import type {
   BatchResult,
   BatchSnapshot,
   BatchStatus,
+  HttpHeaders,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import { asNumber, asRecord, asString, omit, toDate } from "../util";
@@ -23,9 +25,7 @@ const apiKey = (credentials: ProviderCredentials): string =>
 const baseUrl = (credentials: ProviderCredentials): string =>
   credentials.baseURL ?? MISTRAL_BASE;
 
-const authHeaders = (
-  credentials: ProviderCredentials
-): Record<string, string> => ({
+const authHeaders = (credentials: ProviderCredentials): HttpHeaders => ({
   Authorization: `Bearer ${apiKey(credentials)}`,
   ...credentials.headers,
 });
@@ -56,7 +56,7 @@ const mapStatus = (status: string | undefined): BatchStatus => {
   }
 };
 
-const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
+const normalizeSnapshot = (raw: JsonValue): BatchSnapshot => {
   const obj = asRecord(raw);
   const succeeded = asNumber(obj.succeeded_requests) ?? 0;
   const failed = asNumber(obj.failed_requests) ?? 0;

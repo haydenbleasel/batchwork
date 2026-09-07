@@ -8,6 +8,9 @@ import type {
   BatchSnapshot,
   BatchStatus,
   BatchUsage,
+  HttpHeaders,
+  JsonObject,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import {
@@ -41,7 +44,7 @@ const apiKey = (credentials: ProviderCredentials): string => {
 const baseUrl = (credentials: ProviderCredentials): string =>
   credentials.baseURL ?? GOOGLE_BASE;
 
-const headers = (credentials: ProviderCredentials): Record<string, string> => ({
+const headers = (credentials: ProviderCredentials): HttpHeaders => ({
   "content-type": "application/json",
   "x-goog-api-key": apiKey(credentials),
   ...credentials.headers,
@@ -72,7 +75,7 @@ const mapState = (state: string | undefined, done: boolean): BatchStatus => {
   return done ? "completed" : "in_progress";
 };
 
-const inlinedResponses = (raw: unknown): unknown[] => {
+const inlinedResponses = (raw: JsonValue): JsonValue[] => {
   const obj = asRecord(raw);
   const response = asRecord(obj.response);
   const dest = asRecord(obj.dest);
@@ -91,7 +94,7 @@ const inlinedResponses = (raw: unknown): unknown[] => {
   ];
 };
 
-const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
+const normalizeSnapshot = (raw: JsonValue): BatchSnapshot => {
   const obj = asRecord(raw);
   const items = inlinedResponses(raw);
   const failed = items.filter((item) => asRecord(item).error).length;
@@ -116,7 +119,9 @@ const normalizeSnapshot = (raw: unknown): BatchSnapshot => {
   };
 };
 
-const textFromResponse = (response: unknown): string | undefined => {
+const textFromResponse = (
+  response: JsonValue | undefined
+): string | undefined => {
   const candidate = asRecord(asArray(asRecord(response).candidates)[0]);
   const text = asArray(asRecord(candidate.content).parts)
     .map((part) => asString(asRecord(part).text) ?? "")
@@ -124,7 +129,9 @@ const textFromResponse = (response: unknown): string | undefined => {
   return text.length > 0 ? text : undefined;
 };
 
-const embeddingFromResponse = (response: unknown): number[] | undefined =>
+const embeddingFromResponse = (
+  response: JsonValue | undefined
+): number[] | undefined =>
   asNumberArray(asRecord(asRecord(response).embedding).values);
 
 /**
@@ -132,7 +139,9 @@ const embeddingFromResponse = (response: unknown): number[] | undefined =>
  * (`candidates[0].content.parts[].inlineData`). Returns undefined when no part
  * carries image data, so text/embedding results are unaffected.
  */
-const imagesFromResponse = (response: unknown): BatchImage[] | undefined => {
+const imagesFromResponse = (
+  response: JsonValue | undefined
+): BatchImage[] | undefined => {
   const candidate = asRecord(asArray(asRecord(response).candidates)[0]);
   const images: BatchImage[] = [];
   for (const part of asArray(asRecord(candidate.content).parts)) {
@@ -147,7 +156,9 @@ const imagesFromResponse = (response: unknown): BatchImage[] | undefined => {
   return images.length > 0 ? images : undefined;
 };
 
-const usageFromResponse = (response: unknown): BatchUsage | undefined => {
+const usageFromResponse = (
+  response: JsonValue | undefined
+): BatchUsage | undefined => {
   const usage = asRecord(asRecord(response).usageMetadata);
   const inputTokens = asNumber(usage.promptTokenCount);
   const outputTokens = asNumber(usage.candidatesTokenCount);
@@ -166,7 +177,7 @@ const usageFromResponse = (response: unknown): BatchUsage | undefined => {
   };
 };
 
-const normalizeResult = (item: unknown): BatchResult => {
+const normalizeResult = (item: JsonValue): BatchResult => {
   const obj = asRecord(item);
   const customId =
     asString(asRecord(obj.metadata).key) ??
@@ -206,11 +217,9 @@ const EMBED_CONFIG_KEYS = new Set([
 ]);
 
 /** Reshape a captured `:embedContent` body into an async-batch `request`. */
-const toEmbedRequest = (
-  body: Record<string, unknown>
-): Record<string, unknown> => {
-  const request: Record<string, unknown> = {};
-  const config: Record<string, unknown> = {};
+const toEmbedRequest = (body: JsonObject): JsonObject => {
+  const request: JsonObject = {};
+  const config: JsonObject = {};
   for (const [key, value] of Object.entries(body)) {
     if (EMBED_CONFIG_KEYS.has(key)) {
       config[key] = value;
@@ -274,7 +283,7 @@ const retrieve = async (
 };
 
 /** A file reference may be a bare name string or an object with a `name`. */
-const fileNameFrom = (value: unknown): string | undefined =>
+const fileNameFrom = (value: JsonValue | undefined): string | undefined =>
   asString(asRecord(value).name) ?? asString(value);
 
 // oxlint-disable-next-line func-style -- generators cannot be arrow functions.

@@ -1,33 +1,10 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import type { BatchImageEditRequest } from "../src/types";
+import { installRoutes, uploadedJsonl, uploadedLines } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const SOURCE_URL = "https://example.com/bicycle.png";
 
@@ -37,7 +14,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
   });
 
   it("submits an OpenAI image-edit batch against the edits endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -91,8 +68,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/images/edits"');
     expect(jsonl).toContain(`"images":[{"image_url":"${SOURCE_URL}"}]`);
     expect(jsonl).toContain('"mask":{"file_id":"file-mask"}');
@@ -109,7 +85,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
   });
 
   it("submits an xAI image-edit batch with URL references", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -143,12 +119,7 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
-    const [single, multi] = jsonl
-      .split("\n")
-      .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const [single, multi] = await uploadedLines(uploadCall);
     expect(single).toMatchObject({
       body: { image: { url: SOURCE_URL }, prompt: "Add a rainbow." },
       url: "/v1/images/edits",
@@ -162,13 +133,11 @@ describe("batch.images.edit (end-to-end, mocked transport)", () => {
   });
 
   it("exposes batch.images.create as an alias of batch.images", () => {
-    expect(batch.images.create).toBe(
-      batch.images as unknown as typeof batch.images.create
-    );
+    expect(batch.images.create).toBe(batch.images);
   });
 
   it("rejects xAI-unsupported inputs before any network request", async () => {
-    const edit = (request: Record<string, unknown>) =>
+    const edit = (request: Partial<BatchImageEditRequest>) =>
       batch.images.edit({
         apiKey: "k",
         model: "xai/grok-imagine-image-quality",

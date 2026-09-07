@@ -13,7 +13,7 @@ interface BatchResult {
   status: "succeeded" | "errored" | "expired" | "canceled";
   text?: string; // normalized text output
   usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
-  response?: unknown; // raw provider message / body
+  response?: JsonValue; // raw provider message / body, as parsed JSON
   error?: { message: string; type?: string; code?: string | number };
 }
 ```
@@ -45,7 +45,9 @@ for await (const result of job.results()) {
 
 ```ts
 const result = (await job.collect()).find((r) => r.customId === "a");
-const toolCalls = (result?.response as { choices?: unknown[] })?.choices;
+// `response` is a parsed `JsonValue`; narrow it to the provider's own shape.
+const toolCalls = (result?.response as { choices?: unknown[] } | undefined)
+  ?.choices;
 ```
 
 JSONL result streams are parsed incrementally with sanitized parse errors. A single result line is capped at 20 MiB by default so malformed or unexpectedly large provider files fail before accumulating unbounded memory.

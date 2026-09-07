@@ -1,5 +1,5 @@
 import { BatchworkError } from "../errors";
-import type { ProviderCredentials } from "../types";
+import type { HttpHeaders, ProviderCredentials } from "../types";
 import { trimTrailingSlashes } from "../util";
 import { createOpenAICompatibleAdapter } from "./openai-compatible";
 
@@ -43,9 +43,7 @@ const hasCallerAuth = (headers: Record<string, string> | undefined): boolean =>
     return normalized === "api-key" || normalized === "authorization";
   });
 
-const authHeaders = (
-  credentials: ProviderCredentials
-): Record<string, string> => {
+const authHeaders = (credentials: ProviderCredentials): HttpHeaders => {
   if (credentials.apiKey) {
     return { "api-key": credentials.apiKey };
   }

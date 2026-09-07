@@ -1,6 +1,9 @@
 import { getBatchResults } from "../batch";
 import { toEvent } from "../server/events";
-import { createBatchPoller } from "../server/poller";
+import {
+  createBatchPoller,
+  resolveProviderCredentials,
+} from "../server/poller";
 import type {
   CompletionSink,
   CredentialResolver,
@@ -11,7 +14,7 @@ import type {
   BatchWebhookEvent,
   TrackedBatch,
 } from "../server/types";
-import type { BatchProvider, BatchResult, ProviderCredentials } from "../types";
+import type { BatchResult } from "../types";
 
 export type { TrackTarget } from "../server/poller";
 export { createMemoryStore } from "../server/store";
@@ -50,7 +53,7 @@ export interface BatchRoutesOptions {
   /** When set, mounts an OpenAI native-webhook handler on `POST`. */
   openaiSigningSecret?: string;
   /** Observe per-batch processing errors during a tick; the tick continues. */
-  onError?: (record: TrackedBatch, error: unknown) => void;
+  onError?: (record: TrackedBatch, cause: unknown) => void;
 }
 
 export interface BatchRoutes {
@@ -88,13 +91,6 @@ async function* emptyResults(): AsyncGenerator<BatchResult> {
  * });
  */
 export const createBatchRoutes = (options: BatchRoutesOptions): BatchRoutes => {
-  const resolveCredentials = (provider: BatchProvider): ProviderCredentials => {
-    if (typeof options.credentials === "function") {
-      return options.credentials(provider);
-    }
-    return options.credentials ?? {};
-  };
-
   const sink: CompletionSink = async (record, snapshot) => {
     const event = toEvent(record.provider, snapshot);
     // Only completed batches have results to fetch — the adapter throws when a
@@ -104,7 +100,7 @@ export const createBatchRoutes = (options: BatchRoutesOptions): BatchRoutes => {
         ? getBatchResults({
             id: record.id,
             provider: record.provider,
-            ...resolveCredentials(record.provider),
+            ...resolveProviderCredentials(options.credentials, record.provider),
           })
         : emptyResults();
     await options.onComplete(event, results);

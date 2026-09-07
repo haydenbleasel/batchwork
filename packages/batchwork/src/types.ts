@@ -11,6 +11,23 @@ import type {
 } from "ai";
 
 /**
+ * A parsed JSON value: the domain type for raw provider payloads (identical to
+ * the AI SDK's `JSONValue`). Provider responses are parsed into this at the
+ * HTTP boundary and read through the narrowing helpers in `util.ts`.
+ */
+export type JsonValue = JSONValue;
+
+/** A parsed JSON object. */
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+/** Plain HTTP headers sent with a provider request. */
+export interface HttpHeaders {
+  [name: string]: string;
+}
+
+/**
  * The `model` argument of the AI SDK's `experimental_generateVideo` — a video
  * model object or a `"provider/model"` string. Derived from the function
  * signature because the AI SDK does not export a video model type yet.
@@ -334,7 +351,7 @@ export interface BatchResult {
   /** Normalized moderation verdict, when the request produced one. */
   moderation?: BatchModeration;
   /** Raw provider response body (OpenAI `response.body` / Anthropic message). */
-  response?: unknown;
+  response?: JsonValue;
   /** Timestamped transcript segments, when requested via `timestampGranularities`. */
   segments?: BatchTranscriptionSegment[];
   status: BatchResultStatus;
@@ -353,7 +370,7 @@ export interface BatchSnapshot {
   id: string;
   provider: BatchProvider;
   /** Raw provider status object. */
-  raw: unknown;
+  raw: JsonValue;
   requestCounts: BatchRequestCounts;
   status: BatchStatus;
 }

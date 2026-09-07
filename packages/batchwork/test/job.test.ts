@@ -39,7 +39,10 @@ const fakeAdapter = (options: FakeOptions = {}): BatchAdapter => {
       options.onRetrieve?.();
       const status = statuses[Math.min(index, statuses.length - 1)];
       index += 1;
-      return Promise.resolve(snapshot(status as BatchStatus));
+      if (status === undefined) {
+        throw new Error("fakeAdapter needs at least one status");
+      }
+      return Promise.resolve(snapshot(status));
     },
     submit: () => Promise.resolve(snapshot("validating")),
   };

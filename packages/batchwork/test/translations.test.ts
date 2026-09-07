@@ -1,40 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  headers?: Record<string, string>;
-  match: (url: string, method: string) => boolean;
-  status?: number;
-}
+import { installRoutes, uploadedJsonl } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(
-        new Response(payload, {
-          headers: route.headers,
-          status: route.status ?? 200,
-        })
-      );
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const AUDIO_URL = "https://example.com/french.wav";
 
@@ -44,7 +13,7 @@ describe("batch.translations (end-to-end, mocked transport)", () => {
   });
 
   it("submits a Groq translation batch against the translations endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -96,8 +65,7 @@ describe("batch.translations (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/audio/translations"');
     expect(jsonl).toContain(`"url":"${AUDIO_URL}"`);
     expect(jsonl).toContain('"model":"whisper-large-v3"');
@@ -119,7 +87,7 @@ describe("batch.translations (end-to-end, mocked transport)", () => {
 
   it("submits a Together translation batch with FILE-method lines", async () => {
     const storageUrl = "https://storage.example/presigned-put";
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: "",
         headers: { Location: storageUrl, "X-Together-File-Id": "file-in" },

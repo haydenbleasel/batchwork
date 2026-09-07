@@ -17,7 +17,7 @@ const url = process.env.DATABASE_URL;
 
 if (url) {
   const pool = new Pool({ connectionString: url });
-  const client = pool as unknown as SqlExecutor;
+  const client: SqlExecutor = pool;
   let migrated = false;
   const ensure = async (): Promise<void> => {
     if (!migrated) {

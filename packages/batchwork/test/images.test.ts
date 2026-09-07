@@ -1,33 +1,9 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { batch } from "../src/batch";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import { installRoutes, uploadedJsonl } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 describe("batch.images (end-to-end, mocked transport)", () => {
   afterEach(() => {
@@ -35,7 +11,7 @@ describe("batch.images (end-to-end, mocked transport)", () => {
   });
 
   it("submits an OpenAI image batch against the images endpoint", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -82,8 +58,7 @@ describe("batch.images (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/images/generations"');
 
     await job.wait({ pollIntervalMs: 1 });
@@ -97,7 +72,7 @@ describe("batch.images (end-to-end, mocked transport)", () => {
   });
 
   it("submits a Google image batch via :batchGenerateContent and reads inline images", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { metadata: { state: "JOB_STATE_PENDING" }, name: "batches/1" },
         match: (url, method) =>
@@ -162,7 +137,7 @@ describe("batch.images (end-to-end, mocked transport)", () => {
   });
 
   it("submits an xAI image batch and reads images from image_response", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "file-in" },
         match: (url, method) => url.endsWith("/files") && method === "POST",
@@ -207,8 +182,7 @@ describe("batch.images (end-to-end, mocked transport)", () => {
     const uploadCall = fetchMock.mock.calls.find(
       (call) => String(call[0]).endsWith("/files") && call[1]?.method === "POST"
     );
-    const form = uploadCall?.[1]?.body as FormData;
-    const jsonl = await (form.get("file") as Blob).text();
+    const jsonl = await uploadedJsonl(uploadCall);
     expect(jsonl).toContain('"url":"/v1/images/generations"');
 
     await job.wait({ pollIntervalMs: 1 });

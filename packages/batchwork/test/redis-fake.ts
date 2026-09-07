@@ -1,11 +1,11 @@
-import type { Redis } from "@upstash/redis";
+import type { RedisClient } from "../src/redis";
 
 /**
  * A tiny in-memory stand-in for `@upstash/redis`, supporting only the commands
  * the batch-store adapter uses (string get/set/del plus a set index). The real
  * client is validated against a live Redis in `live/redis.live.test.ts`.
  */
-export const createFakeRedis = (): Redis => {
+export const createFakeRedis = (): RedisClient => {
   const strings = new Map<string, string>();
   const sets = new Map<string, Set<string>>();
 
@@ -19,7 +19,7 @@ export const createFakeRedis = (): Redis => {
     return created;
   };
 
-  const fake = {
+  const fake: RedisClient = {
     del: (...keys: string[]): Promise<number> => {
       let removed = 0;
       for (const key of keys) {
@@ -29,9 +29,9 @@ export const createFakeRedis = (): Redis => {
       }
       return Promise.resolve(removed);
     },
-    get: (key: string): Promise<unknown> =>
+    get: (key: string): Promise<string | null> =>
       Promise.resolve(strings.get(key) ?? null),
-    mget: (...keys: string[]): Promise<unknown[]> =>
+    mget: (...keys: string[]): Promise<(string | null)[]> =>
       Promise.resolve(keys.map((key) => strings.get(key) ?? null)),
     sadd: (key: string, ...members: string[]): Promise<number> => {
       const s = set(key);
@@ -55,5 +55,5 @@ export const createFakeRedis = (): Redis => {
     },
   };
 
-  return fake as unknown as Redis;
+  return fake;
 };

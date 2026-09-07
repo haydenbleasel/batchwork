@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import type { BatchAdapter } from "../src/providers/adapter";
 import { anthropicAdapter } from "../src/providers/anthropic";
@@ -14,41 +14,12 @@ import {
 } from "../src/providers/shared";
 import { togetherAdapter } from "../src/providers/together";
 import { xaiAdapter } from "../src/providers/xai";
-import type { BatchResult, BatchStatus } from "../src/types";
+import type { BatchResult, BatchStatus, JsonValue } from "../src/types";
+import { installFetch, installRoutes, requestUrl } from "./fetch-mock";
 
 const credentials = { apiKey: "test-key" };
 
-type FetchInput = string | URL | Request;
-
-interface Route {
-  body: unknown;
-  status?: number;
-  match: (url: string, method: string) => boolean;
-}
-
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: FetchInput, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(
-        new Response(payload, { status: route.status ?? 200 })
-      );
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const collect = async (
   source: AsyncIterable<BatchResult>
@@ -61,8 +32,8 @@ const collect = async (
 };
 
 /** Install a single GET route and retrieve a snapshot from it. */
-const retrieveRaw = (adapter: BatchAdapter, raw: unknown, id = "b1") => {
-  install([{ body: raw, match: (_url, method) => method === "GET" }]);
+const retrieveRaw = (adapter: BatchAdapter, raw: JsonValue, id = "b1") => {
+  installRoutes([{ body: raw, match: (_url, method) => method === "GET" }]);
   return adapter.retrieve(id, credentials);
 };
 
@@ -228,7 +199,7 @@ describe("openai-compatible branches", () => {
   });
 
   it("throws when results are not ready", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "b",
@@ -244,7 +215,7 @@ describe("openai-compatible branches", () => {
   });
 
   it("rejects unsafe batch ids before OpenAI-compatible requests", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
     await expect(
       openaiAdapter.cancel("../models", credentials)
     ).rejects.toThrow("invalid openai batch id");
@@ -252,7 +223,7 @@ describe("openai-compatible branches", () => {
   });
 
   it("rejects unsafe OpenAI-compatible result file ids before download", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {
           id: "batch_1",
@@ -274,40 +245,37 @@ describe("openai-compatible branches", () => {
   it("rejects OpenAI-compatible result file redirects without following them", async () => {
     const redirectedUrl = "https://127.0.0.1/internal-jsonl";
     const requestedUrls: string[] = [];
-    const fetchMock = mock(
-      (input: FetchInput, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : String(input);
-        requestedUrls.push(url);
-        if (url.endsWith("/batches/batch_1")) {
+    const fetchMock = installFetch((input, init) => {
+      const url = requestUrl(input);
+      requestedUrls.push(url);
+      if (url.endsWith("/batches/batch_1")) {
+        return Promise.resolve(
+          Response.json({
+            id: "batch_1",
+            output_file_id: "file-out",
+            request_counts: { completed: 1, failed: 0, total: 1 },
+            status: "completed",
+          })
+        );
+      }
+      if (url.endsWith("/files/file-out/content")) {
+        if (init?.redirect === "manual") {
           return Promise.resolve(
-            Response.json({
-              id: "batch_1",
-              output_file_id: "file-out",
-              request_counts: { completed: 1, failed: 0, total: 1 },
-              status: "completed",
+            new Response("redirect", {
+              headers: { location: redirectedUrl },
+              status: 307,
             })
           );
         }
-        if (url.endsWith("/files/file-out/content")) {
-          if (init?.redirect === "manual") {
-            return Promise.resolve(
-              new Response("redirect", {
-                headers: { location: redirectedUrl },
-                status: 307,
-              })
-            );
-          }
-          requestedUrls.push(redirectedUrl);
-          return Promise.resolve(
-            new Response(
-              '{"custom_id":"a","response":{"status_code":200,"body":{}}}\n'
-            )
-          );
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+        requestedUrls.push(redirectedUrl);
+        return Promise.resolve(
+          new Response(
+            '{"custom_id":"a","response":{"status_code":200,"body":{}}}\n'
+          )
+        );
       }
-    );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
 
     await expect(
       collect(openaiAdapter.results("batch_1", credentials))
@@ -319,12 +287,12 @@ describe("openai-compatible branches", () => {
     if (!resultDownload) {
       throw new Error("expected result download request");
     }
-    expect((resultDownload[1] as RequestInit).redirect).toBe("manual");
+    expect(resultDownload[1]?.redirect).toBe("manual");
     expect(requestedUrls).not.toContain(redirectedUrl);
   });
 
   it("cancels a batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { id: "b", status: "cancelling" },
         match: (url, method) => url.endsWith("/cancel") && method === "POST",
@@ -385,7 +353,7 @@ describe("xai branches", () => {
   });
 
   it("rejects unsafe xAI batch ids before requests", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
     await expect(
       collect(xaiAdapter.results("../files/file_1", credentials))
     ).rejects.toThrow("invalid xAI batch id");
@@ -412,7 +380,7 @@ describe("xai branches", () => {
       pagination_token: null,
       results: [{ batch_request_id: "b", error_message: "boom" }],
     };
-    install([
+    installRoutes([
       { body: page2, match: (url) => url.includes("pagination_token=t1") },
       { body: page1, match: (url) => url.includes("/results") },
     ]);
@@ -423,7 +391,7 @@ describe("xai branches", () => {
   });
 
   it("falls back to the first response op type for non-chat completions", async () => {
-    install([
+    installRoutes([
       {
         body: {
           pagination_token: null,
@@ -444,7 +412,7 @@ describe("xai branches", () => {
   });
 
   it("normalizes xAI batch_result error payloads", async () => {
-    install([
+    installRoutes([
       {
         body: {
           pagination_token: null,
@@ -482,7 +450,7 @@ describe("xai branches", () => {
   });
 
   it("cancels a batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {},
         match: (url, method) => url.endsWith(":cancel") && method === "POST",
@@ -518,7 +486,7 @@ describe("anthropic branches", () => {
       '{"custom_id":"a","result":{"type":"succeeded","message":{"content":[{"type":"text","text":"Hi"}]}}}',
       '{"custom_id":"b","result":{"type":"succeeded","message":{"content":[]}}}',
     ].join("\n");
-    install([
+    installRoutes([
       {
         body: {
           id: "b1",
@@ -538,7 +506,7 @@ describe("anthropic branches", () => {
   });
 
   it("normalizes direct Anthropic error payloads", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "b1",
@@ -565,7 +533,7 @@ describe("anthropic branches", () => {
   });
 
   it("rejects cross-origin Anthropic result URLs before sending auth headers", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {
           id: "b1",
@@ -589,40 +557,37 @@ describe("anthropic branches", () => {
   it("rejects Anthropic result redirects without following them", async () => {
     const redirectedUrl = "https://127.0.0.1/internal-jsonl";
     const requestedUrls: string[] = [];
-    const fetchMock = mock(
-      (input: FetchInput, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : String(input);
-        requestedUrls.push(url);
-        if (url.endsWith("/v1/messages/batches/b1")) {
+    const fetchMock = installFetch((input, init) => {
+      const url = requestUrl(input);
+      requestedUrls.push(url);
+      if (url.endsWith("/v1/messages/batches/b1")) {
+        return Promise.resolve(
+          Response.json({
+            id: "b1",
+            processing_status: "ended",
+            results_url:
+              "https://api.anthropic.com/v1/messages/batches/b1/results",
+          })
+        );
+      }
+      if (url.endsWith("/v1/messages/batches/b1/results")) {
+        if (init?.redirect === "manual") {
           return Promise.resolve(
-            Response.json({
-              id: "b1",
-              processing_status: "ended",
-              results_url:
-                "https://api.anthropic.com/v1/messages/batches/b1/results",
+            new Response("redirect", {
+              headers: { location: redirectedUrl },
+              status: 307,
             })
           );
         }
-        if (url.endsWith("/v1/messages/batches/b1/results")) {
-          if (init?.redirect === "manual") {
-            return Promise.resolve(
-              new Response("redirect", {
-                headers: { location: redirectedUrl },
-                status: 307,
-              })
-            );
-          }
-          requestedUrls.push(redirectedUrl);
-          return Promise.resolve(
-            new Response(
-              '{"custom_id":"a","result":{"type":"succeeded","message":{}}}\n'
-            )
-          );
-        }
-        return Promise.reject(new Error(`unexpected ${url}`));
+        requestedUrls.push(redirectedUrl);
+        return Promise.resolve(
+          new Response(
+            '{"custom_id":"a","result":{"type":"succeeded","message":{}}}\n'
+          )
+        );
       }
-    );
-    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
 
     await expect(
       collect(anthropicAdapter.results("b1", credentials))
@@ -634,12 +599,12 @@ describe("anthropic branches", () => {
     if (!resultDownload) {
       throw new Error("expected result download request");
     }
-    expect((resultDownload[1] as RequestInit).redirect).toBe("manual");
+    expect(resultDownload[1]?.redirect).toBe("manual");
     expect(requestedUrls).not.toContain(redirectedUrl);
   });
 
   it("throws when results are not ready", async () => {
-    install([
+    installRoutes([
       {
         body: { id: "b", processing_status: "in_progress", results_url: null },
         match: (_url, method) => method === "GET",
@@ -651,7 +616,7 @@ describe("anthropic branches", () => {
   });
 
   it("rejects unsafe Anthropic batch ids before requests", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
     await expect(
       anthropicAdapter.cancel("../messages", credentials)
     ).rejects.toThrow("invalid Anthropic batch id");
@@ -659,7 +624,7 @@ describe("anthropic branches", () => {
   });
 
   it("cancels a batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {},
         match: (url, method) => url.endsWith("/cancel") && method === "POST",
@@ -764,7 +729,7 @@ describe("google branches", () => {
   });
 
   it("succeeds without usage metadata", async () => {
-    install([
+    installRoutes([
       {
         body: {
           done: true,
@@ -792,7 +757,7 @@ describe("google branches", () => {
   });
 
   it("routes embeddings submit to asyncBatchEmbedContent and nests config", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: { metadata: { state: "JOB_STATE_PENDING" }, name: "batches/1" },
         match: (url, method) =>
@@ -831,7 +796,7 @@ describe("google branches", () => {
   });
 
   it("surfaces Gemini inline embedding responses", async () => {
-    install([
+    installRoutes([
       {
         body: {
           done: true,
@@ -861,7 +826,7 @@ describe("google branches", () => {
   });
 
   it("parses Gemini dest inline responses", async () => {
-    install([
+    installRoutes([
       {
         body: {
           dest: {
@@ -889,7 +854,7 @@ describe("google branches", () => {
   });
 
   it("throws for file-mode results", async () => {
-    install([
+    installRoutes([
       {
         body: {
           metadata: { state: "JOB_STATE_SUCCEEDED" },
@@ -905,7 +870,7 @@ describe("google branches", () => {
   });
 
   it("throws for Gemini dest file-mode results", async () => {
-    install([
+    installRoutes([
       {
         body: {
           dest: { fileName: "files/out" },
@@ -921,7 +886,7 @@ describe("google branches", () => {
   });
 
   it("throws when results are not ready", async () => {
-    install([
+    installRoutes([
       {
         body: { metadata: { state: "JOB_STATE_RUNNING" }, name: "batches/1" },
         match: (_url, method) => method === "GET",
@@ -933,7 +898,7 @@ describe("google branches", () => {
   });
 
   it("rejects unsafe Google operation ids before requests", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
     await expect(
       googleAdapter.cancel("../models/gemini", credentials)
     ).rejects.toThrow("invalid Google operation id");
@@ -941,7 +906,7 @@ describe("google branches", () => {
   });
 
   it("cancels a batch", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {},
         match: (url, method) => url.endsWith(":cancel") && method === "POST",
@@ -997,7 +962,7 @@ describe("mistral branches", () => {
   });
 
   it("rejects unsafe Mistral job ids before requests", async () => {
-    const fetchMock = install([]);
+    const fetchMock = installRoutes([]);
     await expect(
       mistralAdapter.cancel("../files/file_1", credentials)
     ).rejects.toThrow("invalid Mistral job id");
@@ -1005,7 +970,7 @@ describe("mistral branches", () => {
   });
 
   it("rejects unsafe Mistral result file ids before download", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {
           id: "job_1",
@@ -1025,7 +990,7 @@ describe("mistral branches", () => {
   });
 
   it("cancels a job", async () => {
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       {
         body: {},
         match: (url, method) => url.endsWith("/cancel") && method === "POST",
@@ -1040,7 +1005,7 @@ describe("mistral branches", () => {
   });
 
   it("throws when Mistral results are not ready", async () => {
-    install([
+    installRoutes([
       {
         body: {
           id: "job_1",

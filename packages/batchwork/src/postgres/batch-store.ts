@@ -20,17 +20,27 @@ interface BatchRow {
   delivered_at: string | null;
 }
 
-const toBatch = (row: BatchRow): TrackedBatch => ({
-  createdAt: row.created_at,
-  id: row.id,
-  provider: row.provider,
-  status: row.status,
-  // Re-add optional fields only when set, so the shape matches `createMemoryStore`
-  // (and `list`'s `deliveredAt !== undefined` delivery filter stays correct).
-  ...(row.webhook_url === null ? {} : { webhookUrl: row.webhook_url }),
-  ...(row.webhook_secret === null ? {} : { webhookSecret: row.webhook_secret }),
-  ...(row.delivered_at === null ? {} : { deliveredAt: row.delivered_at }),
-});
+const toBatch = (row: BatchRow): TrackedBatch => {
+  const batch: TrackedBatch = {
+    createdAt: row.created_at,
+    id: row.id,
+    provider: row.provider,
+    status: row.status,
+  };
+  // Add optional fields only when set, so the record matches what
+  // `createMemoryStore` holds (and `list`'s `deliveredAt !== undefined`
+  // delivery filter stays correct).
+  if (row.webhook_url !== null) {
+    batch.webhookUrl = row.webhook_url;
+  }
+  if (row.webhook_secret !== null) {
+    batch.webhookSecret = row.webhook_secret;
+  }
+  if (row.delivered_at !== null) {
+    batch.deliveredAt = row.delivered_at;
+  }
+  return batch;
+};
 
 /** `CREATE TABLE`/index DDL for the tracked-batch table (run by `migratePostgres`). */
 export const batchTableDdl = (table = DEFAULT_BATCH_TABLE): string => {

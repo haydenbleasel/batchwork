@@ -14,6 +14,9 @@ import type {
   BatchResult,
   BatchSnapshot,
   BatchStatus,
+  HttpHeaders,
+  JsonObject,
+  JsonValue,
   ProviderCredentials,
 } from "../types";
 import { asNumber, asRecord, asString, omit, toDate } from "../util";
@@ -64,7 +67,7 @@ export interface OpenAICompatibleConfig {
    * Extra fields merged into each `body-only` line for a given endpoint
    * (e.g. Together audio lines require `method: "FILE"`).
    */
-  lineExtras?: (endpoint: string) => Record<string, unknown> | undefined;
+  lineExtras?: (endpoint: string) => JsonObject | undefined;
   /**
    * Map the captured endpoint path to the value the provider expects in the
    * batch `url`/`endpoint` field (e.g. Groq serves under `/openai/v1` but its
@@ -100,7 +103,7 @@ const mapStatus = (status: string | undefined): BatchStatus => {
 };
 
 const normalizeSnapshot = (
-  raw: unknown,
+  raw: JsonValue,
   provider: BatchProvider
 ): BatchSnapshot => {
   const outer = asRecord(raw);
@@ -140,9 +143,7 @@ export const createOpenAICompatibleAdapter = (
       );
     })();
 
-  const authHeaders = (
-    credentials: ProviderCredentials
-  ): Record<string, string> => ({
+  const authHeaders = (credentials: ProviderCredentials): HttpHeaders => ({
     ...(config.authHeaders
       ? config.authHeaders(credentials)
       : {

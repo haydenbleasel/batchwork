@@ -12,12 +12,15 @@ import {
   loadProvider,
   resolveModel,
 } from "../src/model";
-import type { CapturingFetch, ResolvedModel } from "../src/model";
+import type { ResolvedModel } from "../src/model";
 import type { BatchProvider } from "../src/types";
+import { asFetch } from "./fetch-mock";
 
 /** A minimal stand-in for an AI SDK model object. */
+// SAFETY: `resolveModel` reads only `provider` and `modelId` from a model
+// object, so a bare pair exercises every resolution path.
 const model = (provider: string, modelId: string): LanguageModel =>
-  ({ modelId, provider }) as unknown as LanguageModel;
+  ({ modelId, provider }) as LanguageModel;
 
 const resolved = (
   provider: BatchProvider,
@@ -98,8 +101,7 @@ describe("resolveModel", () => {
 
 describe("createCaptureModel", () => {
   // The capture fetch is never invoked here — we only construct the model.
-  const fetchImpl = (() =>
-    Promise.reject(new Error("unused"))) as unknown as CapturingFetch;
+  const fetchImpl = asFetch(() => Promise.reject(new Error("unused")));
 
   it("constructs a model for every supported provider", async () => {
     const providers: BatchProvider[] = [
@@ -136,6 +138,8 @@ describe("createCaptureModel", () => {
   });
 
   it("throws for an unsupported provider", async () => {
+    // SAFETY: an id outside the provider union is exactly the unsupported
+    // input this path guards against.
     await expect(
       createCaptureModel(resolved("cohere" as BatchProvider), {}, fetchImpl)
     ).rejects.toThrow(UnsupportedProviderError);
@@ -143,8 +147,7 @@ describe("createCaptureModel", () => {
 });
 
 describe("createCaptureEmbeddingModel", () => {
-  const fetchImpl = (() =>
-    Promise.reject(new Error("unused"))) as unknown as CapturingFetch;
+  const fetchImpl = asFetch(() => Promise.reject(new Error("unused")));
 
   it("constructs a model for every embedding-capable provider", async () => {
     const providers: BatchProvider[] = ["google", "mistral", "openai"];
@@ -187,6 +190,8 @@ describe("loadProvider", () => {
   it("rethrows an UnsupportedProviderError without masking it", async () => {
     // The default importer rejects unknown providers; that error must surface
     // as-is rather than being wrapped as a missing dependency.
+    // SAFETY: an id outside the provider union is exactly the unsupported
+    // input this path guards against.
     await expect(
       loadProvider("cohere" as BatchProvider)
     ).rejects.toBeInstanceOf(UnsupportedProviderError);

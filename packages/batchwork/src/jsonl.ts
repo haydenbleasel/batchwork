@@ -1,5 +1,7 @@
 import { BatchworkError } from "./errors";
 import { assertByteCount, byteLength } from "./limits";
+import type { JsonValue } from "./types";
+import { parseJson } from "./util";
 
 const NEWLINE = "\n";
 const DEFAULT_MAX_JSONL_LINE_BYTES = 20 * 1024 * 1024;
@@ -38,18 +40,18 @@ const assertLineSize = (
   }
 };
 
-const parseLine = <T>(
+const parseLine = (
   line: string,
   lineNumber: number,
   maxLineBytes: number
-): T | undefined => {
+): JsonValue | undefined => {
   assertLineSize(line, lineNumber, maxLineBytes);
   const trimmed = line.trim();
   if (trimmed.length === 0) {
     return;
   }
   try {
-    return JSON.parse(trimmed) as T;
+    return parseJson(trimmed);
   } catch (error) {
     throw new BatchworkError(
       `batchwork: invalid JSONL at line ${lineNumber}.`,
@@ -95,15 +97,15 @@ export const encodeJsonl = (
   return `${lines.join(NEWLINE)}${NEWLINE}`;
 };
 
-export const parseJsonl = <T = unknown>(
+export const parseJsonl = (
   text: string,
   options?: JsonlParseOptions
-): T[] => {
+): JsonValue[] => {
   const maxLineBytes = resolveMaxLineBytes(options);
-  const results: T[] = [];
+  const results: JsonValue[] = [];
   const lines = text.split(NEWLINE);
   for (const [index, line] of lines.entries()) {
-    const parsed = parseLine<T>(line, index + 1, maxLineBytes);
+    const parsed = parseLine(line, index + 1, maxLineBytes);
     if (parsed !== undefined) {
       results.push(parsed);
     }
@@ -114,8 +116,7 @@ export const parseJsonl = <T = unknown>(
 const isReadableStream = (
   source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>
 ): source is ReadableStream<Uint8Array> =>
-  "getReader" in source &&
-  typeof (source as ReadableStream<Uint8Array>).getReader === "function";
+  "getReader" in source && typeof source.getReader === "function";
 
 // oxlint-disable-next-line func-style -- generators cannot be arrow functions.
 async function* toByteIterable(
@@ -144,10 +145,10 @@ async function* toByteIterable(
 }
 
 // oxlint-disable-next-line func-style -- generators cannot be arrow functions.
-export async function* streamJsonl<T = unknown>(
+export async function* streamJsonl(
   source: ReadableStream<Uint8Array> | AsyncIterable<Uint8Array>,
   options?: JsonlParseOptions
-): AsyncGenerator<T> {
+): AsyncGenerator<JsonValue> {
   const decoder = new TextDecoder();
   const maxLineBytes = resolveMaxLineBytes(options);
   let buffer = "";
@@ -159,7 +160,7 @@ export async function* streamJsonl<T = unknown>(
     while (newlineIndex !== -1) {
       const line = buffer.slice(0, newlineIndex);
       buffer = buffer.slice(newlineIndex + 1);
-      const parsed = parseLine<T>(line, lineNumber, maxLineBytes);
+      const parsed = parseLine(line, lineNumber, maxLineBytes);
       if (parsed !== undefined) {
         yield parsed;
       }
@@ -170,7 +171,7 @@ export async function* streamJsonl<T = unknown>(
   }
 
   buffer += decoder.decode();
-  const parsed = parseLine<T>(buffer, lineNumber, maxLineBytes);
+  const parsed = parseLine(buffer, lineNumber, maxLineBytes);
   if (parsed !== undefined) {
     yield parsed;
   }

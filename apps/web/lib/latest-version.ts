@@ -20,6 +20,8 @@ export const getLatestVersion = async (): Promise<string> => {
   }
 
   const raw = await readFile(packageJsonPath, "utf-8");
+  // SAFETY: this is the workspace's own package manifest, and `version` is a
+  // required string field of every publishable package.json.
   const { version } = JSON.parse(raw) as { version: string };
 
   cached = version;

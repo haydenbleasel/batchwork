@@ -14,6 +14,7 @@ import type {
 } from "ai";
 
 import { MissingDependencyError, UnsupportedProviderError } from "./errors";
+import { isString } from "./guards";
 import type { BatchProvider, ProviderCredentials, VideoModel } from "./types";
 import { trimTrailingSlashes } from "./util";
 
@@ -42,6 +43,27 @@ interface TogetherModule {
 interface XaiModule {
   createXai: typeof createXai;
 }
+
+/** The module each provider's `@ai-sdk/*` package resolves to. */
+interface ProviderModules {
+  anthropic: AnthropicModule;
+  azure: AzureModule;
+  google: GoogleModule;
+  groq: GroqModule;
+  mistral: MistralModule;
+  openai: OpenAIModule;
+  together: TogetherModule;
+  xai: XaiModule;
+}
+
+/** Imports the `@ai-sdk/*` package backing a provider. */
+export type ProviderLoader = <P extends BatchProvider>(
+  provider: P
+) => Promise<ProviderModules[P]>;
+
+type ProviderImporters = {
+  [P in BatchProvider]: () => Promise<ProviderModules[P]>;
+};
 
 /** A fetch implementation compatible with the AI SDK provider `fetch` option. */
 export type CapturingFetch = typeof globalThis.fetch;
@@ -102,23 +124,23 @@ const PACKAGE_BY_PROVIDER: Record<
  * AI SDK provider id prefixes (the part before the first `.` in `model.provider`)
  * mapped to batch providers.
  */
-const PROVIDER_BY_FAMILY: Record<string, BatchProvider> = {
-  anthropic: "anthropic",
-  azure: "azure",
-  google: "google",
-  groq: "groq",
-  mistral: "mistral",
-  openai: "openai",
-  together: "together",
-  togetherai: "together",
-  xai: "xai",
-};
+const PROVIDER_BY_FAMILY = new Map<string, BatchProvider>([
+  ["anthropic", "anthropic"],
+  ["azure", "azure"],
+  ["google", "google"],
+  ["groq", "groq"],
+  ["mistral", "mistral"],
+  ["openai", "openai"],
+  ["together", "together"],
+  ["togetherai", "together"],
+  ["xai", "xai"],
+]);
 
 /** Aliases accepted in the `"provider/model"` string form. */
-const PROVIDER_BY_ALIAS: Record<string, BatchProvider> = {
+const PROVIDER_BY_ALIAS = new Map<string, BatchProvider>([
   ...PROVIDER_BY_FAMILY,
-  gemini: "google",
-};
+  ["gemini", "google"],
+]);
 
 const splitOnce = (value: string, separator: string): [string, string] => {
   const index = value.indexOf(separator);
@@ -145,7 +167,7 @@ const resolveModelString = (value: string): ResolvedModel => {
   if (modelId === "") {
     throw new UnsupportedProviderError(value);
   }
-  const provider = PROVIDER_BY_ALIAS[providerId];
+  const provider = PROVIDER_BY_ALIAS.get(providerId);
   if (!provider) {
     throw new UnsupportedProviderError(providerId);
   }
@@ -166,12 +188,12 @@ export const resolveModel = (
     | TranscriptionModel
     | VideoModel
 ): ResolvedModel => {
-  if (typeof model === "string") {
+  if (isString(model)) {
     return resolveModelString(model);
   }
 
   const [family, suffix] = splitOnce(model.provider, ".");
-  const provider = PROVIDER_BY_FAMILY[family];
+  const provider = PROVIDER_BY_FAMILY.get(family);
   if (provider === "openai" || provider === "azure") {
     return { kind: openaiKind(suffix), modelId: model.modelId, provider };
   }
@@ -185,36 +207,25 @@ export const resolveModel = (
   throw new UnsupportedProviderError(model.provider);
 };
 
-const importProvider = (provider: BatchProvider): Promise<unknown> => {
-  switch (provider) {
-    case "anthropic": {
-      return import("@ai-sdk/anthropic");
-    }
-    case "azure": {
-      return import("@ai-sdk/azure");
-    }
-    case "google": {
-      return import("@ai-sdk/google");
-    }
-    case "groq": {
-      return import("@ai-sdk/groq");
-    }
-    case "mistral": {
-      return import("@ai-sdk/mistral");
-    }
-    case "openai": {
-      return import("@ai-sdk/openai");
-    }
-    case "together": {
-      return import("@ai-sdk/togetherai");
-    }
-    case "xai": {
-      return import("@ai-sdk/xai");
-    }
-    default: {
-      return Promise.reject(new UnsupportedProviderError(provider));
-    }
+const importers: ProviderImporters = {
+  anthropic: () => import("@ai-sdk/anthropic"),
+  azure: () => import("@ai-sdk/azure"),
+  google: () => import("@ai-sdk/google"),
+  groq: () => import("@ai-sdk/groq"),
+  mistral: () => import("@ai-sdk/mistral"),
+  openai: () => import("@ai-sdk/openai"),
+  together: () => import("@ai-sdk/togetherai"),
+  xai: () => import("@ai-sdk/xai"),
+};
+
+const importProvider: ProviderLoader = (provider) => {
+  const importer = importers[provider];
+  // A provider id outside the union (e.g. from an untyped caller) has no
+  // importer; surface that as unsupported rather than as a missing package.
+  if (importer === undefined) {
+    return Promise.reject(new UnsupportedProviderError(provider));
   }
+  return importer();
 };
 
 /**
@@ -223,12 +234,12 @@ const importProvider = (provider: BatchProvider): Promise<unknown> => {
  * the capturing `fetch`) so tests can drive the failure paths without
  * uninstalling a package. Exported for testing; not part of the public API.
  */
-export const loadProvider = async <T>(
-  provider: BatchProvider,
-  load: (target: BatchProvider) => Promise<unknown> = importProvider
-): Promise<T> => {
+export const loadProvider = async <P extends BatchProvider>(
+  provider: P,
+  load: ProviderLoader = importProvider
+): Promise<ProviderModules[P]> => {
   try {
-    return (await load(provider)) as T;
+    return await load(provider);
   } catch (error) {
     if (error instanceof UnsupportedProviderError) {
       throw error;
@@ -256,7 +267,7 @@ export const createCaptureModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider("openai");
       const provider = createOpenAI(settings);
       if (resolved.kind === "responses") {
         return provider.responses(resolved.modelId);
@@ -267,7 +278,7 @@ export const createCaptureModel = async (
       return provider.chat(resolved.modelId);
     }
     case "azure": {
-      const { createAzure } = await loadProvider<AzureModule>("azure");
+      const { createAzure } = await loadProvider("azure");
       const provider = createAzure({
         ...settings,
         // Batchwork documents Azure base URLs as the API root ending in
@@ -283,30 +294,27 @@ export const createCaptureModel = async (
       return provider.chat(resolved.modelId);
     }
     case "anthropic": {
-      const { createAnthropic } =
-        await loadProvider<AnthropicModule>("anthropic");
+      const { createAnthropic } = await loadProvider("anthropic");
       return createAnthropic(settings).messages(resolved.modelId);
     }
     case "groq": {
-      const { createGroq } = await loadProvider<GroqModule>("groq");
+      const { createGroq } = await loadProvider("groq");
       return createGroq(settings).languageModel(resolved.modelId);
     }
     case "mistral": {
-      const { createMistral } = await loadProvider<MistralModule>("mistral");
+      const { createMistral } = await loadProvider("mistral");
       return createMistral(settings).languageModel(resolved.modelId);
     }
     case "google": {
-      const { createGoogleGenerativeAI } =
-        await loadProvider<GoogleModule>("google");
+      const { createGoogleGenerativeAI } = await loadProvider("google");
       return createGoogleGenerativeAI(settings).languageModel(resolved.modelId);
     }
     case "xai": {
-      const { createXai } = await loadProvider<XaiModule>("xai");
+      const { createXai } = await loadProvider("xai");
       return createXai(settings).languageModel(resolved.modelId);
     }
     case "together": {
-      const { createTogetherAI } =
-        await loadProvider<TogetherModule>("together");
+      const { createTogetherAI } = await loadProvider("together");
       return createTogetherAI(settings).languageModel(resolved.modelId);
     }
     default: {
@@ -353,16 +361,15 @@ export const createCaptureEmbeddingModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider("openai");
       return createOpenAI(settings).embeddingModel(resolved.modelId);
     }
     case "mistral": {
-      const { createMistral } = await loadProvider<MistralModule>("mistral");
+      const { createMistral } = await loadProvider("mistral");
       return createMistral(settings).embeddingModel(resolved.modelId);
     }
     case "google": {
-      const { createGoogleGenerativeAI } =
-        await loadProvider<GoogleModule>("google");
+      const { createGoogleGenerativeAI } = await loadProvider("google");
       return createGoogleGenerativeAI(settings).embeddingModel(
         resolved.modelId
       );
@@ -419,7 +426,7 @@ export const createCaptureVideoModel = async (
   if (resolved.provider !== "xai") {
     throw unsupportedVideoProvider(resolved.provider);
   }
-  const { createXai } = await loadProvider<XaiModule>("xai");
+  const { createXai } = await loadProvider("xai");
   return createXai({
     apiKey: credentials.apiKey ?? CAPTURE_API_KEY,
     baseURL: credentials.baseURL,
@@ -526,16 +533,15 @@ export const createCaptureImageModel = async (
 
   switch (resolved.provider) {
     case "openai": {
-      const { createOpenAI } = await loadProvider<OpenAIModule>("openai");
+      const { createOpenAI } = await loadProvider("openai");
       return createOpenAI(settings).image(resolved.modelId);
     }
     case "google": {
-      const { createGoogleGenerativeAI } =
-        await loadProvider<GoogleModule>("google");
+      const { createGoogleGenerativeAI } = await loadProvider("google");
       return createGoogleGenerativeAI(settings).image(resolved.modelId);
     }
     case "xai": {
-      const { createXai } = await loadProvider<XaiModule>("xai");
+      const { createXai } = await loadProvider("xai");
       return createXai(settings).image(resolved.modelId);
     }
     default: {

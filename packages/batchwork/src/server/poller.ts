@@ -7,8 +7,10 @@ import type {
   BatchProvider,
   BatchSnapshot,
   BatchStatus,
+  HttpHeaders,
   ProviderCredentials,
 } from "../types";
+import { asRecord, asString, parseJson } from "../util";
 import { toEvent } from "./events";
 import { signWebhook, verifyWebhook } from "./signing";
 import type { BatchStore, TrackedBatch } from "./types";
@@ -17,6 +19,24 @@ import type { BatchStore, TrackedBatch } from "./types";
 export type CredentialResolver =
   | ProviderCredentials
   | ((provider: BatchProvider) => ProviderCredentials);
+
+const isCredentialFunction = (
+  credentials: CredentialResolver
+): credentials is (provider: BatchProvider) => ProviderCredentials =>
+  typeof credentials === "function";
+
+/** Resolve the credentials to poll a provider with; env vars when omitted. */
+export const resolveProviderCredentials = (
+  credentials: CredentialResolver | undefined,
+  provider: BatchProvider
+): ProviderCredentials => {
+  if (credentials === undefined) {
+    return {};
+  }
+  return isCredentialFunction(credentials)
+    ? credentials(provider)
+    : credentials;
+};
 
 /**
  * Handles a batch reaching a terminal status. Replaces the default signed
@@ -38,11 +58,11 @@ export interface BatchPollerOptions {
   /** Override the default webhook URL policy with an application allowlist. */
   validateWebhookUrl?: WebhookUrlValidator;
   /**
-   * Called when processing a single batch throws during `tick`. When provided,
-   * the tick reports the error and continues to the next batch; when omitted,
-   * the error propagates out of `tick`.
+   * Called with the thrown value when processing a single batch fails during
+   * `tick`. When provided, the tick reports the error and continues to the
+   * next batch; when omitted, the error propagates out of `tick`.
    */
-  onError?: (record: TrackedBatch, error: unknown) => void;
+  onError?: (record: TrackedBatch, cause: unknown) => void;
 }
 
 export interface TrackTarget {
@@ -147,9 +167,7 @@ const createWebhookSink =
     }
     const webhookUrl = await validateWebhookUrl(record.webhookUrl, validator);
     const body = JSON.stringify(toEvent(record.provider, snapshot));
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-    };
+    const headers: HttpHeaders = { "content-type": "application/json" };
     if (record.webhookSecret) {
       Object.assign(
         headers,
@@ -186,12 +204,8 @@ const createWebhookSink =
  * `openaiWebhookHandler` to skip polling and react to native webhooks instead.
  */
 export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
-  const resolveCredentials = (provider: BatchProvider): ProviderCredentials => {
-    if (typeof options.credentials === "function") {
-      return options.credentials(provider);
-    }
-    return options.credentials ?? {};
-  };
+  const resolveCredentials = (provider: BatchProvider): ProviderCredentials =>
+    resolveProviderCredentials(options.credentials, provider);
 
   const webhookUrlValidator =
     options.validateWebhookUrl ?? assertSafeWebhookUrl;
@@ -288,14 +302,11 @@ export const createBatchPoller = (options: BatchPollerOptions): BatchPoller => {
         return new Response("invalid signature", { status: 400 });
       }
 
-      const payload = JSON.parse(verified.body) as {
-        type?: string;
-        data?: { id?: string };
-      };
-      if (!payload.type?.startsWith("batch.")) {
+      const payload = asRecord(parseJson(verified.body));
+      if (!asString(payload.type)?.startsWith("batch.")) {
         return new Response("ignored", { status: 202 });
       }
-      const id = payload.data?.id;
+      const id = asString(asRecord(payload.data).id);
       if (!id) {
         return new Response("missing batch id", { status: 400 });
       }

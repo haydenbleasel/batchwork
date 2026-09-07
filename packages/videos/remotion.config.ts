@@ -15,11 +15,18 @@ const TSCONFIG_RAW = {
   compilerOptions: { jsx: "react-jsx", target: "ES2022" },
 };
 
+interface EsbuildLoaderOptions {
+  tsconfigRaw?: typeof TSCONFIG_RAW;
+}
+
 interface EsbuildRule {
-  use?: { loader?: string; options?: Record<string, unknown> }[];
+  use?: { loader?: string; options?: EsbuildLoaderOptions }[];
 }
 
 Config.overrideWebpackConfig((config) => {
+  // SAFETY: webpack types every loader's `options` as an open `any` map; the
+  // loop below only reads `loader` and sets the one esbuild-loader field it
+  // needs, and tolerates rules without `use`.
   const rules = (config.module?.rules ?? []) as EsbuildRule[];
   for (const rule of rules) {
     for (const use of rule?.use ?? []) {

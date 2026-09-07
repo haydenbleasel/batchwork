@@ -3,7 +3,6 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 
 import { createPostgresStore, migratePostgres } from "../src/postgres";
-import type { SqlExecutor } from "../src/postgres";
 import { runBatchStoreContract } from "./store-contract";
 
 // Every PGlite instance is a WASM Postgres held open for the run; Bun crashes
@@ -23,17 +22,17 @@ afterAll(async () => {
 // external service. A fresh database per store keeps each test isolated.
 const freshDb = async (): Promise<PGlite> => {
   const db = track(new PGlite());
-  await migratePostgres(db as unknown as SqlExecutor);
+  await migratePostgres(db);
   return db;
 };
 
 runBatchStoreContract("postgres (pglite)", async () =>
-  createPostgresStore({ client: (await freshDb()) as unknown as SqlExecutor })
+  createPostgresStore({ client: await freshDb() })
 );
 
 describe("createPostgresStore", () => {
   it("rejects an unsafe table name", () => {
-    const db = track(new PGlite()) as unknown as SqlExecutor;
+    const db = track(new PGlite());
     expect(() =>
       createPostgresStore({ client: db, table: "bad; DROP TABLE x" })
     ).toThrow();

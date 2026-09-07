@@ -1,36 +1,13 @@
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 
 import { createBatchRoutes, createMemoryStore } from "../src/next";
 import type { BatchResult, BatchWebhookEvent } from "../src/next";
 import { signWebhook } from "../src/server/signing";
-import type { BatchProvider } from "../src/types";
-
-interface Route {
-  body: unknown;
-  match: (url: string, method: string) => boolean;
-}
+import type { BatchProvider, JsonValue } from "../src/types";
+import { installRoutes } from "./fetch-mock";
+import type { Route } from "./fetch-mock";
 
 const originalFetch = globalThis.fetch;
-
-const install = (routes: Route[]) => {
-  const fetchMock = mock(
-    (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-      const url = typeof input === "string" ? input : String(input);
-      const method = init?.method ?? "GET";
-      const route = routes.find((candidate) => candidate.match(url, method));
-      if (!route) {
-        return Promise.reject(new Error(`unexpected ${method} ${url}`));
-      }
-      const payload =
-        typeof route.body === "string"
-          ? route.body
-          : JSON.stringify(route.body);
-      return Promise.resolve(new Response(payload, { status: 200 }));
-    }
-  );
-  globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
-  return fetchMock;
-};
 
 const collect = async (
   results: AsyncIterable<BatchResult>
@@ -54,7 +31,7 @@ const OUTPUT_LINES = [
   '{"custom_id":"b","response":{"status_code":200,"body":{"choices":[{"message":{"content":"Tokyo"}}]}}}',
 ].join("\n");
 
-const retrieveRoute = (id: string, body: unknown): Route => ({
+const retrieveRoute = (id: string, body: JsonValue): Route => ({
   body,
   match: (url, method) => url.includes(`/batches/${id}`) && method === "GET",
 });
@@ -83,7 +60,10 @@ describe("createBatchRoutes — GET cron tick", () => {
       store,
     });
     await track({ id: "batch_1", provider: "openai" });
-    install([retrieveRoute("batch_1", completedBatch("batch_1")), outputRoute]);
+    installRoutes([
+      retrieveRoute("batch_1", completedBatch("batch_1")),
+      outputRoute,
+    ]);
 
     const response = await GET(new Request(CRON_URL));
     expect(response.status).toBe(200);
@@ -121,7 +101,7 @@ describe("createBatchRoutes — GET cron tick", () => {
       store,
     });
     await track({ id: "batch_fn", provider: "openai" });
-    install([
+    installRoutes([
       retrieveRoute("batch_fn", completedBatch("batch_fn")),
       outputRoute,
     ]);
@@ -145,7 +125,7 @@ describe("createBatchRoutes — GET cron tick", () => {
       store,
     });
     await track({ id: "batch_wip", provider: "openai" });
-    install([
+    installRoutes([
       retrieveRoute("batch_wip", {
         id: "batch_wip",
         request_counts: { completed: 0, failed: 0, total: 2 },
@@ -174,7 +154,7 @@ describe("createBatchRoutes — GET cron tick", () => {
     await track({ id: "batch_failed", provider: "openai" });
     // Terminal but no output/error file — streaming results would throw, so the
     // failure path must not fetch them.
-    install([
+    installRoutes([
       retrieveRoute("batch_failed", {
         id: "batch_failed",
         request_counts: { completed: 0, failed: 2, total: 2 },
@@ -210,7 +190,7 @@ describe("createBatchRoutes — GET cron tick", () => {
       store,
     });
     await track({ id: "batch_retry", provider: "openai" });
-    install([
+    installRoutes([
       retrieveRoute("batch_retry", completedBatch("batch_retry")),
       outputRoute,
     ]);
@@ -246,7 +226,7 @@ describe("createBatchRoutes — GET cron tick", () => {
       store,
     });
     await track({ id: "batch_once", provider: "openai" });
-    install([
+    installRoutes([
       retrieveRoute("batch_once", completedBatch("batch_once")),
       outputRoute,
     ]);
@@ -356,7 +336,7 @@ describe("createBatchRoutes — OpenAI native webhook (POST)", () => {
     });
     expect(POST).toBeDefined();
     await track({ id: "batch_oai", provider: "openai" });
-    const fetchMock = install([
+    const fetchMock = installRoutes([
       retrieveRoute("batch_oai", completedBatch("batch_oai")),
       outputRoute,
     ]);
@@ -388,7 +368,7 @@ describe("createBatchRoutes — OpenAI native webhook (POST)", () => {
       store,
     });
     await track({ id: "batch_dup", provider: "openai" });
-    install([
+    installRoutes([
       retrieveRoute("batch_dup", completedBatch("batch_dup")),
       outputRoute,
     ]);

@@ -1,4 +1,6 @@
 import { BatchworkError } from "./errors";
+import type { JsonValue } from "./types";
+import { parseJson } from "./util";
 
 const assertOk = (url: string, init: RequestInit, response: Response) => {
   if (!response.ok) {
@@ -8,14 +10,14 @@ const assertOk = (url: string, init: RequestInit, response: Response) => {
   }
 };
 
-/** Make a request and parse a JSON response, throwing on non-2xx. */
-export const requestJson = async <T>(
+/** Make a request and parse its JSON response body, throwing on non-2xx. */
+export const requestJson = async (
   url: string,
   init: RequestInit
-): Promise<T> => {
+): Promise<JsonValue> => {
   const response = await fetch(url, init);
   assertOk(url, init, response);
-  return (await response.json()) as T;
+  return parseJson(await response.text());
 };
 
 /** Make a request and return the raw body stream, throwing on non-2xx. */
