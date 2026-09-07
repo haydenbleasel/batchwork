@@ -2,10 +2,6 @@
 
 > **Batchwork is no longer maintained.** Version 1.5.0 is the final release: the npm package is deprecated and this repository is archived. The published versions keep working as-is, but they will not receive further updates or security fixes.
 
-> [!IMPORTANT] **Batchwork is no longer maintained.** Version 1.5.0 is the final release: the npm package is deprecated and this repository is archived. The published versions keep working as-is, but they will not receive further updates or security fixes.
-
-> [!IMPORTANT] **Batchwork is no longer maintained.** Version 1.5.0 is the final release: the npm package is deprecated and this repository is archived. The published versions keep working as-is, but they will not receive further updates or security fixes.
-
 A unified **batch API** for AI providers. Submit thousands of LLM requests at roughly half the cost with a single call — `batchwork` handles JSONL, file uploads, inline submission, polling, and result parsing across every major provider.
 
 [![npm downloads](https://img.shields.io/npm/dm/batchwork.svg)](https://www.npmjs.com/package/batchwork) [![Socket Badge](https://socket.dev/api/badge/npm/package/batchwork)](https://socket.dev/npm/package/batchwork) ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/haydenbleasel/batchwork?utm_source=oss&utm_medium=github&utm_campaign=haydenbleasel%2Fbatchwork&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
