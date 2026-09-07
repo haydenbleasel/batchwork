@@ -35,6 +35,9 @@
     "node": ">=20"
   },
   "packageManager": "bun@1.4.2",
+  "patchedDependencies": {
+    "oxfmt@0.66.0": "patches/oxfmt@0.66.0.patch"
+  },
   "trustedDependencies": [
     "@biomejs/biome",
     "esbuild"
