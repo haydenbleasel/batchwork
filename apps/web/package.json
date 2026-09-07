@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "batchwork": "workspace:*",
-    "blume": "1.5.3"
+    "blume": "1.6.3"
   }
 }
